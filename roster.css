@@ -18,3 +18,7 @@
 .auth-button { padding: 7px 10px; background: #fff; color: #302638; font-size: 12px; }
 .account-menu { position: absolute; z-index: 5; right: 0; top: calc(100% + 8px); min-width: 220px; padding: 12px; border: 1px solid #e8e0e7; border-radius: 10px; background: #fff; box-shadow: 0 12px 30px #1f132433; color: #302638; }
 .account-menu span { display: block; margin-bottom: 10px; color: #786e79; }
+.team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.team-card { padding: 18px; }
+.team-card h2 { margin: 0 0 8px; }
+.team-card button { margin-top: 4px; }

@@ -19,6 +19,10 @@ function openModal(contents) {
   $('#modal').showModal();
 }
 
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+}
+
 async function getPairingData() {
   const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }] = await Promise.all([
     db.from('players').select('*').order('name'),
@@ -189,15 +193,83 @@ async function openAddPlayer() {
   });
 }
 
+async function loadTeams() {
+  const [{ data: teams, error: teamError }, { data: memberships, error: membershipError }, { data: players, error: playerError }] = await Promise.all([
+    db.from('fantasy_teams').select('*').order('manager_name'),
+    db.from('roster_history').select('player_id,fantasy_team_id,ends_week_id').is('ends_week_id', null),
+    db.from('players').select('id,name,role').order('name'),
+  ]);
+  if (teamError || membershipError || playerError) {
+    $('#teamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(teamError?.message || membershipError?.message || playerError?.message)}</div>`;
+    return;
+  }
+  if (!teams.length) {
+    $('#teamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
+    return;
+  }
+  const playerById = new Map(players.map((player) => [player.id, player]));
+  $('#teamResults').innerHTML = teams.map((team) => {
+    const roster = memberships.filter((member) => member.fantasy_team_id === team.id).map((member) => playerById.get(member.player_id)).filter(Boolean);
+    return `<article class="card team-card"><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2>
+      <p class="sub">${roster.length ? roster.map((player) => escapeHtml(player.name)).join(' · ') : 'No cast members assigned yet.'}</p>
+      ${canEdit ? `<button data-team-id="${team.id}">Add Cast Member</button>` : ''}
+    </article>`;
+  }).join('');
+  document.querySelectorAll('[data-team-id]').forEach((button) => button.addEventListener('click', () => openAssignCastMember(button.dataset.teamId)));
+}
+
+function openNewTeam() {
+  openModal(`<h2>Add Fantasy Team</h2><p class="sub">Enter the manager's name. A team name is optional.</p>
+    <label>Name<input id="newManagerName" autocomplete="off" required></label>
+    <label>Team name <span class="optional">(optional)</span><input id="newTeamName" autocomplete="off"></label>
+    <button id="createTeam">Create fantasy team</button>`);
+  $('#createTeam').addEventListener('click', async () => {
+    const managerName = $('#newManagerName').value.trim();
+    const teamName = $('#newTeamName').value.trim();
+    if (!managerName) return alert('Enter the manager name first.');
+    const { error } = await db.from('fantasy_teams').insert({ manager_name: managerName, team_name: teamName || null });
+    if (error) return alert(`Couldn’t create this team: ${error.message}`);
+    $('#modal').close(); loadTeams();
+  });
+}
+
+async function openAssignCastMember(teamId) {
+  const [{ data: players, error: playerError }, { data: memberships, error: membershipError }, { data: team, error: teamError }] = await Promise.all([
+    db.from('players').select('id,name,role').order('name'),
+    db.from('roster_history').select('player_id').is('ends_week_id', null),
+    db.from('fantasy_teams').select('manager_name,team_name').eq('id', teamId).single(),
+  ]);
+  const error = playerError || membershipError || teamError;
+  if (error) return alert(`Couldn’t open available cast: ${error.message}`);
+  const assigned = new Set(memberships.map((member) => member.player_id));
+  const available = players.filter((player) => !assigned.has(player.id));
+  const displayName = team.team_name || `${team.manager_name}'s Team`;
+  openModal(`<h2>Add Cast Member</h2><p class="sub">Assign a currently available cast member to ${escapeHtml(displayName)}.</p>
+    <label>Available cast<select id="assignCast"><option value="">Select cast member</option>${available.map((player) => `<option value="${player.id}">${escapeHtml(player.name)} · ${escapeHtml(player.role)}</option>`).join('')}</select></label>
+    ${available.length ? '<button id="assignCastMember">Add to team</button>' : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
+  $('#assignCastMember')?.addEventListener('click', async () => {
+    const playerId = $('#assignCast').value;
+    if (!playerId) return alert('Choose a cast member first.');
+    const { error: assignError } = await db.from('roster_history').insert({ player_id: playerId, fantasy_team_id: teamId });
+    if (assignError) return alert(`Couldn’t add that cast member: ${assignError.message}`);
+    $('#modal').close(); loadTeams();
+  });
+}
+
 $('#rosterSearch').addEventListener('input', loadRoster);
 $('#newPlayer').addEventListener('click', openAddPlayer);
+$('#newTeam').addEventListener('click', openNewTeam);
 window.addEventListener('mirrorball-auth-change', async (event) => {
   canEdit = event.detail.signedIn;
   $('#newPlayer').hidden = !canEdit;
+  $('#newTeam').hidden = !canEdit;
   loadRoster();
+  loadTeams();
 });
 db.auth.getSession().then(({ data: { session } }) => {
   canEdit = Boolean(session);
   $('#newPlayer').hidden = !canEdit;
+  $('#newTeam').hidden = !canEdit;
   loadRoster();
+  loadTeams();
 });
