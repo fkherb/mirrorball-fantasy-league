@@ -2,9 +2,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const db = createClient('https://mdrrnanxqazecqviaass.supabase.co', 'sb_publishable_ylMIgpLXA0NBoeb3aPI8qQ_m0wrG7It');
 const $ = (selector) => document.querySelector(selector);
-const roles = ['Star', 'Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
+const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
 const imagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
 const isPairRole = (role) => role === 'Star' || role === 'Pro';
+const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(role);
 const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
 
 function showRosterMessage(message, isError = false) {
@@ -17,12 +18,13 @@ function openModal(contents) {
 }
 
 async function getPairingData() {
-  const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }] = await Promise.all([
+  const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }] = await Promise.all([
     db.from('players').select('*').order('name'),
     db.from('partnerships').select('id,star_id,pro_id,active').eq('active', true),
+    db.from('weeks').select('id,number,label').order('number', { ascending: false }),
   ]);
-  if (playerError || pairingError) throw new Error(playerError?.message || pairingError?.message);
-  return { players, partnerships };
+  if (playerError || pairingError || weekError) throw new Error(playerError?.message || pairingError?.message || weekError?.message);
+  return { players, partnerships, weeks };
 }
 
 function partnerFor(player, partnerships, players) {
@@ -58,15 +60,64 @@ async function replacePartnership(player, role, partnerId, partnerships) {
 
 async function loadRoster() {
   const query = $('#rosterSearch').value.trim();
-  const { data: players, error } = await db.from('players').select('*').ilike('name', `%${query}%`).order('name');
-  if (error) return showRosterMessage(`Couldn’t load the cast: ${error.message}`, true);
+  let rosterData;
+  try { rosterData = await getPairingData(); } catch (error) { return showRosterMessage(`Couldn’t load the cast: ${error.message}`, true); }
+  const { players: allPlayers, partnerships, weeks } = rosterData;
+  const players = allPlayers.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()));
   if (!players.length) return showRosterMessage('No cast members yet. Add them manually.');
   $('#rosterResults').innerHTML = players.map((player) => `
     <div class="row"><img class="player-photo" src="${player.image_path || imagePathFor(player.name)}" alt="">
-      <span><b>${player.name}</b><small>${player.role}${player.role === 'Surprise' && player.custom_appearance_points ? ` · +${player.custom_appearance_points}` : ''}</small></span>
+      <span><b>${player.name}</b><small>${rosterDetail(player, partnerships, allPlayers, weeks)}</small></span>
+      ${isPairRole(player.role) ? `<button class="danger" data-eliminate-id="${player.id}">Eliminate</button>` : ''}
       <button data-player-id="${player.id}">Edit</button>
     </div>`).join('');
   document.querySelectorAll('[data-player-id]').forEach((button) => button.addEventListener('click', () => editPlayer(button.dataset.playerId)));
+  document.querySelectorAll('[data-eliminate-id]').forEach((button) => button.addEventListener('click', () => eliminatePair(button.dataset.eliminateId)));
+}
+
+function rosterDetail(player, partnerships, players, weeks) {
+  const partner = partnerFor(player, partnerships, players);
+  const base = player.role === 'Surprise' && player.custom_appearance_points ? `Surprise · +${player.custom_appearance_points}` : player.role;
+  if (!isAnyPairRole(player.role)) return base;
+  const partnerText = partner ? `Partner: ${partner.name}` : '<strong class="missing">No partner assigned</strong>';
+  if (!player.role.startsWith('Eliminated')) return `${base} · ${partnerText}`;
+  const week = weeks.find((item) => item.id === player.eliminated_week_id);
+  return `${base} · ${partnerText} · Eliminated ${week ? `Week ${week.number}` : 'week not set'}`;
+}
+
+async function eliminatePair(id) {
+  try {
+    const { players, partnerships, weeks } = await getPairingData();
+    const player = players.find((item) => item.id === id);
+    const partner = partnerFor(player, partnerships, players);
+    if (!partner) return alert(`Assign ${player.name} a partner before marking them eliminated.`);
+    const week = weeks[0];
+    const suffix = week ? ` after Week ${week.number}` : ' (the eliminated week will be left unset until you create weeks)';
+    if (!confirm(`Mark ${player.name} and ${partner.name} eliminated${suffix}?`)) return;
+    const star = player.role === 'Star' ? player : partner;
+    const pro = player.role === 'Pro' ? player : partner;
+    const [starResult, proResult] = await Promise.all([
+      db.from('players').update({ role: 'Eliminated Star', eliminated_week_id: week?.id ?? null }).eq('id', star.id),
+      db.from('players').update({ role: 'Eliminated Pro', eliminated_week_id: week?.id ?? null }).eq('id', pro.id),
+    ]);
+    const error = starResult.error || proResult.error;
+    if (error) return alert(`Couldn’t mark the pair eliminated: ${error.message}`);
+    loadRoster();
+  } catch (error) { alert(`Couldn’t mark this pair eliminated: ${error.message}`); }
+}
+
+async function undoElimination(player, partner) {
+  if (!partner) return alert('This cast member has no partner assigned, so there is no pair to restore.');
+  const star = player.role.includes('Star') ? player : partner;
+  const pro = player.role.includes('Pro') ? player : partner;
+  const [starResult, proResult] = await Promise.all([
+    db.from('players').update({ role: 'Star', eliminated_week_id: null }).eq('id', star.id),
+    db.from('players').update({ role: 'Pro', eliminated_week_id: null }).eq('id', pro.id),
+  ]);
+  const error = starResult.error || proResult.error;
+  if (error) return alert(`Couldn’t undo the elimination: ${error.message}`);
+  $('#modal').close();
+  loadRoster();
 }
 
 async function editPlayer(id) {
@@ -78,6 +129,7 @@ async function editPlayer(id) {
       <label>Role<select id="editRole">${roles.map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
       <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
       <label id="partnerField" ${isPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(player.role, players, partnerships, partner?.id)}</select></label>
+      ${player.role.startsWith('Eliminated') ? '<button id="undoElimination" class="secondary">Undo elimination for this pair</button>' : ''}
       <button id="savePlayer">Save changes</button><button id="deletePlayer" class="danger">Delete cast member</button>`);
     $('#editRole').addEventListener('change', (event) => {
       const role = event.target.value;
@@ -94,6 +146,7 @@ async function editPlayer(id) {
       if (pairingError) return alert(`The cast member saved, but the partnership could not be saved: ${pairingError.message}`);
       $('#modal').close(); loadRoster();
     });
+    $('#undoElimination')?.addEventListener('click', () => undoElimination(player, partner));
     $('#deletePlayer').addEventListener('click', async () => {
       if (!confirm(`Delete ${player.name}? This cannot be undone.`)) return;
       const pairingError = await replacePartnership(player, player.role, '', partnerships);

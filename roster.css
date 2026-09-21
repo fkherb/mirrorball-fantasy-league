@@ -13,3 +13,4 @@
 .row > span { flex: 1; }
 .error { color: #a33160; }
 .optional { color: #8b7e89; font-weight: 500; }
+.missing { color: #a33160; font-weight: 800; }
