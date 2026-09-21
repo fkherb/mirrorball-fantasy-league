@@ -1,6 +1,71 @@
-import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
-const db=createClient('https://mdrrnanxqazecqviaass.supabase.co','sb_publishable_ylMIgpLXA0NBoeb3aPI8qQ_m0wrG7It'),$=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],roles=['Star','Pro','Troupe','DWTS Next Pro','Hough','Judges + Hosts','Surprise'];
-const image=n=>`Images/${n.replace(/[.,'’]/g,'')}.jpg`;function view(v){$$('.view').forEach(x=>x.classList.toggle('active',x.id===v));$$('nav button').forEach(x=>x.classList.toggle('active',x.dataset.view===v))}$$('nav button').forEach(x=>x.onclick=()=>view(x.dataset.view));
-async function roster(){let q=$('#rosterSearch')?.value||'',{data}=await db.from('players').select('*').ilike('name',`%${q}%`).order('name');$('#rosterResults').innerHTML=(data||[]).map(p=>`<div class="row"><img class="player-photo" src="${image(p.name)}"><span><b>${p.name}</b><small>${p.role}${p.role==='Surprise'?' · +'+p.custom_appearance_points:''}</small></span><button data-id="${p.id}">Edit</button></div>`).join('')||'<p class="sub">No players yet. Add them manually.</p>';$$('[data-id]').forEach(b=>b.onclick=()=>edit(b.dataset.id))}
-async function edit(id){let {data:p}=await db.from('players').select('*').eq('id',id).single(),{data:all}=await db.from('players').select('*').order('name');let paired=['Star','Pro','Eliminated Star','Eliminated Pro'].includes(p.role),mates=(all||[]).filter(x=>x.id!==id&&((p.role.includes('Star')&&x.role.includes('Pro'))||(p.role.includes('Pro')&&x.role.includes('Star'))));$('#modalBody').innerHTML=`<div class="modal"><h2>${p.name}</h2><p class="sub">Image uses <code>${image(p.name)}</code></p><label>Role<select id="role">${roles.map(r=>`<option ${p.role===r?'selected':''}>${r}</option>`).join('')}</select></label>${p.role==='Surprise'?`<label>Points per appearance<input id="rate" type="number" value="${p.custom_appearance_points||''}"></label>`:''}${paired?`<label>Partner<select id="partner"><option value="">No partner</option>${mates.map(x=>`<option value="${x.id}">${x.name}</option>`).join('')}</select></label><button id="elim" class="danger">${p.role.includes('Eliminated')?'Undo elimination':'Mark pair eliminated'}</button>`:''}<button id="save">Save</button><button id="delete" class="danger">Delete player</button></div>`;$('#save').onclick=async()=>{let r=$('#role').value;await db.from('players').update({role:r,custom_appearance_points:r==='Surprise'?(+$('#rate')?.value||null):null,image_path:image(p.name)}).eq('id',id);let mate=$('#partner')?.value;if(mate)await db.from('players').update({role:r==='Star'?'Pro':'Star'}).eq('id',mate);$('#modal').close();roster()};$('#elim')?.addEventListener('click',async()=>{let undo=p.role.includes('Eliminated'),r=p.role.includes('Star')?(undo?'Star':'Eliminated Star'):(undo?'Pro':'Eliminated Pro');await db.from('players').update({role:r}).eq('id',id);$('#modal').close();roster()});$('#delete').onclick=async()=>{if(confirm(`Delete ${p.name}?`)){await db.from('players').delete().eq('id',id);$('#modal').close();roster()}};$('#modal').showModal()}
-$('#rosterSearch')?.oninput=roster;$('#newPlayer')?.onclick=()=>{$('#modalBody').innerHTML=`<div class="modal"><h2>Add Player</h2><label>Name<input id="name"></label><label>Role<select id="addRole">${roles.map(r=>`<option>${r}</option>`).join('')}</select></label><button id="add">Create player</button></div>`;$('#add').onclick=async()=>{let name=$('#name').value;await db.from('players').insert({name,role:$('#addRole').value,image_path:image(name)});$('#modal').close();roster()};$('#modal').showModal()};roster();
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const db = createClient('https://mdrrnanxqazecqviaass.supabase.co', 'sb_publishable_ylMIgpLXA0NBoeb3aPI8qQ_m0wrG7It');
+const $ = (selector) => document.querySelector(selector);
+const roles = ['Star', 'Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
+const imagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
+
+function showRosterMessage(message, isError = false) {
+  $('#rosterResults').innerHTML = `<p class="sub ${isError ? 'error' : ''}">${message}</p>`;
+}
+
+function openModal(contents) {
+  $('#modalBody').innerHTML = `<div class="modal">${contents}</div>`;
+  $('#modal').showModal();
+}
+
+async function loadRoster() {
+  const query = $('#rosterSearch').value.trim();
+  const { data: players, error } = await db.from('players').select('*').ilike('name', `%${query}%`).order('name');
+  if (error) return showRosterMessage(`Couldn’t load the roster: ${error.message}`, true);
+  if (!players.length) return showRosterMessage('No players yet. Add them manually.');
+  $('#rosterResults').innerHTML = players.map((player) => `
+    <div class="row"><img class="player-photo" src="${player.image_path || imagePathFor(player.name)}" alt="">
+      <span><b>${player.name}</b><small>${player.role}${player.role === 'Surprise' && player.custom_appearance_points ? ` · +${player.custom_appearance_points}` : ''}</small></span>
+      <button data-player-id="${player.id}">Edit</button>
+    </div>`).join('');
+  document.querySelectorAll('[data-player-id]').forEach((button) => button.addEventListener('click', () => editPlayer(button.dataset.playerId)));
+}
+
+async function editPlayer(id) {
+  const { data: player, error } = await db.from('players').select('*').eq('id', id).single();
+  if (error) return alert(`Couldn’t open this player: ${error.message}`);
+  openModal(`<h2>${player.name}</h2><p class="sub">Pairings and elimination controls will be added next.</p>
+    <label>Role<select id="editRole">${roles.map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
+    <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
+    <button id="savePlayer">Save changes</button><button id="deletePlayer" class="danger">Delete player</button>`);
+  $('#editRole').addEventListener('change', (event) => { $('#surpriseRate').hidden = event.target.value !== 'Surprise'; });
+  $('#savePlayer').addEventListener('click', async () => {
+    const role = $('#editRole').value;
+    const { error: saveError } = await db.from('players').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name) }).eq('id', id);
+    if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
+    $('#modal').close(); loadRoster();
+  });
+  $('#deletePlayer').addEventListener('click', async () => {
+    if (!confirm(`Delete ${player.name}? This cannot be undone.`)) return;
+    const { error: deleteError } = await db.from('players').delete().eq('id', id);
+    if (deleteError) return alert(`Couldn’t delete ${player.name}: ${deleteError.message}`);
+    $('#modal').close(); loadRoster();
+  });
+}
+
+function openAddPlayer() {
+  openModal(`<h2>Add Player</h2><p class="sub">Their image path will be set automatically from their name.</p>
+    <label>Name<input id="newName" autocomplete="off" required></label>
+    <label>Role<select id="newRole">${roles.map((role) => `<option>${role}</option>`).join('')}</select></label>
+    <label id="newSurpriseRate" hidden>Points per appearance<input id="newRate" type="number" min="0"></label>
+    <button id="createPlayer">Create player</button>`);
+  $('#newRole').addEventListener('change', (event) => { $('#newSurpriseRate').hidden = event.target.value !== 'Surprise'; });
+  $('#createPlayer').addEventListener('click', async () => {
+    const name = $('#newName').value.trim();
+    if (!name) return alert('Enter a player name first.');
+    const role = $('#newRole').value;
+    const { error } = await db.from('players').insert({ name, role, image_path: imagePathFor(name), custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) || null : null });
+    if (error) return alert(`Couldn’t create ${name}: ${error.message}`);
+    $('#modal').close(); loadRoster();
+  });
+}
+
+$('#rosterSearch').addEventListener('input', loadRoster);
+$('#newPlayer').addEventListener('click', openAddPlayer);
+loadRoster();
