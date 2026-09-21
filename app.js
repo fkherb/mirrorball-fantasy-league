@@ -95,9 +95,10 @@ async function loadRoster() {
 
 function rosterDetail(player, partnerships, players, weeks) {
   const partner = partnerFor(player, partnerships, players);
+  const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
   const base = player.role === 'Surprise' && player.custom_appearance_points ? `Surprise · +${player.custom_appearance_points}` : player.role;
   if (!isAnyPairRole(player.role)) return base;
-  const partnerText = partner ? `Partner: ${partner.name}` : '<strong class="missing">No partner assigned</strong>';
+  const partnerText = partner ? `${partner.name}${partnership?.partnership_name ? ` · ${partnership.partnership_name}` : ''}` : '<strong class="missing">No partner assigned</strong>';
   if (!player.role.startsWith('Eliminated')) return `${base} · ${partnerText}`;
   const week = weeks.find((item) => item.id === player.eliminated_week_id);
   return `${base} · ${partnerText} · Eliminated ${week ? `Week ${week.number}` : 'week not set'}`;
