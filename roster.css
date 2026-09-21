@@ -28,5 +28,9 @@
 .cast-choice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid #eee8ed; cursor: pointer; color: #302638; }
 .cast-choice:first-child { border-top: 0; }
 .cast-choice:hover { background: #faf6f8; }
+.cast-choice[hidden] { display: none; }
 .cast-choice input { display: inline-block; width: auto; margin: 0; accent-color: #302638; }
 .cast-choice small { display: block; margin-top: 2px; color: #786e79; }
+.filter-tabs { display: flex; gap: 6px; margin: 12px 0; overflow-x: auto; }
+.filter-tabs button { padding: 7px 11px; background: #eee8ed; color: #625864; white-space: nowrap; }
+.filter-tabs button.selected { background: #302638; color: #fff; }

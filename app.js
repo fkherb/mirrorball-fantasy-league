@@ -9,6 +9,13 @@ const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated P
 const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
 const activePairRole = (role) => role.includes('Star') ? 'Star' : role.includes('Pro') ? 'Pro' : role;
 let canEdit = false;
+let rosterFilter = 'all';
+
+function castCategory(player) {
+  if (player.role === 'Pro' || player.role === 'Eliminated Pro') return 'pros';
+  if (player.role === 'Star' || player.role === 'Eliminated Star') return 'stars';
+  return 'bonus';
+}
 
 function showRosterMessage(message, isError = false) {
   $('#rosterResults').innerHTML = `<p class="sub ${isError ? 'error' : ''}">${message}</p>`;
@@ -69,7 +76,7 @@ async function loadRoster() {
   let rosterData;
   try { rosterData = await getPairingData(); } catch (error) { return showRosterMessage(`Couldn’t load the cast: ${error.message}`, true); }
   const { players: allPlayers, partnerships, weeks } = rosterData;
-  const players = allPlayers.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()));
+  const players = allPlayers.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()) && (rosterFilter === 'all' || castCategory(player) === rosterFilter));
   if (!players.length) return showRosterMessage('No cast members yet. Add them manually.');
   $('#rosterResults').innerHTML = players.map((player) => `
     <div class="row"><img class="player-photo" src="${player.image_path || imagePathFor(player.name)}" alt="">
@@ -246,15 +253,24 @@ async function openAssignCastMember(teamId) {
   const available = players.filter((player) => !assigned.has(player.id));
   const displayName = team.team_name || `${team.manager_name}'s Team`;
   openModal(`<h2>Add Cast Members</h2><p class="sub">Select one or more currently available cast members for ${escapeHtml(displayName)}.</p>
-    ${available.length ? `<input id="castPickerSearch" placeholder="Search available cast" autocomplete="off"><div id="castPicker" class="cast-picker">${available.map((player) => `<label class="cast-choice" data-cast-name="${escapeHtml(player.name.toLowerCase())}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(player.role)}</small></span></label>`).join('')}</div><button id="assignCastMember">Add 0 cast members</button>` : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
+    ${available.length ? `<input id="castPickerSearch" placeholder="Search available cast" autocomplete="off"><div class="filter-tabs" id="pickerTabs"><button class="selected" data-picker-filter="all">All</button><button data-picker-filter="pros">Pros</button><button data-picker-filter="stars">Stars</button><button data-picker-filter="bonus">Bonus</button></div><div id="castPicker" class="cast-picker">${available.map((player) => `<label class="cast-choice" data-cast-name="${escapeHtml(player.name.toLowerCase())}" data-cast-category="${castCategory(player)}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(player.role)}</small></span></label>`).join('')}</div><button id="assignCastMember">Add 0 cast members</button>` : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
   const updateSelection = () => {
     const count = document.querySelectorAll('#castPicker input:checked').length;
     $('#assignCastMember').textContent = `Add ${count} cast member${count === 1 ? '' : 's'}`;
   };
-  $('#castPickerSearch')?.addEventListener('input', (event) => {
-    const term = event.target.value.trim().toLowerCase();
-    document.querySelectorAll('.cast-choice').forEach((choice) => { choice.hidden = !choice.dataset.castName.includes(term); });
-  });
+  let pickerFilter = 'all';
+  const filterPicker = () => {
+    const term = $('#castPickerSearch').value.trim().toLowerCase();
+    document.querySelectorAll('.cast-choice').forEach((choice) => {
+      choice.hidden = !choice.dataset.castName.includes(term) || (pickerFilter !== 'all' && choice.dataset.castCategory !== pickerFilter);
+    });
+  };
+  $('#castPickerSearch')?.addEventListener('input', filterPicker);
+  document.querySelectorAll('[data-picker-filter]').forEach((button) => button.addEventListener('click', () => {
+    pickerFilter = button.dataset.pickerFilter;
+    document.querySelectorAll('[data-picker-filter]').forEach((item) => item.classList.toggle('selected', item === button));
+    filterPicker();
+  }));
   document.querySelectorAll('#castPicker input').forEach((checkbox) => checkbox.addEventListener('change', updateSelection));
   $('#assignCastMember')?.addEventListener('click', async () => {
     const playerIds = [...document.querySelectorAll('#castPicker input:checked')].map((checkbox) => checkbox.value);
@@ -282,6 +298,11 @@ async function openEditTeam(teamId) {
 }
 
 $('#rosterSearch').addEventListener('input', loadRoster);
+document.querySelectorAll('[data-roster-filter]').forEach((button) => button.addEventListener('click', () => {
+  rosterFilter = button.dataset.rosterFilter;
+  document.querySelectorAll('[data-roster-filter]').forEach((item) => item.classList.toggle('selected', item === button));
+  loadRoster();
+}));
 $('#newPlayer').addEventListener('click', openAddPlayer);
 $('#newTeam').addEventListener('click', openNewTeam);
 window.addEventListener('mirrorball-auth-change', async (event) => {
