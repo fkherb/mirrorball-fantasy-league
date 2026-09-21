@@ -17,6 +17,11 @@ function castCategory(player) {
   if (player.role === 'Star' || player.role === 'Eliminated Star') return 'stars';
   return 'bonus';
 }
+function bonusCastCategory(player) {
+  if (player.role === 'Troupe') return 'troupe';
+  if (player.role === 'DWTS Next Pro') return 'nextpro';
+  return 'judges';
+}
 
 function showRosterMessage(message, isError = false) {
   $('#rosterResults').innerHTML = `<p class="sub ${isError ? 'error' : ''}">${message}</p>`;
@@ -384,9 +389,11 @@ async function loadScoreDesk() {
     const pro = pairData.players.find((player) => player.id === pairing?.pro_id);
     return star && pro ? `${star.name} & ${pro.name}` : `Competitive Dance ${index + 1}`;
   };
-  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card"><div><p class="eyebrow">Week ${week.number}</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${week.double_elimination ? 'Double elimination' : 'Standard elimination'}</p></div>${canEdit ? '<button id="newDance">Add Dance</button>' : ''}</div>
-    <div class="dance-list">${dances.length ? dances.map((dance, index) => { const total = judgeScores.filter((score) => score.dance_id === dance.id).reduce((sum, score) => sum + score.score, 0); return `<div class="card dance-row"><span><b>${escapeHtml(labelForDance(dance, index))}</b><small>${dance.kind === 'competitive' ? `${total} judge points` : 'Performance'}</small></span></div>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
+  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card"><div><p class="eyebrow">Week ${week.number}</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${week.double_elimination ? 'Double elimination' : 'Standard elimination'}</p></div>${canEdit ? '<div class="score-week-actions"><button class="secondary" id="editWeek">Edit Week</button><button id="newDance">Add Dance</button></div>' : ''}</div>
+    <div class="dance-list">${dances.length ? dances.map((dance, index) => { const total = judgeScores.filter((score) => score.dance_id === dance.id).reduce((sum, score) => sum + score.score, 0); return `<div class="card dance-row"><div><p class="eyebrow">${dance.kind}</p><b>${escapeHtml(labelForDance(dance, index))}</b><small>${dance.kind === 'competitive' ? `${total} judge points` : 'Performance'}</small></div>${dance.kind === 'competitive' ? `<div class="dance-total"><img src="Images/Judges Scores/${total}.png" alt="${total}" onerror="this.hidden=true"><strong>${total}</strong></div>` : ''}${canEdit ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
+  $('#editWeek')?.addEventListener('click', () => openEditWeek(week));
+  document.querySelectorAll('[data-edit-dance]').forEach((button) => button.addEventListener('click', () => openEditDance(week, dances.find((dance) => dance.id === button.dataset.editDance), dances.indexOf(dances.find((dance) => dance.id === button.dataset.editDance))));
 }
 
 async function openNewWeek() {
@@ -409,38 +416,62 @@ async function openNewWeek() {
   });
 }
 
-async function openNewDance(week, danceCount) {
+function openEditWeek(week) {
+  openModal(`<h2>Edit Week ${week.number}</h2><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="${escapeHtml(weekTitle(week))}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''}> Double elimination</label><div class="modal-actions"><button id="saveWeek">Save changes</button></div>`);
+  $('#guestJudgeEnabled').addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
+  $('#saveWeek').addEventListener('click', async () => {
+    const theme = $('#weekTheme').value.trim(); const title = $('#weekTitle').value.trim() || (theme ? `${theme} Week` : `Week ${week.number}`); const guest_judge_name = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() || null : null;
+    if ($('#guestJudgeEnabled').checked && !guest_judge_name) return alert('Enter the guest judge’s name.');
+    const { error } = await db.from('weeks').update({ theme: theme || null, title, guest_judge_name, double_elimination: $('#doubleElimination').checked }).eq('id', week.id);
+    if (error) return alert(`Couldn’t save Week ${week.number}: ${error.message}`);
+    $('#modal').close(); loadScoreDesk();
+  });
+}
+
+async function openNewDance(week, danceCount, existingDance = null, existingScores = [], existingAppearanceIds = []) {
   const { players, partnerships } = await getPairingData();
   const activePairs = partnerships.filter((pairing) => {
     const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id);
     return star?.role === 'Star' && pro?.role === 'Pro';
   });
-  const castPicker = (excludedIds = []) => players.filter((player) => !excludedIds.includes(player.id)).map((player) => `<label class="cast-choice" data-dance-cast-name="${escapeHtml(player.name.toLowerCase())}" data-dance-cast-category="${castCategory(player)}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(player.role)}</small></span></label>`).join('');
+  const castPicker = (excludedIds = []) => players.filter((player) => !excludedIds.includes(player.id)).map((player) => `<label class="cast-choice" data-dance-cast-name="${escapeHtml(player.name.toLowerCase())}" data-dance-cast-category="${castCategory(player)}" data-dance-bonus-category="${bonusCastCategory(player)}"><input type="checkbox" value="${player.id}" ${existingAppearanceIds.includes(player.id) ? 'checked' : ''}><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(player.role)}</small></span></label>`).join('');
   const drawForm = (kind) => {
     const judgeNames = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
-    const pairOptions = activePairs.map((pairing) => { const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id); return `<option value="${pairing.id}">${escapeHtml(star.name)} & ${escapeHtml(pro.name)}</option>`; }).join('');
-    $('#danceForm').innerHTML = `${kind === 'competitive' ? `<label>Couple<select id="dancePartnership"><option value="">Select couple</option>${pairOptions}</select></label><div class="judge-grid">${judgeNames.map((judge) => `<label>${escapeHtml(judge)}<input data-judge="${escapeHtml(judge)}" type="number" min="0" max="10" inputmode="numeric"></label>`).join('')}</div>` : `<label>Dance name <span class="optional">(optional)</span><input id="danceName" placeholder="Week ${week.number} Dance ${danceCount + 1}"></label>`}<h3>Bonus cast appearances</h3><input id="danceCastSearch" placeholder="Search cast" autocomplete="off"><div class="filter-tabs" id="danceCastTabs"><button class="selected" data-dance-filter="all">All</button><button data-dance-filter="pros">Pros</button><button data-dance-filter="stars">Stars</button><button data-dance-filter="bonus">Bonus</button></div><div id="danceCastPicker" class="cast-picker">${castPicker()}</div>`;
-    let filter = 'all'; let excluded = [];
-    const filterCast = () => { const term = $('#danceCastSearch').value.toLowerCase(); document.querySelectorAll('[data-dance-cast-name]').forEach((item) => { const memberId = item.querySelector('input').value; item.hidden = !item.dataset.danceCastName.includes(term) || (filter !== 'all' && item.dataset.danceCastCategory !== filter) || excluded.includes(memberId); }); };
+    const pairOptions = activePairs.map((pairing) => { const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id); return `<option value="${pairing.id}" ${pairing.id === existingDance?.partnership_id ? 'selected' : ''}>${escapeHtml(star.name)} & ${escapeHtml(pro.name)}</option>`; }).join('');
+    $('#danceForm').innerHTML = `${kind === 'competitive' ? `<label class="couple-select">Couple<select id="dancePartnership"><option value="">Select couple</option>${pairOptions}</select></label><div class="judge-grid">${judgeNames.map((judge) => `<label>${escapeHtml(judge)}<input data-judge="${escapeHtml(judge)}" type="number" min="0" max="10" inputmode="numeric" value="${existingScores.find((score) => score.judge_name === judge)?.score ?? ''}"></label>`).join('')}</div>` : `<label>Dance name <span class="optional">(optional)</span><input id="danceName" value="${escapeHtml(existingDance?.name || '')}" placeholder="Week ${week.number} Dance ${danceCount + 1}"></label>`}<h3>Bonus cast appearances</h3><input id="danceCastSearch" placeholder="Search cast" autocomplete="off"><div class="filter-tabs" id="danceCastTabs"><button class="selected" data-dance-filter="all">All</button><button data-dance-filter="pros">Pros</button><button data-dance-filter="stars">Stars</button><button data-dance-filter="bonus">Bonus</button></div><div id="bonusDanceFilters" class="mini-filters" hidden><button class="selected" data-dance-bonus-filter="all">All bonus</button><button data-dance-bonus-filter="troupe">Troupe</button><button data-dance-bonus-filter="nextpro">Next Pro</button><button data-dance-bonus-filter="judges">Judges + Hosts</button></div><div id="danceCastPicker" class="cast-picker">${castPicker()}</div>`;
+    let filter = 'all'; let bonusFilter = 'all'; let excluded = [];
+    const filterCast = () => { const term = $('#danceCastSearch').value.toLowerCase(); document.querySelectorAll('[data-dance-cast-name]').forEach((item) => { const memberId = item.querySelector('input').value; item.hidden = !item.dataset.danceCastName.includes(term) || (filter !== 'all' && item.dataset.danceCastCategory !== filter) || (filter === 'bonus' && bonusFilter !== 'all' && item.dataset.danceBonusCategory !== bonusFilter) || excluded.includes(memberId); }); };
     $('#danceCastSearch').addEventListener('input', filterCast);
-    document.querySelectorAll('[data-dance-filter]').forEach((button) => button.addEventListener('click', () => { filter = button.dataset.danceFilter; document.querySelectorAll('[data-dance-filter]').forEach((item) => item.classList.toggle('selected', item === button)); filterCast(); }));
+    document.querySelectorAll('[data-dance-filter]').forEach((button) => button.addEventListener('click', () => { filter = button.dataset.danceFilter; $('#bonusDanceFilters').hidden = filter !== 'bonus'; document.querySelectorAll('[data-dance-filter]').forEach((item) => item.classList.toggle('selected', item === button)); filterCast(); }));
+    document.querySelectorAll('[data-dance-bonus-filter]').forEach((button) => button.addEventListener('click', () => { bonusFilter = button.dataset.danceBonusFilter; document.querySelectorAll('[data-dance-bonus-filter]').forEach((item) => item.classList.toggle('selected', item === button)); filterCast(); }));
     $('#dancePartnership')?.addEventListener('change', (event) => { const pairing = activePairs.find((item) => item.id === event.target.value); excluded = pairing ? [pairing.star_id, pairing.pro_id] : []; document.querySelectorAll('#danceCastPicker input').forEach((input) => { if (excluded.includes(input.value)) input.checked = false; }); filterCast(); });
   };
-  openModal(`<h2>Add Dance</h2><div class="filter-tabs dance-kind-tabs"><button class="selected" data-dance-kind="competitive">Competitive</button><button data-dance-kind="performance">Performance</button></div><div id="danceForm"></div><div class="modal-actions"><button id="saveDance">Save dance</button></div>`);
-  let kind = 'competitive'; drawForm(kind);
+  openModal(`<h2>${existingDance ? 'Edit Dance' : 'Add Dance'}</h2><div class="filter-tabs dance-kind-tabs"><button class="${(existingDance?.kind || 'competitive') === 'competitive' ? 'selected' : ''}" data-dance-kind="competitive">Competitive</button><button class="${(existingDance?.kind || 'competitive') === 'performance' ? 'selected' : ''}" data-dance-kind="performance">Performance</button></div><div id="danceForm"></div><div class="modal-actions"><button id="saveDance">${existingDance ? 'Save changes' : 'Save dance'}</button></div>`);
+  let kind = existingDance?.kind || 'competitive'; drawForm(kind);
   document.querySelectorAll('[data-dance-kind]').forEach((button) => button.addEventListener('click', () => { kind = button.dataset.danceKind; document.querySelectorAll('[data-dance-kind]').forEach((item) => item.classList.toggle('selected', item === button)); drawForm(kind); }));
   $('#saveDance').addEventListener('click', async () => {
     const partnership_id = kind === 'competitive' ? $('#dancePartnership').value || null : null;
     if (kind === 'competitive' && !partnership_id) return alert('Select the competing couple.');
     const name = kind === 'performance' ? $('#danceName').value.trim() || `Week ${week.number} Dance ${danceCount + 1}` : null;
-    const { data: dance, error: danceError } = await db.from('dances').insert({ week_id: week.id, kind, partnership_id, name, sort_order: danceCount + 1 }).select().single();
+    const danceOperation = existingDance ? db.from('dances').update({ kind, partnership_id, name }).eq('id', existingDance.id).select().single() : db.from('dances').insert({ week_id: week.id, kind, partnership_id, name, sort_order: danceCount + 1 }).select().single();
+    const { data: dance, error: danceError } = await danceOperation;
     if (danceError) return alert(`Couldn’t save this dance: ${danceError.message}`);
     const scores = kind === 'competitive' ? [...document.querySelectorAll('[data-judge]')].filter((input) => input.value !== '').map((input) => ({ dance_id: dance.id, judge_name: input.dataset.judge, score: Number(input.value) })) : [];
     const appearances = [...document.querySelectorAll('#danceCastPicker input:checked')].map((input) => ({ dance_id: dance.id, cast_member_id: input.value }));
+    if (existingDance) { await db.from('dance_judge_scores').delete().eq('dance_id', dance.id); await db.from('dance_appearances').delete().eq('dance_id', dance.id); }
     if (scores.length) { const { error: scoreError } = await db.from('dance_judge_scores').insert(scores); if (scoreError) return alert(`Dance saved, but judge scores could not be saved: ${scoreError.message}`); }
     if (appearances.length) { const { error: appearanceError } = await db.from('dance_appearances').insert(appearances); if (appearanceError) return alert(`Dance saved, but appearances could not be saved: ${appearanceError.message}`); }
     $('#modal').close(); loadScoreDesk();
   });
+}
+
+async function openEditDance(week, dance, index) {
+  const [{ data: scores, error: scoreError }, { data: appearances, error: appearanceError }] = await Promise.all([
+    db.from('dance_judge_scores').select('judge_name,score').eq('dance_id', dance.id),
+    db.from('dance_appearances').select('cast_member_id').eq('dance_id', dance.id),
+  ]);
+  if (scoreError || appearanceError) return alert(`Couldn’t open this dance: ${scoreError?.message || appearanceError?.message}`);
+  openNewDance(week, index, dance, scores, appearances.map((item) => item.cast_member_id));
 }
 
 $('#rosterSearch').addEventListener('input', loadRoster);

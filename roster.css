@@ -63,13 +63,25 @@
 .week-tabs button { flex: 0 0 auto; background: #eee8ed; color: #655a65; }
 .week-tabs button.selected { background: #302638; color: #fff; }
 .score-week-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px; margin-bottom: 14px; }
+.score-week-actions { display: flex; gap: 8px; }
 .score-week-head h2 { margin: 0 0 3px; }
 .score-week-head .sub { margin: 0; }
 .dance-list { display: grid; gap: 10px; }
-.dance-row { padding: 14px 16px; }
+.dance-row { display: flex; align-items: center; gap: 14px; padding: 15px 16px; }
 .dance-row b, .dance-row small { display: block; }
+.dance-row > div:first-child { flex: 1; }
 .dance-row small { margin-top: 3px; color: #786e79; }
-.judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.dance-total { position: relative; width: 58px; height: 38px; display: grid; place-items: center; border-radius: 8px; background: #f2ebef; overflow: hidden; }
+.dance-total img { position: absolute; width: 100%; height: 100%; object-fit: contain; }
+.dance-total strong { position: relative; font-size: 15px; }
+.dance-total img:not([hidden]) + strong { opacity: 0; }
+.judge-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.judge-grid label { width: 88px; }
+.judge-grid input { width: 82px; padding: 9px; }
+.couple-select select { padding: 12px 36px 12px 12px; border-color: #bcaab8; background: #fbf8fa; font-weight: 750; }
+.mini-filters { display: flex; flex-wrap: wrap; gap: 5px; margin: -2px 0 8px; }
+.mini-filters button { padding: 5px 8px; background: #f1e9ee; color: #6d5966; font-size: 11px; }
+.mini-filters button.selected { background: #7f5268; color: #fff; }
 .check-label { display: flex; align-items: center; gap: 8px; margin: 14px 0; color: #4f4550; }
 .check-label input { display: inline-block; width: auto; margin: 0; }
 .dance-kind-tabs { margin-top: 0; }
