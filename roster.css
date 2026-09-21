@@ -59,4 +59,18 @@
 .range-note { display: block; margin-top: 4px; color: #786e79; font-size: 11px; font-weight: 500; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .modal-actions button { margin: 0; }
+.week-tabs { display: flex; gap: 6px; margin: 0 0 14px; overflow-x: auto; }
+.week-tabs button { flex: 0 0 auto; background: #eee8ed; color: #655a65; }
+.week-tabs button.selected { background: #302638; color: #fff; }
+.score-week-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px; margin-bottom: 14px; }
+.score-week-head h2 { margin: 0 0 3px; }
+.score-week-head .sub { margin: 0; }
+.dance-list { display: grid; gap: 10px; }
+.dance-row { padding: 14px 16px; }
+.dance-row b, .dance-row small { display: block; }
+.dance-row small { margin-top: 3px; color: #786e79; }
+.judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.check-label { display: flex; align-items: center; gap: 8px; margin: 14px 0; color: #4f4550; }
+.check-label input { display: inline-block; width: auto; margin: 0; }
+.dance-kind-tabs { margin-top: 0; }
 @media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } .team-edit-fields { grid-template-columns: 1fr; } }
