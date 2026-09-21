@@ -1,0 +1,15 @@
+/* Cast roster refinements, kept separate so they can evolve without disturbing the base theme. */
+.player-photo {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 11px;
+  background: #eee8ed;
+}
+
+.row > span { flex: 1; }
+.error { color: #a33160; }
+.optional { color: #8b7e89; font-weight: 500; }

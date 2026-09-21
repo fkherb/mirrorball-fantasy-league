@@ -4,6 +4,8 @@ const db = createClient('https://mdrrnanxqazecqviaass.supabase.co', 'sb_publisha
 const $ = (selector) => document.querySelector(selector);
 const roles = ['Star', 'Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
 const imagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
+const isPairRole = (role) => role === 'Star' || role === 'Pro';
+const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
 
 function showRosterMessage(message, isError = false) {
   $('#rosterResults').innerHTML = `<p class="sub ${isError ? 'error' : ''}">${message}</p>`;
@@ -14,11 +16,51 @@ function openModal(contents) {
   $('#modal').showModal();
 }
 
+async function getPairingData() {
+  const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }] = await Promise.all([
+    db.from('players').select('*').order('name'),
+    db.from('partnerships').select('id,star_id,pro_id,active').eq('active', true),
+  ]);
+  if (playerError || pairingError) throw new Error(playerError?.message || pairingError?.message);
+  return { players, partnerships };
+}
+
+function partnerFor(player, partnerships, players) {
+  const pairing = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
+  if (!pairing) return null;
+  const partnerId = pairing.star_id === player.id ? pairing.pro_id : pairing.star_id;
+  return players.find((item) => item.id === partnerId) || null;
+}
+
+function partnerOptions(role, players, partnerships, selectedId = '') {
+  if (!isPairRole(role)) return '';
+  const pairedIds = new Set(partnerships.flatMap((pairing) => [pairing.star_id, pairing.pro_id]));
+  return players
+    .filter((person) => person.role === oppositeRole(role) && (!pairedIds.has(person.id) || person.id === selectedId))
+    .map((person) => `<option value="${person.id}" ${person.id === selectedId ? 'selected' : ''}>${person.name}</option>`)
+    .join('');
+}
+
+async function replacePartnership(player, role, partnerId, partnerships) {
+  const current = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
+  const currentPartnerId = current && (current.star_id === player.id ? current.pro_id : current.star_id);
+  if (currentPartnerId === (partnerId || null)) return null;
+  const idsToClear = [player.id, partnerId].filter(Boolean);
+  for (const id of idsToClear) {
+    const { error } = await db.from('partnerships').delete().or(`star_id.eq.${id},pro_id.eq.${id}`);
+    if (error) return error;
+  }
+  if (!partnerId) return null;
+  const row = role === 'Star' ? { star_id: player.id, pro_id: partnerId, active: true } : { star_id: partnerId, pro_id: player.id, active: true };
+  const { error } = await db.from('partnerships').insert(row);
+  return error;
+}
+
 async function loadRoster() {
   const query = $('#rosterSearch').value.trim();
   const { data: players, error } = await db.from('players').select('*').ilike('name', `%${query}%`).order('name');
-  if (error) return showRosterMessage(`Couldn’t load the roster: ${error.message}`, true);
-  if (!players.length) return showRosterMessage('No players yet. Add them manually.');
+  if (error) return showRosterMessage(`Couldn’t load the cast: ${error.message}`, true);
+  if (!players.length) return showRosterMessage('No cast members yet. Add them manually.');
   $('#rosterResults').innerHTML = players.map((player) => `
     <div class="row"><img class="player-photo" src="${player.image_path || imagePathFor(player.name)}" alt="">
       <span><b>${player.name}</b><small>${player.role}${player.role === 'Surprise' && player.custom_appearance_points ? ` · +${player.custom_appearance_points}` : ''}</small></span>
@@ -28,40 +70,66 @@ async function loadRoster() {
 }
 
 async function editPlayer(id) {
-  const { data: player, error } = await db.from('players').select('*').eq('id', id).single();
-  if (error) return alert(`Couldn’t open this player: ${error.message}`);
-  openModal(`<h2>${player.name}</h2><p class="sub">Pairings and elimination controls will be added next.</p>
-    <label>Role<select id="editRole">${roles.map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
-    <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
-    <button id="savePlayer">Save changes</button><button id="deletePlayer" class="danger">Delete player</button>`);
-  $('#editRole').addEventListener('change', (event) => { $('#surpriseRate').hidden = event.target.value !== 'Surprise'; });
-  $('#savePlayer').addEventListener('click', async () => {
-    const role = $('#editRole').value;
-    const { error: saveError } = await db.from('players').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name) }).eq('id', id);
-    if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
-    $('#modal').close(); loadRoster();
-  });
-  $('#deletePlayer').addEventListener('click', async () => {
-    if (!confirm(`Delete ${player.name}? This cannot be undone.`)) return;
-    const { error: deleteError } = await db.from('players').delete().eq('id', id);
-    if (deleteError) return alert(`Couldn’t delete ${player.name}: ${deleteError.message}`);
-    $('#modal').close(); loadRoster();
-  });
+  try {
+    const { players, partnerships } = await getPairingData();
+    const player = players.find((item) => item.id === id);
+    const partner = partnerFor(player, partnerships, players);
+    openModal(`<h2>${player.name}</h2><p class="sub">Their image uses the centered portrait crop in the cast roster.</p>
+      <label>Role<select id="editRole">${roles.map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
+      <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
+      <label id="partnerField" ${isPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(player.role, players, partnerships, partner?.id)}</select></label>
+      <button id="savePlayer">Save changes</button><button id="deletePlayer" class="danger">Delete cast member</button>`);
+    $('#editRole').addEventListener('change', (event) => {
+      const role = event.target.value;
+      $('#surpriseRate').hidden = role !== 'Surprise';
+      $('#partnerField').hidden = !isPairRole(role);
+      if (isPairRole(role)) $('#editPartner').innerHTML = `<option value="">No partner</option>${partnerOptions(role, players, partnerships, partner?.id)}`;
+    });
+    $('#savePlayer').addEventListener('click', async () => {
+      const role = $('#editRole').value;
+      const partnerId = isPairRole(role) ? $('#editPartner').value : '';
+      const { error: saveError } = await db.from('players').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name) }).eq('id', id);
+      if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
+      const pairingError = await replacePartnership(player, role, partnerId, partnerships);
+      if (pairingError) return alert(`The cast member saved, but the partnership could not be saved: ${pairingError.message}`);
+      $('#modal').close(); loadRoster();
+    });
+    $('#deletePlayer').addEventListener('click', async () => {
+      if (!confirm(`Delete ${player.name}? This cannot be undone.`)) return;
+      const pairingError = await replacePartnership(player, player.role, '', partnerships);
+      if (pairingError) return alert(`Couldn’t remove the partnership: ${pairingError.message}`);
+      const { error: deleteError } = await db.from('players').delete().eq('id', id);
+      if (deleteError) return alert(`Couldn’t delete ${player.name}: ${deleteError.message}`);
+      $('#modal').close(); loadRoster();
+    });
+  } catch (error) { alert(`Couldn’t open this cast member: ${error.message}`); }
 }
 
-function openAddPlayer() {
-  openModal(`<h2>Add Player</h2><p class="sub">Their image path will be set automatically from their name.</p>
+async function openAddPlayer() {
+  let pairingData;
+  try { pairingData = await getPairingData(); } catch (error) { return alert(`Couldn’t prepare partnerships: ${error.message}`); }
+  const { players, partnerships } = pairingData;
+  openModal(`<h2>Add Cast Member</h2><p class="sub">Their image path is set automatically from their name.</p>
     <label>Name<input id="newName" autocomplete="off" required></label>
     <label>Role<select id="newRole">${roles.map((role) => `<option>${role}</option>`).join('')}</select></label>
     <label id="newSurpriseRate" hidden>Points per appearance<input id="newRate" type="number" min="0"></label>
-    <button id="createPlayer">Create player</button>`);
-  $('#newRole').addEventListener('change', (event) => { $('#newSurpriseRate').hidden = event.target.value !== 'Surprise'; });
+    <label id="newPartnerField">Add partnership <span class="optional">(optional)</span><select id="newPartner"><option value="">No partner yet</option>${partnerOptions('Star', players, partnerships)}</select></label>
+    <button id="createPlayer">Create cast member</button>`);
+  $('#newRole').addEventListener('change', (event) => {
+    const role = event.target.value;
+    $('#newSurpriseRate').hidden = role !== 'Surprise';
+    $('#newPartnerField').hidden = !isPairRole(role);
+    if (isPairRole(role)) $('#newPartner').innerHTML = `<option value="">No partner yet</option>${partnerOptions(role, players, partnerships)}`;
+  });
   $('#createPlayer').addEventListener('click', async () => {
     const name = $('#newName').value.trim();
-    if (!name) return alert('Enter a player name first.');
+    if (!name) return alert('Enter a cast member name first.');
     const role = $('#newRole').value;
-    const { error } = await db.from('players').insert({ name, role, image_path: imagePathFor(name), custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) || null : null });
+    const { data: created, error } = await db.from('players').insert({ name, role, image_path: imagePathFor(name), custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) || null : null }).select().single();
     if (error) return alert(`Couldn’t create ${name}: ${error.message}`);
+    const partnerId = isPairRole(role) ? $('#newPartner').value : '';
+    const pairingError = await replacePartnership(created, role, partnerId, partnerships);
+    if (pairingError) return alert(`${name} was created, but the partnership could not be saved: ${pairingError.message}`);
     $('#modal').close(); loadRoster();
   });
 }
