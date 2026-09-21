@@ -71,10 +71,9 @@
 .dance-row b, .dance-row small { display: block; }
 .dance-row > div:first-child { flex: 1; }
 .dance-row small { margin-top: 3px; color: #786e79; }
-.dance-total { position: relative; width: 58px; height: 38px; display: grid; place-items: center; border-radius: 8px; background: #f2ebef; overflow: hidden; }
-.dance-total img { position: absolute; width: 100%; height: 100%; object-fit: contain; }
-.dance-total strong { position: relative; font-size: 15px; }
-.dance-total img:not([hidden]) + strong { opacity: 0; }
+.judge-paddles { display: flex; align-items: center; gap: 2px; }
+.judge-paddles img { width: 28px; height: 38px; object-fit: contain; }
+.judge-paddles strong { margin-left: 5px; font-size: 15px; }
 .judge-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
 .judge-grid label { width: 88px; }
 .judge-grid input { width: 82px; padding: 9px; }
