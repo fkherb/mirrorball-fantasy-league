@@ -393,7 +393,10 @@ async function loadScoreDesk() {
     <div class="dance-list">${dances.length ? dances.map((dance, index) => { const scores = judgeScores.filter((score) => score.dance_id === dance.id); const total = scores.reduce((sum, score) => sum + score.score, 0); return `<div class="card dance-row"><div><p class="eyebrow">${dance.kind}</p><b>${escapeHtml(labelForDance(dance, index))}</b><small>${dance.kind === 'competitive' ? `${total} judge points` : 'Performance'}</small></div>${dance.kind === 'competitive' ? `<div class="judge-paddles">${scores.map((score) => `<img src="Images/Judges Scores/${score.score}.png" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}<strong>${total}</strong></div>` : ''}${canEdit ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
   $('#editWeek')?.addEventListener('click', () => openEditWeek(week));
-  document.querySelectorAll('[data-edit-dance]').forEach((button) => button.addEventListener('click', () => openEditDance(week, dances.find((dance) => dance.id === button.dataset.editDance), dances.indexOf(dances.find((dance) => dance.id === button.dataset.editDance))));
+  document.querySelectorAll('[data-edit-dance]').forEach((button) => {
+    const dance = dances.find((item) => item.id === button.dataset.editDance);
+    button.addEventListener('click', () => openEditDance(week, dance, dances.indexOf(dance)));
+  });
 }
 
 async function openNewWeek() {
