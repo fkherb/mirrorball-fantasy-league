@@ -7,6 +7,8 @@ const imagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
 const isPairRole = (role) => role === 'Star' || role === 'Pro';
 const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(role);
 const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
+const activePairRole = (role) => role.includes('Star') ? 'Star' : role.includes('Pro') ? 'Pro' : role;
+let canEdit = false;
 
 function showRosterMessage(message, isError = false) {
   $('#rosterResults').innerHTML = `<p class="sub ${isError ? 'error' : ''}">${message}</p>`;
@@ -38,7 +40,7 @@ function partnerOptions(role, players, partnerships, selectedId = '') {
   if (!isPairRole(role)) return '';
   const pairedIds = new Set(partnerships.flatMap((pairing) => [pairing.star_id, pairing.pro_id]));
   return players
-    .filter((person) => person.role === oppositeRole(role) && (!pairedIds.has(person.id) || person.id === selectedId))
+    .filter((person) => (person.role === oppositeRole(role) || person.id === selectedId) && (!pairedIds.has(person.id) || person.id === selectedId))
     .map((person) => `<option value="${person.id}" ${person.id === selectedId ? 'selected' : ''}>${person.name}</option>`)
     .join('');
 }
@@ -68,8 +70,8 @@ async function loadRoster() {
   $('#rosterResults').innerHTML = players.map((player) => `
     <div class="row"><img class="player-photo" src="${player.image_path || imagePathFor(player.name)}" alt="">
       <span><b>${player.name}</b><small>${rosterDetail(player, partnerships, allPlayers, weeks)}</small></span>
-      ${isPairRole(player.role) ? `<button class="danger" data-eliminate-id="${player.id}">Eliminate</button>` : ''}
-      <button data-player-id="${player.id}">Edit</button>
+      ${canEdit && isPairRole(player.role) ? `<button class="danger" data-eliminate-id="${player.id}">Eliminate</button>` : ''}
+      ${canEdit ? `<button data-player-id="${player.id}">Edit</button>` : ''}
     </div>`).join('');
   document.querySelectorAll('[data-player-id]').forEach((button) => button.addEventListener('click', () => editPlayer(button.dataset.playerId)));
   document.querySelectorAll('[data-eliminate-id]').forEach((button) => button.addEventListener('click', () => eliminatePair(button.dataset.eliminateId)));
@@ -128,21 +130,21 @@ async function editPlayer(id) {
     openModal(`<h2>${player.name}</h2><p class="sub">Their image uses the centered portrait crop in the cast roster.</p>
       <label>Role<select id="editRole">${roles.map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
       <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
-      <label id="partnerField" ${isPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(player.role, players, partnerships, partner?.id)}</select></label>
+      <label id="partnerField" ${isAnyPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(activePairRole(player.role), players, partnerships, partner?.id)}</select></label>
       ${player.role.startsWith('Eliminated') ? '<button id="undoElimination" class="secondary">Undo elimination for this pair</button>' : ''}
       <button id="savePlayer">Save changes</button><button id="deletePlayer" class="danger">Delete cast member</button>`);
     $('#editRole').addEventListener('change', (event) => {
       const role = event.target.value;
       $('#surpriseRate').hidden = role !== 'Surprise';
-      $('#partnerField').hidden = !isPairRole(role);
-      if (isPairRole(role)) $('#editPartner').innerHTML = `<option value="">No partner</option>${partnerOptions(role, players, partnerships, partner?.id)}`;
+      $('#partnerField').hidden = !isAnyPairRole(role);
+      if (isAnyPairRole(role)) $('#editPartner').innerHTML = `<option value="">No partner</option>${partnerOptions(activePairRole(role), players, partnerships, partner?.id)}`;
     });
     $('#savePlayer').addEventListener('click', async () => {
       const role = $('#editRole').value;
-      const partnerId = isPairRole(role) ? $('#editPartner').value : '';
+      const partnerId = isAnyPairRole(role) ? $('#editPartner').value : '';
       const { error: saveError } = await db.from('players').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name) }).eq('id', id);
       if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
-      const pairingError = await replacePartnership(player, role, partnerId, partnerships);
+      const pairingError = await replacePartnership(player, activePairRole(role), partnerId, partnerships);
       if (pairingError) return alert(`The cast member saved, but the partnership could not be saved: ${pairingError.message}`);
       $('#modal').close(); loadRoster();
     });
@@ -189,4 +191,13 @@ async function openAddPlayer() {
 
 $('#rosterSearch').addEventListener('input', loadRoster);
 $('#newPlayer').addEventListener('click', openAddPlayer);
-loadRoster();
+window.addEventListener('mirrorball-auth-change', async (event) => {
+  canEdit = event.detail.signedIn;
+  $('#newPlayer').hidden = !canEdit;
+  loadRoster();
+});
+db.auth.getSession().then(({ data: { session } }) => {
+  canEdit = Boolean(session);
+  $('#newPlayer').hidden = !canEdit;
+  loadRoster();
+});
