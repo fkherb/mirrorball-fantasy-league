@@ -22,3 +22,11 @@
 .team-card { padding: 18px; }
 .team-card h2 { margin: 0 0 8px; }
 .team-card button { margin-top: 4px; }
+.team-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.team-actions button { margin: 0; }
+.cast-picker { max-height: 280px; overflow: auto; margin: 10px 0 14px; border: 1px solid #e8e0e7; border-radius: 9px; }
+.cast-choice { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid #eee8ed; cursor: pointer; color: #302638; }
+.cast-choice:first-child { border-top: 0; }
+.cast-choice:hover { background: #faf6f8; }
+.cast-choice input { display: inline-block; width: auto; margin: 0; accent-color: #302638; }
+.cast-choice small { display: block; margin-top: 2px; color: #786e79; }

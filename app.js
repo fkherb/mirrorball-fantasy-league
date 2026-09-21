@@ -212,10 +212,11 @@ async function loadTeams() {
     const roster = memberships.filter((member) => member.fantasy_team_id === team.id).map((member) => playerById.get(member.player_id)).filter(Boolean);
     return `<article class="card team-card"><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2>
       <p class="sub">${roster.length ? roster.map((player) => escapeHtml(player.name)).join(' · ') : 'No cast members assigned yet.'}</p>
-      ${canEdit ? `<button data-team-id="${team.id}">Add Cast Member</button>` : ''}
+      ${canEdit ? `<div class="team-actions"><button class="secondary" data-edit-team-id="${team.id}">Edit team</button><button data-team-id="${team.id}">Add Cast Members</button></div>` : ''}
     </article>`;
   }).join('');
   document.querySelectorAll('[data-team-id]').forEach((button) => button.addEventListener('click', () => openAssignCastMember(button.dataset.teamId)));
+  document.querySelectorAll('[data-edit-team-id]').forEach((button) => button.addEventListener('click', () => openEditTeam(button.dataset.editTeamId)));
 }
 
 function openNewTeam() {
@@ -244,14 +245,38 @@ async function openAssignCastMember(teamId) {
   const assigned = new Set(memberships.map((member) => member.player_id));
   const available = players.filter((player) => !assigned.has(player.id));
   const displayName = team.team_name || `${team.manager_name}'s Team`;
-  openModal(`<h2>Add Cast Member</h2><p class="sub">Assign a currently available cast member to ${escapeHtml(displayName)}.</p>
-    <label>Available cast<select id="assignCast"><option value="">Select cast member</option>${available.map((player) => `<option value="${player.id}">${escapeHtml(player.name)} · ${escapeHtml(player.role)}</option>`).join('')}</select></label>
-    ${available.length ? '<button id="assignCastMember">Add to team</button>' : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
+  openModal(`<h2>Add Cast Members</h2><p class="sub">Select one or more currently available cast members for ${escapeHtml(displayName)}.</p>
+    ${available.length ? `<input id="castPickerSearch" placeholder="Search available cast" autocomplete="off"><div id="castPicker" class="cast-picker">${available.map((player) => `<label class="cast-choice" data-cast-name="${escapeHtml(player.name.toLowerCase())}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(player.role)}</small></span></label>`).join('')}</div><button id="assignCastMember">Add 0 cast members</button>` : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
+  const updateSelection = () => {
+    const count = document.querySelectorAll('#castPicker input:checked').length;
+    $('#assignCastMember').textContent = `Add ${count} cast member${count === 1 ? '' : 's'}`;
+  };
+  $('#castPickerSearch')?.addEventListener('input', (event) => {
+    const term = event.target.value.trim().toLowerCase();
+    document.querySelectorAll('.cast-choice').forEach((choice) => { choice.hidden = !choice.dataset.castName.includes(term); });
+  });
+  document.querySelectorAll('#castPicker input').forEach((checkbox) => checkbox.addEventListener('change', updateSelection));
   $('#assignCastMember')?.addEventListener('click', async () => {
-    const playerId = $('#assignCast').value;
-    if (!playerId) return alert('Choose a cast member first.');
-    const { error: assignError } = await db.from('roster_history').insert({ player_id: playerId, fantasy_team_id: teamId });
-    if (assignError) return alert(`Couldn’t add that cast member: ${assignError.message}`);
+    const playerIds = [...document.querySelectorAll('#castPicker input:checked')].map((checkbox) => checkbox.value);
+    if (!playerIds.length) return alert('Choose at least one cast member first.');
+    const { error: assignError } = await db.from('roster_history').insert(playerIds.map((player_id) => ({ player_id, fantasy_team_id: teamId })));
+    if (assignError) return alert(`Couldn’t add those cast members: ${assignError.message}`);
+    $('#modal').close(); loadTeams();
+  });
+}
+
+async function openEditTeam(teamId) {
+  const { data: team, error } = await db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single();
+  if (error) return alert(`Couldn’t open this team: ${error.message}`);
+  openModal(`<h2>Edit Fantasy Team</h2><label>Name<input id="editManagerName" value="${escapeHtml(team.manager_name)}" required></label>
+    <label>Team name <span class="optional">(optional)</span><input id="editTeamName" value="${escapeHtml(team.team_name || '')}"></label>
+    <button id="saveTeam">Save changes</button>`);
+  $('#saveTeam').addEventListener('click', async () => {
+    const manager_name = $('#editManagerName').value.trim();
+    const team_name = $('#editTeamName').value.trim();
+    if (!manager_name) return alert('Enter the name first.');
+    const { error: saveError } = await db.from('fantasy_teams').update({ manager_name, team_name: team_name || null }).eq('id', teamId);
+    if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
     $('#modal').close(); loadTeams();
   });
 }
