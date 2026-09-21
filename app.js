@@ -24,6 +24,7 @@ function showRosterMessage(message, isError = false) {
 function openModal(contents) {
   $('#modalBody').innerHTML = `<div class="modal">${contents}</div>`;
   $('#modal').showModal();
+  $('#modalClose').onclick = () => $('#modal').close();
 }
 
 function escapeHtml(value = '') {
