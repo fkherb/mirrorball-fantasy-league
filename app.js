@@ -34,7 +34,7 @@ function escapeHtml(value = '') {
 async function getPairingData() {
   const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }] = await Promise.all([
     db.from('cast_members').select('*').order('name'),
-    db.from('partnerships').select('id,star_id,pro_id,active').eq('active', true),
+    db.from('partnerships').select('id,star_id,pro_id,active,partnership_name').eq('active', true),
     db.from('weeks').select('id,number,label').order('number', { ascending: false }),
   ]);
   if (playerError || pairingError || weekError) throw new Error(playerError?.message || pairingError?.message || weekError?.message);
@@ -57,17 +57,21 @@ function partnerOptions(role, players, partnerships, selectedId = '') {
     .join('');
 }
 
-async function replacePartnership(player, role, partnerId, partnerships) {
+async function replacePartnership(player, role, partnerId, partnerships, partnershipName = null) {
   const current = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
   const currentPartnerId = current && (current.star_id === player.id ? current.pro_id : current.star_id);
-  if (currentPartnerId === (partnerId || null)) return null;
+  if (currentPartnerId === (partnerId || null)) {
+    if (!current || current.partnership_name === partnershipName) return null;
+    const { error } = await db.from('partnerships').update({ partnership_name: partnershipName }).eq('id', current.id);
+    return error;
+  }
   const idsToClear = [player.id, partnerId].filter(Boolean);
   for (const id of idsToClear) {
     const { error } = await db.from('partnerships').delete().or(`star_id.eq.${id},pro_id.eq.${id}`);
     if (error) return error;
   }
   if (!partnerId) return null;
-  const row = role === 'Star' ? { star_id: player.id, pro_id: partnerId, active: true } : { star_id: partnerId, pro_id: player.id, active: true };
+  const row = role === 'Star' ? { star_id: player.id, pro_id: partnerId, active: true, partnership_name: partnershipName } : { star_id: partnerId, pro_id: player.id, active: true, partnership_name: partnershipName };
   const { error } = await db.from('partnerships').insert(row);
   return error;
 }
@@ -80,7 +84,7 @@ async function loadRoster() {
   const players = allPlayers.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()) && (rosterFilter === 'all' || castCategory(player) === rosterFilter));
   if (!players.length) return showRosterMessage('No cast members yet. Add them manually.');
   $('#rosterResults').innerHTML = players.map((player) => `
-    <div class="row"><img class="player-photo" src="${player.image_path || imagePathFor(player.name)}" alt="">
+    <div class="row"><img class="player-photo" style="object-position:${player.image_position ?? 50}% center" src="${player.image_path || imagePathFor(player.name)}" alt="">
       <span><b>${player.name}</b><small>${rosterDetail(player, partnerships, allPlayers, weeks)}</small></span>
       ${canEdit && isPairRole(player.role) ? `<button class="danger" data-eliminate-id="${player.id}">Eliminate</button>` : ''}
       ${canEdit ? `<button data-player-id="${player.id}">Edit</button>` : ''}
@@ -139,24 +143,30 @@ async function editPlayer(id) {
     const { players, partnerships } = await getPairingData();
     const player = players.find((item) => item.id === id);
     const partner = partnerFor(player, partnerships, players);
-    openModal(`<h2>${player.name}</h2><p class="sub">Their image uses the centered portrait crop in the cast roster.</p>
+    const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
+    openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${player.image_path || imagePathFor(player.name)}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${player.name}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
       <label>Role<select id="editRole">${roles.map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
       <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
       <label id="partnerField" ${isAnyPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(activePairRole(player.role), players, partnerships, partner?.id)}</select></label>
+      <label id="partnershipNameField" ${partner ? '' : 'hidden'}>Partnership name <span class="optional">(optional)</span><input id="partnershipName" value="${escapeHtml(partnership?.partnership_name || '')}" placeholder="e.g., Team Sparkle"></label>
+      <label>Portrait position<input id="imagePosition" type="range" min="0" max="100" value="${player.image_position ?? 50}"><span class="range-note">Move left or right to center the image.</span></label>
       ${player.role.startsWith('Eliminated') ? '<button id="undoElimination" class="secondary">Undo elimination for this pair</button>' : ''}
-      <button id="savePlayer">Save changes</button><button id="deletePlayer" class="danger">Delete cast member</button>`);
+      <div class="modal-actions"><button id="savePlayer">Save changes</button><button id="deletePlayer" class="danger">Delete cast member</button></div>`);
     $('#editRole').addEventListener('change', (event) => {
       const role = event.target.value;
       $('#surpriseRate').hidden = role !== 'Surprise';
       $('#partnerField').hidden = !isAnyPairRole(role);
       if (isAnyPairRole(role)) $('#editPartner').innerHTML = `<option value="">No partner</option>${partnerOptions(activePairRole(role), players, partnerships, partner?.id)}`;
     });
+    $('#editPartner').addEventListener('change', (event) => { $('#partnershipNameField').hidden = !event.target.value; });
+    $('#imagePosition').addEventListener('input', (event) => { $('#editPhotoPreview').style.objectPosition = `${event.target.value}% center`; });
     $('#savePlayer').addEventListener('click', async () => {
       const role = $('#editRole').value;
       const partnerId = isAnyPairRole(role) ? $('#editPartner').value : '';
-      const { error: saveError } = await db.from('cast_members').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name) }).eq('id', id);
+      const partnershipName = $('#editPartner').value ? $('#partnershipName').value.trim() || null : null;
+      const { error: saveError } = await db.from('cast_members').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name), image_position: Number($('#imagePosition').value) }).eq('id', id);
       if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
-      const pairingError = await replacePartnership(player, activePairRole(role), partnerId, partnerships);
+      const pairingError = await replacePartnership(player, activePairRole(role), partnerId, partnerships, partnershipName);
       if (pairingError) return alert(`The cast member saved, but the partnership could not be saved: ${pairingError.message}`);
       $('#modal').close(); loadRoster();
     });
@@ -217,14 +227,45 @@ async function loadTeams() {
   const availableCount = castMembers.filter((member) => !member.fantasy_team_id).length;
   $('#teamResults').innerHTML = teams.map((team) => {
     const roster = castMembers.filter((member) => member.fantasy_team_id === team.id);
-    return `<article class="card team-card"><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2>
+    return `<article class="card team-card" data-team-card-id="${team.id}"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : ''}</div>
       <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p>
       ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(member.role)}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
-      ${canEdit ? `<div class="team-actions"><button class="secondary" data-edit-team-id="${team.id}">Edit team</button>${availableCount ? `<button data-team-id="${team.id}">Add Cast Members</button>` : ''}</div>` : ''}
+      ${canEdit && availableCount ? `<div class="team-actions"><button data-team-id="${team.id}">Add Cast Members</button></div>` : ''}
     </article>`;
   }).join('');
   document.querySelectorAll('[data-team-id]').forEach((button) => button.addEventListener('click', () => openAssignCastMember(button.dataset.teamId)));
-  document.querySelectorAll('[data-edit-team-id]').forEach((button) => button.addEventListener('click', () => openEditTeam(button.dataset.editTeamId)));
+  document.querySelectorAll('[data-edit-team-id]').forEach((button) => button.addEventListener('click', () => editTeamCard(button.dataset.editTeamId)));
+}
+
+async function editTeamCard(teamId) {
+  const [{ data: team, error: teamError }, { data: roster, error: rosterError }] = await Promise.all([
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
+    db.from('cast_members').select('id,name,role').eq('fantasy_team_id', teamId).order('name'),
+  ]);
+  const error = teamError || rosterError;
+  if (error) return alert(`Couldn’t edit this team: ${error.message}`);
+  const card = document.querySelector(`[data-team-card-id="${teamId}"]`);
+  if (!card) return;
+  card.classList.add('editing');
+  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>Name<input id="teamManager-${teamId}" value="${escapeHtml(team.manager_name)}"></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div></div>
+    <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p>
+    ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(member.role)}</small><button class="remove-member" data-remove-team-cast-id="${member.id}">Remove</button></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
+  document.querySelector(`[data-cancel-team-id="${teamId}"]`).addEventListener('click', loadTeams);
+  document.querySelector(`[data-save-team-id="${teamId}"]`).addEventListener('click', async () => {
+    const manager_name = $(`#teamManager-${teamId}`).value.trim();
+    const team_name = $(`#teamName-${teamId}`).value.trim();
+    if (!manager_name) return alert('Enter the name first.');
+    const { error: saveError } = await db.from('fantasy_teams').update({ manager_name, team_name: team_name || null }).eq('id', teamId);
+    if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
+    loadTeams();
+  });
+  document.querySelectorAll('[data-remove-team-cast-id]').forEach((button) => button.addEventListener('click', async () => {
+    const member = roster.find((item) => item.id === button.dataset.removeTeamCastId);
+    if (!confirm(`Remove ${member.name} from this fantasy team?`)) return;
+    const { error: removeError } = await db.from('cast_members').update({ fantasy_team_id: null }).eq('id', member.id);
+    if (removeError) return alert(`Couldn’t remove ${member.name}: ${removeError.message}`);
+    editTeamCard(teamId);
+  }));
 }
 
 function openNewTeam() {
