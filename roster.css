@@ -18,9 +18,15 @@
 .auth-button { padding: 7px 10px; background: #fff; color: #302638; font-size: 12px; }
 .account-menu { position: absolute; z-index: 5; right: 0; top: calc(100% + 8px); min-width: 220px; padding: 12px; border: 1px solid #e8e0e7; border-radius: 10px; background: #fff; box-shadow: 0 12px 30px #1f132433; color: #302638; }
 .account-menu span { display: block; margin-bottom: 10px; color: #786e79; }
-.team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
-.team-card { padding: 18px; }
-.team-card h2 { margin: 0 0 8px; }
+.team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.team-card { padding: 20px; }
+.team-card h2 { margin: 0 0 3px; }
+.team-count { margin: 0 0 14px; color: #786e79; font-size: 12px; font-weight: 750; }
+.team-roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.team-roster li { min-width: 0; padding: 8px 9px; border: 1px solid #ece5eb; border-radius: 8px; background: #fcfafb; }
+.team-roster span, .team-roster small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-roster span { font-size: 13px; font-weight: 750; }
+.team-roster small { margin-top: 2px; color: #786e79; font-size: 11px; }
 .team-card button { margin-top: 4px; }
 .team-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .team-actions button { margin: 0; }
@@ -34,3 +40,7 @@
 .filter-tabs { display: inline-flex; gap: 2px; max-width: 100%; margin: 12px 0; padding: 3px; overflow-x: auto; border: 1px solid #e3dbe2; border-radius: 10px; background: #f3eef2; }
 .filter-tabs button { padding: 7px 12px; background: transparent; color: #6d626d; white-space: nowrap; box-shadow: none; }
 .filter-tabs button.selected { background: #302638; color: #fff; box-shadow: 0 2px 5px #21182533; }
+.edit-roster { margin-top: 12px; border-top: 1px solid #e8e0e7; }
+.edit-roster > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e8e0e7; }
+.edit-roster small { display: block; margin-top: 2px; color: #786e79; }
+@media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } }

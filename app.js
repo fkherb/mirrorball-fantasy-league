@@ -33,7 +33,7 @@ function escapeHtml(value = '') {
 
 async function getPairingData() {
   const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }] = await Promise.all([
-    db.from('players').select('*').order('name'),
+    db.from('cast_members').select('*').order('name'),
     db.from('partnerships').select('id,star_id,pro_id,active').eq('active', true),
     db.from('weeks').select('id,number,label').order('number', { ascending: false }),
   ]);
@@ -111,8 +111,8 @@ async function eliminatePair(id) {
     const star = player.role === 'Star' ? player : partner;
     const pro = player.role === 'Pro' ? player : partner;
     const [starResult, proResult] = await Promise.all([
-      db.from('players').update({ role: 'Eliminated Star', eliminated_week_id: week?.id ?? null }).eq('id', star.id),
-      db.from('players').update({ role: 'Eliminated Pro', eliminated_week_id: week?.id ?? null }).eq('id', pro.id),
+      db.from('cast_members').update({ role: 'Eliminated Star', eliminated_week_id: week?.id ?? null }).eq('id', star.id),
+      db.from('cast_members').update({ role: 'Eliminated Pro', eliminated_week_id: week?.id ?? null }).eq('id', pro.id),
     ]);
     const error = starResult.error || proResult.error;
     if (error) return alert(`Couldn’t mark the pair eliminated: ${error.message}`);
@@ -125,8 +125,8 @@ async function undoElimination(player, partner) {
   const star = player.role.includes('Star') ? player : partner;
   const pro = player.role.includes('Pro') ? player : partner;
   const [starResult, proResult] = await Promise.all([
-    db.from('players').update({ role: 'Star', eliminated_week_id: null }).eq('id', star.id),
-    db.from('players').update({ role: 'Pro', eliminated_week_id: null }).eq('id', pro.id),
+    db.from('cast_members').update({ role: 'Star', eliminated_week_id: null }).eq('id', star.id),
+    db.from('cast_members').update({ role: 'Pro', eliminated_week_id: null }).eq('id', pro.id),
   ]);
   const error = starResult.error || proResult.error;
   if (error) return alert(`Couldn’t undo the elimination: ${error.message}`);
@@ -154,7 +154,7 @@ async function editPlayer(id) {
     $('#savePlayer').addEventListener('click', async () => {
       const role = $('#editRole').value;
       const partnerId = isAnyPairRole(role) ? $('#editPartner').value : '';
-      const { error: saveError } = await db.from('players').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name) }).eq('id', id);
+      const { error: saveError } = await db.from('cast_members').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name) }).eq('id', id);
       if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
       const pairingError = await replacePartnership(player, activePairRole(role), partnerId, partnerships);
       if (pairingError) return alert(`The cast member saved, but the partnership could not be saved: ${pairingError.message}`);
@@ -165,7 +165,7 @@ async function editPlayer(id) {
       if (!confirm(`Delete ${player.name}? This cannot be undone.`)) return;
       const pairingError = await replacePartnership(player, player.role, '', partnerships);
       if (pairingError) return alert(`Couldn’t remove the partnership: ${pairingError.message}`);
-      const { error: deleteError } = await db.from('players').delete().eq('id', id);
+      const { error: deleteError } = await db.from('cast_members').delete().eq('id', id);
       if (deleteError) return alert(`Couldn’t delete ${player.name}: ${deleteError.message}`);
       $('#modal').close(); loadRoster();
     });
@@ -192,7 +192,7 @@ async function openAddPlayer() {
     const name = $('#newName').value.trim();
     if (!name) return alert('Enter a cast member name first.');
     const role = $('#newRole').value;
-    const { data: created, error } = await db.from('players').insert({ name, role, image_path: imagePathFor(name), custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) || null : null }).select().single();
+    const { data: created, error } = await db.from('cast_members').insert({ name, role, image_path: imagePathFor(name), custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) || null : null }).select().single();
     if (error) return alert(`Couldn’t create ${name}: ${error.message}`);
     const partnerId = isPairRole(role) ? $('#newPartner').value : '';
     const pairingError = await replacePartnership(created, role, partnerId, partnerships);
@@ -202,25 +202,25 @@ async function openAddPlayer() {
 }
 
 async function loadTeams() {
-  const [{ data: teams, error: teamError }, { data: memberships, error: membershipError }, { data: players, error: playerError }] = await Promise.all([
+  const [{ data: teams, error: teamError }, { data: castMembers, error: castError }] = await Promise.all([
     db.from('fantasy_teams').select('*').order('manager_name'),
-    db.from('roster_history').select('player_id,fantasy_team_id,ends_week_id').is('ends_week_id', null),
-    db.from('players').select('id,name,role').order('name'),
+    db.from('cast_members').select('id,name,role,fantasy_team_id').order('name'),
   ]);
-  if (teamError || membershipError || playerError) {
-    $('#teamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(teamError?.message || membershipError?.message || playerError?.message)}</div>`;
+  if (teamError || castError) {
+    $('#teamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(teamError?.message || castError?.message)}</div>`;
     return;
   }
   if (!teams.length) {
     $('#teamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
     return;
   }
-  const playerById = new Map(players.map((player) => [player.id, player]));
+  const availableCount = castMembers.filter((member) => !member.fantasy_team_id).length;
   $('#teamResults').innerHTML = teams.map((team) => {
-    const roster = memberships.filter((member) => member.fantasy_team_id === team.id).map((member) => playerById.get(member.player_id)).filter(Boolean);
+    const roster = castMembers.filter((member) => member.fantasy_team_id === team.id);
     return `<article class="card team-card"><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2>
-      <p class="sub">${roster.length ? roster.map((player) => escapeHtml(player.name)).join(' · ') : 'No cast members assigned yet.'}</p>
-      ${canEdit ? `<div class="team-actions"><button class="secondary" data-edit-team-id="${team.id}">Edit team</button><button data-team-id="${team.id}">Add Cast Members</button></div>` : ''}
+      <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p>
+      ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(member.role)}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
+      ${canEdit ? `<div class="team-actions"><button class="secondary" data-edit-team-id="${team.id}">Edit team</button>${availableCount ? `<button data-team-id="${team.id}">Add Cast Members</button>` : ''}</div>` : ''}
     </article>`;
   }).join('');
   document.querySelectorAll('[data-team-id]').forEach((button) => button.addEventListener('click', () => openAssignCastMember(button.dataset.teamId)));
@@ -243,15 +243,13 @@ function openNewTeam() {
 }
 
 async function openAssignCastMember(teamId) {
-  const [{ data: players, error: playerError }, { data: memberships, error: membershipError }, { data: team, error: teamError }] = await Promise.all([
-    db.from('players').select('id,name,role').order('name'),
-    db.from('roster_history').select('player_id').is('ends_week_id', null),
+  const [{ data: castMembers, error: castError }, { data: team, error: teamError }] = await Promise.all([
+    db.from('cast_members').select('id,name,role,fantasy_team_id').order('name'),
     db.from('fantasy_teams').select('manager_name,team_name').eq('id', teamId).single(),
   ]);
-  const error = playerError || membershipError || teamError;
+  const error = castError || teamError;
   if (error) return alert(`Couldn’t open available cast: ${error.message}`);
-  const assigned = new Set(memberships.map((member) => member.player_id));
-  const available = players.filter((player) => !assigned.has(player.id));
+  const available = castMembers.filter((member) => !member.fantasy_team_id);
   const displayName = team.team_name || `${team.manager_name}'s Team`;
   openModal(`<h2>Add Cast Members</h2><p class="sub">Select one or more currently available cast members for ${escapeHtml(displayName)}.</p>
     ${available.length ? `<input id="castPickerSearch" placeholder="Search available cast" autocomplete="off"><div class="filter-tabs" id="pickerTabs"><button class="selected" data-picker-filter="all">All</button><button data-picker-filter="pros">Pros</button><button data-picker-filter="stars">Stars</button><button data-picker-filter="bonus">Bonus</button></div><div id="castPicker" class="cast-picker">${available.map((player) => `<label class="cast-choice" data-cast-name="${escapeHtml(player.name.toLowerCase())}" data-cast-category="${castCategory(player)}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(player.role)}</small></span></label>`).join('')}</div><button id="assignCastMember">Add 0 cast members</button>` : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
@@ -276,18 +274,23 @@ async function openAssignCastMember(teamId) {
   $('#assignCastMember')?.addEventListener('click', async () => {
     const playerIds = [...document.querySelectorAll('#castPicker input:checked')].map((checkbox) => checkbox.value);
     if (!playerIds.length) return alert('Choose at least one cast member first.');
-    const { error: assignError } = await db.from('roster_history').insert(playerIds.map((player_id) => ({ player_id, fantasy_team_id: teamId })));
+    const { error: assignError } = await db.from('cast_members').update({ fantasy_team_id: teamId }).in('id', playerIds);
     if (assignError) return alert(`Couldn’t add those cast members: ${assignError.message}`);
     $('#modal').close(); loadTeams();
   });
 }
 
 async function openEditTeam(teamId) {
-  const { data: team, error } = await db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single();
+  const [{ data: team, error: teamError }, { data: roster, error: rosterError }] = await Promise.all([
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
+    db.from('cast_members').select('id,name,role').eq('fantasy_team_id', teamId).order('name'),
+  ]);
+  const error = teamError || rosterError;
   if (error) return alert(`Couldn’t open this team: ${error.message}`);
   openModal(`<h2>Edit Fantasy Team</h2><label>Name<input id="editManagerName" value="${escapeHtml(team.manager_name)}" required></label>
     <label>Team name <span class="optional">(optional)</span><input id="editTeamName" value="${escapeHtml(team.team_name || '')}"></label>
-    <button id="saveTeam">Save changes</button>`);
+    <button id="saveTeam">Save changes</button><hr><h3>Cast Roster</h3>
+    ${roster.length ? `<div class="edit-roster">${roster.map((member) => `<div><span><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.role)}</small></span><button class="secondary" data-remove-cast-id="${member.id}">Remove</button></div>`).join('')}</div>` : '<p class="sub">No cast members assigned.</p>'}`);
   $('#saveTeam').addEventListener('click', async () => {
     const manager_name = $('#editManagerName').value.trim();
     const team_name = $('#editTeamName').value.trim();
@@ -296,6 +299,13 @@ async function openEditTeam(teamId) {
     if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
     $('#modal').close(); loadTeams();
   });
+  document.querySelectorAll('[data-remove-cast-id]').forEach((button) => button.addEventListener('click', async () => {
+    const castMember = roster.find((member) => member.id === button.dataset.removeCastId);
+    if (!confirm(`Remove ${castMember.name} from this fantasy team?`)) return;
+    const { error: removeError } = await db.from('cast_members').update({ fantasy_team_id: null }).eq('id', castMember.id);
+    if (removeError) return alert(`Couldn’t remove ${castMember.name}: ${removeError.message}`);
+    $('#modal').close(); loadTeams();
+  }));
 }
 
 $('#rosterSearch').addEventListener('input', loadRoster);
