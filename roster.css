@@ -165,10 +165,10 @@
 
 /* Ballroom polish: deep velvet, a restrained champagne accent, and brighter stage cards. */
 body { background: radial-gradient(circle at 92% 0%, #e9d9e166 0, transparent 28rem), linear-gradient(135deg, #f9f6f8 0%, #f4f0f3 100%); }
-header { position: relative; z-index: 10; height: 70px; overflow: visible; padding: 0 28px; background: linear-gradient(110deg, #17101b 0%, #2d2031 55%, #211825 100%); box-shadow: 0 4px 18px #1c122333; }
-header::after { content: ''; position: absolute; inset: 0 0 0 auto; width: 42%; pointer-events: none; opacity: .6; background: radial-gradient(circle at 78% 52%, #e7c8794d 0 1px, transparent 2px) 0 0 / 29px 29px; mask-image: linear-gradient(to right, transparent, #000); }
-.brand { position: relative; z-index: 1; display: flex; align-items: center; height: 100%; }
-.brand img { display: block; width: min(245px, 56vw); height: auto; max-height: 42px; object-fit: contain; object-position: left center; filter: drop-shadow(0 1px 1px #0008); }
+header { position: relative; z-index: 10; isolation: isolate; height: 70px; overflow: visible; padding: 0 28px; background: linear-gradient(110deg, #17101b 0%, #2d2031 55%, #211825 100%); box-shadow: 0 4px 18px #1c122333; }
+header::after { content: ''; position: absolute; z-index: 0; inset: 0 0 0 auto; width: 42%; pointer-events: none; opacity: .6; background: radial-gradient(circle at 78% 52%, #e7c8794d 0 1px, transparent 2px) 0 0 / 29px 29px; mask-image: linear-gradient(to right, transparent, #000); }
+.brand { position: relative; z-index: 2; display: flex; align-items: center; height: 100%; }
+.brand img { display: block; width: auto; height: 42px; max-width: min(245px, 56vw); object-fit: contain; object-position: left center; filter: drop-shadow(0 1px 1px #0008); }
 .account { position: relative; z-index: 20; }
 .account-menu { z-index: 30; }
 nav { background: #fffdfefa; border-right-color: #e6dde4; box-shadow: 4px 0 18px #271a2c06; }
@@ -188,7 +188,7 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .dance-row .eyebrow { color: #927282; }
 .dance-row .dance-details span:first-child { background: #eee4d4; color: #70572c; }
 .standing-card.leader { background: linear-gradient(110deg, #fffdfa 0%, #fff 70%); }
-@media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: min(210px, 54vw); max-height: 36px; } .breakdown-item { grid-template-columns: minmax(100px, 1fr) minmax(126px, .9fr) 44px; gap: 7px; padding: 9px; } }
+@media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: auto; height: 36px; max-width: min(210px, 54vw); } .breakdown-item { grid-template-columns: minmax(100px, 1fr) minmax(126px, .9fr) 44px; gap: 7px; padding: 9px; } }
 @media (max-width: 520px) { .full-cast-list, .team-detail-grid { grid-template-columns: 1fr; } .breakdown-item { grid-template-columns: minmax(96px, 1fr) minmax(118px, .9fr) 40px; gap: 6px; padding: 8px; } .breakdown-points > div { padding: 4px 5px; } .breakdown-points span { font-size: 10px; } .breakdown-points b { font-size: 11px; } .breakdown-item-total { padding-left: 6px; } }
 @media (max-width: 700px) { .score-week-head { align-items: flex-start; flex-wrap: wrap; } .week-summary { margin-left: 0; } .score-week-actions { margin-left: auto; } .dance-list { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } .team-edit-fields { grid-template-columns: 1fr; } .score-week-actions { width: 100%; margin-left: 0; } .standing-card { grid-template-columns: 38px minmax(0, 1fr); gap: 10px; } .standing-total { grid-column: 2; text-align: left; } }
