@@ -46,13 +46,14 @@
 .cast-choice[hidden] { display: none; }
 .cast-choice input { display: inline-block; width: auto; margin: 0; accent-color: #302638; }
 .cast-choice small { display: block; margin-top: 2px; color: #786e79; }
-.filter-tabs { display: inline-flex; gap: 2px; max-width: 100%; margin: 6px 0 8px; padding: 3px; overflow-x: auto; border: 1px solid #e3dbe2; border-radius: 10px; background: #f3eef2; }
+.filter-tabs { display: inline-flex; gap: 2px; max-width: 100%; margin: 2px 0 6px; padding: 3px; overflow-x: auto; border: 1px solid #e3dbe2; border-radius: 10px; background: #f3eef2; }
 .filter-tabs button { padding: 7px 12px; background: transparent; color: #6d626d; white-space: nowrap; box-shadow: none; }
 .filter-tabs button.selected { background: #302638; color: #fff; box-shadow: 0 2px 5px #21182533; }
 .edit-roster { margin-top: 12px; border-top: 1px solid #e8e0e7; }
 .edit-roster > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e8e0e7; }
 .edit-roster small { display: block; margin-top: 2px; color: #786e79; }
 .cast-modal-heading { display: flex; align-items: center; gap: 13px; margin-bottom: 18px; }
+.modal > h2 { margin: 0 0 7px; }
 .cast-modal-heading h2 { margin: 0 0 3px; }
 .cast-modal-heading .sub { margin: 0; }
 .cast-modal-photo { width: 68px; height: 68px; flex: 0 0 68px; border-radius: 14px; object-fit: cover; background: #eee8ed; }
@@ -66,8 +67,8 @@
 .score-week-actions { display: flex; gap: 8px; }
 .score-week-head h2 { margin: 0 0 3px; }
 .score-week-head .sub { margin: 0; }
-.dance-list { display: grid; gap: 10px; }
-.dance-row { display: flex; align-items: center; gap: 14px; padding: 15px 16px; }
+.dance-list { display: grid; gap: 8px; }
+.dance-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
 .dance-row b, .dance-row small { display: block; }
 .dance-row > div:first-child { flex: 1; }
 .dance-row small { margin-top: 3px; color: #786e79; }
@@ -78,10 +79,13 @@
 .judge-grid label { width: 88px; }
 .judge-grid input { width: 82px; padding: 9px; }
 .couple-select select { padding: 12px 36px 12px 12px; border-color: #bcaab8; background: #fbf8fa; font-weight: 750; }
-.mini-filters { display: flex; flex-wrap: wrap; gap: 5px; margin: -2px 0 8px; }
+.mini-filters { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 7px; }
+.mini-filters[hidden] { display: none; }
 .mini-filters button { padding: 5px 8px; background: #f1e9ee; color: #6d5966; font-size: 11px; }
 .mini-filters button.selected { background: #7f5268; color: #fff; }
+.dance-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
+.filter-tabs button:disabled { opacity: .4; cursor: not-allowed; }
 .check-label { display: flex; align-items: center; gap: 8px; margin: 14px 0; color: #4f4550; }
 .check-label input { display: inline-block; width: auto; margin: 0; }
-.dance-kind-tabs { margin-top: 0; }
+.dance-kind-tabs { margin: 0 0 8px; }
 @media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } .team-edit-fields { grid-template-columns: 1fr; } }
