@@ -129,13 +129,20 @@
 .breakdown-total strong { font: 700 30px/1 Georgia, serif; }
 .breakdown-total span { margin-top: 3px; color: #786e79; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .breakdown-week { display: block; max-width: 260px; margin: 18px 0 12px; }
-.breakdown-table { overflow: hidden; border: 1px solid #e8e0e7; border-radius: 10px; }
-.breakdown-row { display: grid; grid-template-columns: minmax(0, 1fr) 68px 92px 54px; gap: 8px; align-items: center; min-height: 47px; padding: 8px 10px; border-top: 1px solid #eee8ed; font-size: 12px; }
-.breakdown-row:first-child { border-top: 0; }
-.breakdown-row > span:not(:first-child), .breakdown-row > strong { text-align: right; }
-.breakdown-row small { display: block; margin-top: 2px; color: #786e79; font-size: 10px; }
-.breakdown-row .appearance-detail { color: #5f5360; font-size: 11px; line-height: 1.15; }
-.breakdown-labels { min-height: auto; background: #faf7f9; color: #877c87; font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.breakdown-list { display: grid; gap: 8px; }
+.breakdown-item { display: grid; grid-template-columns: minmax(118px, .8fr) minmax(0, 1.45fr) 48px; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid #e8e0e7; border-radius: 10px; background: #fff; }
+.breakdown-member b, .breakdown-member span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.breakdown-member b { font-size: 13px; }
+.breakdown-member span { margin-top: 2px; color: #786e79; font-size: 11px; }
+.breakdown-sources { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
+.breakdown-source { display: grid; align-content: center; min-width: 56px; padding: 5px 7px; border-radius: 7px; background: #f5f0f3; color: #5e505d; }
+.breakdown-source small { color: #877c87; font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.breakdown-source b { margin-top: 2px; font-size: 12px; line-height: 1.15; }
+.breakdown-source em { margin-top: 1px; color: #786e79; font-size: 10px; font-style: normal; }
+.breakdown-source.appearance-source { background: #f5eee3; color: #6c572f; }
+.breakdown-item-total { align-self: stretch; display: grid; place-content: center end; min-width: 0; border-left: 1px solid #eee8ed; padding-left: 9px; text-align: right; }
+.breakdown-item-total strong { font: 700 21px/1 Georgia, serif; }
+.breakdown-item-total span { margin-top: 3px; color: #877c87; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .dance-detail-head h2 { margin: 0 0 4px; }
 .dance-detail-head .sub { margin: 0; }
 .detail-section { margin-top: 20px; }
@@ -159,11 +166,12 @@
 
 /* Ballroom polish: deep velvet, a restrained champagne accent, and brighter stage cards. */
 body { background: radial-gradient(circle at 92% 0%, #e9d9e166 0, transparent 28rem), linear-gradient(135deg, #f9f6f8 0%, #f4f0f3 100%); }
-header { position: relative; height: 70px; overflow: hidden; padding: 0 28px; background: linear-gradient(110deg, #17101b 0%, #2d2031 55%, #211825 100%); box-shadow: 0 4px 18px #1c122333; }
+header { position: relative; z-index: 10; height: 70px; overflow: visible; padding: 0 28px; background: linear-gradient(110deg, #17101b 0%, #2d2031 55%, #211825 100%); box-shadow: 0 4px 18px #1c122333; }
 header::after { content: ''; position: absolute; inset: 0 0 0 auto; width: 42%; pointer-events: none; opacity: .6; background: radial-gradient(circle at 78% 52%, #e7c8794d 0 1px, transparent 2px) 0 0 / 29px 29px; mask-image: linear-gradient(to right, transparent, #000); }
 .brand { position: relative; z-index: 1; display: flex; align-items: center; height: 100%; }
-.brand img { display: block; width: min(245px, 56vw); height: auto; max-height: 42px; object-fit: contain; object-position: left center; }
-.account { z-index: 2; }
+.brand img { display: block; width: min(245px, 56vw); height: auto; max-height: 42px; object-fit: contain; object-position: left center; filter: drop-shadow(0 1px 1px #0008); }
+.account { position: relative; z-index: 20; }
+.account-menu { z-index: 30; }
 nav { background: #fffdfefa; border-right-color: #e6dde4; box-shadow: 4px 0 18px #271a2c06; }
 nav button { margin: 2px 0; padding: 10px 11px; color: #665967; transition: background .15s ease, color .15s ease; }
 nav button:hover { background: #f4edf2; color: #302638; }
@@ -181,7 +189,7 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .dance-row .eyebrow { color: #927282; }
 .dance-row .dance-details span:first-child { background: #eee4d4; color: #70572c; }
 .standing-card.leader { background: linear-gradient(110deg, #fffdfa 0%, #fff 70%); }
-@media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: min(210px, 54vw); max-height: 36px; } .breakdown-row { grid-template-columns: minmax(0, 1fr) 54px 76px 44px; padding: 8px; font-size: 11px; } }
-@media (max-width: 520px) { .full-cast-list, .team-detail-grid { grid-template-columns: 1fr; } .breakdown-row { grid-template-columns: minmax(0, 1fr) 43px 67px 39px; gap: 4px; } .breakdown-labels { font-size: 8px; } }
+@media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: min(210px, 54vw); max-height: 36px; } .breakdown-item { grid-template-columns: minmax(100px, .8fr) minmax(0, 1.4fr) 44px; gap: 7px; padding: 9px; } }
+@media (max-width: 520px) { .full-cast-list, .team-detail-grid { grid-template-columns: 1fr; } .breakdown-item { grid-template-columns: minmax(96px, .75fr) minmax(0, 1.3fr) 40px; gap: 6px; padding: 8px; } .breakdown-source { padding: 4px 5px; } .breakdown-source b { font-size: 11px; } .breakdown-item-total { padding-left: 6px; } }
 @media (max-width: 700px) { .score-week-head { align-items: flex-start; flex-wrap: wrap; } .week-summary { margin-left: 0; } .score-week-actions { margin-left: auto; } .dance-list { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } .team-edit-fields { grid-template-columns: 1fr; } .score-week-actions { width: 100%; margin-left: 0; } .standing-card { grid-template-columns: 38px minmax(0, 1fr); gap: 10px; } .standing-total { grid-column: 2; text-align: left; } }
