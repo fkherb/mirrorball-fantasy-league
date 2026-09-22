@@ -188,7 +188,64 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .dance-row .eyebrow { color: #927282; }
 .dance-row .dance-details span:first-child { background: #eee4d4; color: #70572c; }
 .standing-card.leader { background: linear-gradient(110deg, #fffdfa 0%, #fff 70%); }
+.rules-intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(220px, .9fr); gap: 28px; align-items: center; padding: 24px; border-color: #d8c7ab; background: linear-gradient(112deg, #fffdf5 0%, #fff 82%); }
+.rules-intro h2 { margin: 0; font-size: 24px; line-height: 1.18; }
+.rules-intro > p { margin: 0; color: #665b64; line-height: 1.55; }
+.rules-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0 30px; }
+.rule-card { position: relative; min-height: 190px; padding: 20px; overflow: hidden; }
+.rule-number { display: block; color: #b79a54; font: 700 20px/1 Georgia, serif; }
+.rule-card h2 { margin: 20px 0 7px; font-size: 17px; }
+.rule-card p { margin: 0; color: #706570; font-size: 12px; line-height: 1.48; }
+.appearance-rates { margin-top: 4px; }
+.rules-section-head { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 12px; }
+.rules-section-head h2 { margin: 0; font-size: 23px; }
+.rules-section-head .sub { max-width: 280px; margin: 0; text-align: right; }
+.rate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rate-card { min-height: 112px; padding: 16px; background: #fff; }
+.rate-card span, .rate-card small { display: block; color: #786e79; }
+.rate-card span { min-height: 32px; font-size: 12px; font-weight: 800; }
+.rate-card strong { display: block; margin: 7px 0 3px; color: #745b29; font: 700 27px/1 Georgia, serif; }
+.rate-card small { font-size: 10px; }
+.rules-note { margin-top: 18px; padding: 20px 22px; }
+.rules-note h2 { margin: 0 0 10px; font-size: 19px; }
+.rules-note ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; margin: 0; padding-left: 18px; color: #665b64; font-size: 12px; line-height: 1.48; }
 @media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: auto; height: 36px; max-width: min(210px, 54vw); } .breakdown-item { grid-template-columns: minmax(100px, 1fr) minmax(126px, .9fr) 44px; gap: 7px; padding: 9px; } }
 @media (max-width: 520px) { .full-cast-list, .team-detail-grid { grid-template-columns: 1fr; } .breakdown-item { grid-template-columns: minmax(96px, 1fr) minmax(118px, .9fr) 40px; gap: 6px; padding: 8px; } .breakdown-points > div { padding: 4px 5px; } .breakdown-points span { font-size: 10px; } .breakdown-points b { font-size: 11px; } .breakdown-item-total { padding-left: 6px; } }
 @media (max-width: 700px) { .score-week-head { align-items: flex-start; flex-wrap: wrap; } .week-summary { margin-left: 0; } .score-week-actions { margin-left: auto; } .dance-list { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } .team-edit-fields { grid-template-columns: 1fr; } .score-week-actions { width: 100%; margin-left: 0; } .standing-card { grid-template-columns: 38px minmax(0, 1fr); gap: 10px; } .standing-total { grid-column: 2; text-align: left; } }
+
+/* Phone polish: preserve the ballroom feel while reducing scrolling and cramped controls. */
+@media (max-width: 750px) {
+  nav { gap: 6px; padding: 9px 12px; scrollbar-width: none; box-shadow: 0 5px 14px #271a2c0b; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { flex: 0 0 auto; margin: 0; padding: 10px 13px; font-size: 13px; }
+  main { padding: 24px 14px 34px; }
+  .splithead { margin-bottom: 16px; }
+  h1 { font-size: 31px; }
+  .sub { line-height: 1.4; }
+  .week-tabs { margin-bottom: 12px; }
+  .week-tabs button { padding: 10px 14px; }
+  .score-week-head { padding: 16px; gap: 12px; }
+  .week-summary { gap: 5px; }
+  .dance-list { gap: 10px; }
+  .dance-row { padding: 14px; }
+  .dance-card-top h3 { font-size: 15px; }
+  .dance-row .dance-details { margin: 8px 0; }
+  .dance-cast { margin-top: 9px; padding-top: 8px; }
+  .standing-card { padding: 15px; }
+  dialog { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  .modal { padding: 18px; }
+  .rules-intro { grid-template-columns: 1fr; gap: 12px; padding: 20px; }
+  .rules-intro h2 { font-size: 22px; }
+  .rules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-bottom: 24px; }
+  .rule-card { min-height: 174px; padding: 15px; }
+  .rule-card h2 { margin-top: 15px; font-size: 16px; }
+  .rule-card p { font-size: 11px; }
+  .rules-section-head { display: block; margin-bottom: 10px; }
+  .rules-section-head .sub { max-width: none; margin-top: 5px; text-align: left; }
+  .rate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .rate-card { min-height: 104px; padding: 13px; }
+  .rate-card strong { font-size: 25px; }
+  .rules-note { padding: 17px; }
+  .rules-note ul { grid-template-columns: 1fr; gap: 8px; }
+}

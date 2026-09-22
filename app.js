@@ -599,6 +599,20 @@ async function openEditDance(week, dance, index) {
   openNewDance(week, index, dance, scores, appearances.map((item) => item.cast_member_id));
 }
 
+async function loadRules() {
+  const { data: roleRows, error } = await db.from('roles').select('name,appearance_points');
+  if (error) {
+    $('#rulesContent').innerHTML = `<div class="card empty error">Couldn’t load the scoring rules: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
+  const rates = [...roleRows].sort((a, b) => (roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)) || a.name.localeCompare(b.name));
+  $('#rulesContent').innerHTML = `<div class="rules-intro card"><div><p class="eyebrow">How points are earned</p><h2>Score the show, then count the moments around it.</h2></div><p>Fantasy teams collect official dance scores for their cast, plus points when rostered cast members appear in other recorded dances.</p></div>
+    <div class="rules-grid"><article class="card rule-card"><span class="rule-number">01</span><h2>Competitive dances</h2><p>Each official judge score is awarded to both members of the competing couple. If your team has both partners, it receives both scores.</p></article><article class="card rule-card"><span class="rule-number">02</span><h2>Cast appearances</h2><p>A cast member earns their role’s appearance rate once for every recorded dance appearance. The commissioner logs each appearance in the Score Desk.</p></article><article class="card rule-card"><span class="rule-number">03</span><h2>Eliminations</h2><p>Couples keep their regular roles through their elimination week. Their eliminated appearance rates begin with the following week.</p></article><article class="card rule-card"><span class="rule-number">04</span><h2>Surprise guests</h2><p>Surprise cast members use a custom appearance rate chosen by the commissioner when they are added to the Cast Roster.</p></article></div>
+    <section class="appearance-rates"><div class="rules-section-head"><div><p class="eyebrow">Appearance rates</p><h2>Points per recorded dance</h2></div><p class="sub">These values come directly from the current league setup.</p></div><div class="rate-grid">${rates.map((role) => `<article class="card rate-card"><span>${escapeHtml(role.name)}</span><strong>+${Number(role.appearance_points) || 0}</strong><small>per dance appearance</small></article>`).join('')}</div></section>
+    <section class="card rules-note"><h2>Weekly notes</h2><ul><li>A guest judge’s score is included in the official total for that week’s competitive dances.</li><li>Double eliminations are recorded with the week so each eliminated couple changes to its new rate at the right time.</li><li>The Score Desk prevents the same active couple from being entered twice for a regular competitive dance in the same week.</li></ul></section>`;
+}
+
 $('#rosterSearch').addEventListener('input', loadRoster);
 document.querySelectorAll('[data-roster-filter]').forEach((button) => button.addEventListener('click', () => {
   rosterFilter = button.dataset.rosterFilter;
@@ -617,6 +631,7 @@ window.addEventListener('mirrorball-auth-change', async (event) => {
   loadRoster();
   loadTeams();
   loadScoreDesk();
+  loadRules();
 });
 db.auth.getSession().then(({ data: { session } }) => {
   canEdit = Boolean(session);
@@ -627,4 +642,5 @@ db.auth.getSession().then(({ data: { session } }) => {
   loadRoster();
   loadTeams();
   loadScoreDesk();
+  loadRules();
 });
