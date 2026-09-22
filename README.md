@@ -36,6 +36,12 @@ role rates, completed-week protection, and weekly roster snapshots. It is safe
 to wait: until the migration is applied, the site deliberately leaves the new
 “Mark Complete” control hidden.
 
+After that migration, run
+`supabase/allow-week-corrections-and-rate-ledger.sql`. It removes the
+completed-week editing lock while retaining score-integrity safeguards. It adds
+the per-week rate ledger used to keep past scoring independent from future
+default-rate changes.
+
 ## Operational reminders
 
 - The Score Desk is the source of truth for dances, judges’ scores, and cast
@@ -46,6 +52,7 @@ to wait: until the migration is applied, the site deliberately leaves the new
 - Completion snapshots every cast member’s fantasy-team assignment and role
   before applying the role changes. Future trades therefore do not rewrite
   completed-week standings.
-- A completed week is intentionally read-only. A controlled “reopen latest
-  week” workflow is a future improvement; do not alter completed data directly.
+- Completion is a historical checkpoint, not an edit lock. Commissioners can
+  correct completed-week dances, scores, appearances, and setup. The weekly
+  ledger preserves the roster and rates used for that week.
 - Export or back up the Supabase data before making large commissioner edits.
