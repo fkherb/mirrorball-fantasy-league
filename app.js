@@ -402,20 +402,28 @@ async function loadStandings() {
   $('#standingsContent').innerHTML = `<div class="standings-grid">${teamRows.map((row, index) => {
     const contributors = members.filter((member) => (teamMemberPoints.get(row.team.id)?.get(member.id) || 0) > 0 || member.fantasy_team_id === row.team.id).sort((a, b) => (teamMemberPoints.get(row.team.id)?.get(b.id) || 0) - (teamMemberPoints.get(row.team.id)?.get(a.id) || 0) || a.name.localeCompare(b.name));
     const tiedLeader = isFirstPlaceTie && row.total === leaderTotal;
-    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''} ${row.team.id === selectedOverviewTeamId ? 'selected' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)} score breakdown"><div class="standing-rank">${tiedLeader ? 'T-1' : index + 1}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<p class="standing-roster">${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div></article>`;
+    const rank = teamRows.findIndex((item) => item.total === row.total) + 1;
+    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''} ${row.team.id === selectedOverviewTeamId ? 'selected' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<p class="standing-roster">${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div></article>`;
   }).join('')}</div>`;
   document.querySelectorAll('[data-standing-team]').forEach((card) => {
-    const open = () => { selectedOverviewTeamId = card.dataset.standingTeam; document.querySelectorAll('[data-standing-team]').forEach((item) => item.classList.toggle('selected', item === card)); renderOverviewTeamDetail(); };
+    const open = () => {
+      selectedOverviewTeamId = card.dataset.standingTeam;
+      document.querySelectorAll('[data-standing-team]').forEach((item) => item.classList.toggle('selected', item === card));
+      if (window.matchMedia('(max-width: 700px)').matches) openOverviewTeamDetail();
+      else renderOverviewTeamDetail();
+    };
     card.addEventListener('click', open);
     card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
   });
   standingsSnapshot.teamRows = teamRows;
   renderOverviewTeamDetail();
   renderPublicTeams();
+  renderLeagueHighlights();
 }
 
 function teamScoreBreakdown(teamId, weekId = 'all') {
-  const { members, weeks, weekMemberPoints, teamForMemberInWeek, snapshotByWeekMember } = standingsSnapshot;
+  const { members, weeks, roles: roleRows, weekMemberPoints, teamForMemberInWeek, snapshotByWeekMember } = standingsSnapshot;
+  const roleRates = new Map(roleRows.map((role) => [role.name, Number(role.appearance_points) || 0]));
   const selectedWeeks = weekId === 'all' ? weeks : weeks.filter((week) => week.id === weekId);
   const rows = members.filter((member) => selectedWeeks.some((week) => teamForMemberInWeek(member, week) === teamId)).map((member) => {
     const sources = selectedWeeks.reduce((result, week) => {
@@ -429,28 +437,66 @@ function teamScoreBreakdown(teamId, weekId = 'all') {
     }, { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] });
     const snapshot = selectedWeeks.length === 1 ? snapshotByWeekMember.get(`${selectedWeeks[0].id}:${member.id}`) : null;
     const role = selectedWeeks.length === 1 ? snapshot?.cast_role || roleForWeek(member, selectedWeeks[0], weeks) : member.role;
-    return { member, role, ...sources, total: sources.official + sources.appearances };
+    const appearanceRate = role === 'Surprise' ? Number(member.custom_appearance_points) || 0 : roleRates.get(role) || 0;
+    return { member, role, appearanceRate, ...sources, total: sources.official + sources.appearances };
   }).sort((a, b) => b.total - a.total || a.member.name.localeCompare(b.member.name));
   return { rows, total: rows.reduce((sum, row) => sum + row.total, 0) };
 }
 
 function scoreBreakdownMarkup(rows, limit = null) {
   const visible = limit ? rows.slice(0, limit) : rows;
-  return `<div class="league-score-list">${visible.map((row) => {
-    const rateCounts = new Map();
-    row.appearanceRates.forEach((rate) => rateCounts.set(rate, (rateCounts.get(rate) || 0) + 1));
-    const appearanceText = [...rateCounts].map(([rate, count]) => `${count} × +${rate}`).join(', ');
-    return `<div class="league-score-row"><div><strong>${escapeHtml(row.member.name)}</strong><small>${escapeHtml(row.role)}</small></div><div class="league-score-parts"><span>Judges <b>${row.official}</b></span>${row.appearanceCount ? `<span class="appearance-part">${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'} · ${escapeHtml(appearanceText)} <b>+${row.appearances}</b></span>` : ''}</div><strong class="league-score-total">${row.total}</strong></div>`;
-  }).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>${limit && rows.length > limit ? `<p class="league-more">+${rows.length - limit} more scoring cast member${rows.length - limit === 1 ? '' : 's'} on the Teams page</p>` : ''}`;
+  return `<div class="league-score-list">${visible.map((row) => `<div class="league-score-row"><div class="league-score-member"><strong>${escapeHtml(row.member.name)}</strong><span class="role-rate-pill">${escapeHtml(row.role)} <b>+${row.appearanceRate}</b></span></div><div class="league-score-parts"><span>Judges Total <b>${row.official}</b></span><span class="appearance-part">Appearances <b>${row.appearances}</b></span></div><strong class="league-score-total">${row.total}</strong></div>`).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>${limit && rows.length > limit ? `<p class="league-more">+${rows.length - limit} more scoring cast member${rows.length - limit === 1 ? '' : 's'} on the Teams page</p>` : ''}`;
+}
+
+function overviewTeamDetailMarkup(row) {
+  const breakdown = teamScoreBreakdown(row.team.id);
+  const displayName = row.team.team_name || `${row.team.manager_name}'s Team`;
+  return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)} · ${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div>${scoreBreakdownMarkup(breakdown.rows, 5)}`;
 }
 
 function renderOverviewTeamDetail() {
   if (!standingsSnapshot) return;
   const row = standingsSnapshot.teamRows?.find((item) => item.team.id === selectedOverviewTeamId);
   if (!row) return;
-  const breakdown = teamScoreBreakdown(row.team.id);
-  const displayName = row.team.team_name || `${row.team.manager_name}'s Team`;
-  $('#overviewTeamDetail').innerHTML = `<section class="card overview-team-detail"><div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)} · ${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div>${scoreBreakdownMarkup(breakdown.rows, 5)}</section>`;
+  $('#overviewTeamDetail').innerHTML = `<section class="card overview-team-detail">${overviewTeamDetailMarkup(row)}</section>`;
+}
+
+function openOverviewTeamDetail() {
+  const row = standingsSnapshot?.teamRows?.find((item) => item.team.id === selectedOverviewTeamId);
+  if (row) openModal(`<div class="overview-mobile-detail">${overviewTeamDetailMarkup(row)}</div>`);
+}
+
+function renderLeagueHighlights() {
+  const { weeks, teams, members, weekMemberPoints, teamForMemberInWeek } = standingsSnapshot;
+  const week = [...weeks].reverse().find((item) => item.is_complete);
+  if (!week) {
+    $('#highlightWeek').textContent = 'Waiting for results';
+    return;
+  }
+  const points = weekMemberPoints.get(week.id) || new Map();
+  const teamTotals = teams.map((team) => ({
+    team,
+    total: [...points].reduce((sum, [memberId, entry]) => {
+      const member = members.find((item) => item.id === memberId);
+      return sum + (member && teamForMemberInWeek(member, week) === team.id ? entry.official + entry.appearances : 0);
+    }, 0),
+  }));
+  const bestTeamScore = Math.max(0, ...teamTotals.map((item) => item.total));
+  const winningTeams = bestTeamScore > 0 ? teamTotals.filter((item) => item.total === bestTeamScore) : [];
+  const castRows = members.map((member) => {
+    const entry = points.get(member.id) || { official: 0, appearances: 0, appearanceCount: 0 };
+    return { member, total: entry.official + entry.appearances, appearances: entry.appearanceCount || 0 };
+  });
+  const bestCastScore = Math.max(0, ...castRows.map((item) => item.total));
+  const castMVPs = bestCastScore > 0 ? castRows.filter((item) => item.total === bestCastScore) : [];
+  const mostAppearances = Math.max(0, ...castRows.map((item) => item.appearances));
+  const appearanceLeaders = castRows.filter((item) => item.appearances === mostAppearances && mostAppearances > 0);
+  const names = (items, getName) => items.map(getName).join(' & ');
+  const teamNames = winningTeams.length ? names(winningTeams, ({ team }) => team.team_name || `${team.manager_name}'s Team`) : 'No team points recorded';
+  const mvpNames = castMVPs.length ? names(castMVPs, ({ member }) => member.name) : 'No cast points recorded';
+  const appearanceNames = appearanceLeaders.length ? names(appearanceLeaders, ({ member }) => member.name) : 'No appearances recorded';
+  $('#highlightWeek').textContent = weekTitle(week);
+  $('#leagueHighlightCards').innerHTML = `<article class="card"><small>Team of the week</small><strong>${escapeHtml(teamNames)}</strong><p>${bestTeamScore ? `<b>${bestTeamScore} points</b>${winningTeams.length > 1 ? ' · tied for the week lead' : ' · highest fantasy-team total'}` : 'No fantasy-team points were recorded.'}</p></article><article class="card"><small>Cast MVP</small><strong>${escapeHtml(mvpNames)}</strong><p>${bestCastScore ? `<b>${bestCastScore} points</b>${castMVPs.length > 1 ? ' · tied as top cast scorer' : ' · top cast contribution'}` : 'No cast points were recorded.'}</p></article><article class="card"><small>Appearance leader</small><strong>${escapeHtml(appearanceNames)}</strong><p>${mostAppearances ? `<b>${mostAppearances} dance${mostAppearances === 1 ? '' : 's'}</b> · most recorded appearances` : 'No cast appearances were recorded.'}</p></article>`;
 }
 
 function renderPublicTeams() {

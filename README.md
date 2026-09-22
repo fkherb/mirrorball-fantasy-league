@@ -16,9 +16,10 @@ Row-level security policies—not that key—restrict commissioner writes.
 
 ## Current pages
 
-- **Overview** shows the standings and an in-page summary for the selected
-  fantasy team. The League Highlights cards are intentionally a visual preview
-  only; they do not query or calculate highlight data yet.
+- **Overview** shows the standings and a selected-team summary beside them on
+  wider screens. On phones, selecting a team opens that summary in a compact
+  detail window. League Highlights are calculated from the latest completed
+  week and show its top fantasy team, cast scorer, and appearance leader.
 - **Teams** is the public manager view. Until manager accounts exist, anyone can
   choose a team to see its weekly history, scoring breakdown, current roster,
   and the cast members who are still available.
