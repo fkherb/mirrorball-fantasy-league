@@ -323,11 +323,11 @@ function roleForWeek(member, week, weeks) {
   return member.role;
 }
 
-function appearanceValue(member, roleMap, week, weeks, weeklyRoleRateMap = new Map(), snapshot = null) {
+function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
   if (!member) return 0;
   const role = snapshot?.cast_role || roleForWeek(member, week, weeks);
-  if (role === 'Surprise') return Number(snapshot?.appearance_points ?? member.custom_appearance_points) || 0;
-  return Number(weeklyRoleRateMap.get(`${week.id}:${role}`) ?? roleMap.get(role)?.appearance_points) || 0;
+  if (role === 'Surprise') return Number(member.custom_appearance_points) || 0;
+  return Number(roleMap.get(role)?.appearance_points) || 0;
 }
 
 async function loadStandings() {
@@ -339,7 +339,7 @@ async function loadStandings() {
     db.from('weeks').select('*').order('number'),
     db.from('dances').select('id,kind,partnership_id,week_id'),
     db.from('dance_judge_scores').select('dance_id,score'),
-    db.from('dance_appearances').select('dance_id,cast_member_id'),
+    db.from('dance_appearances').select('id,dance_id,cast_member_id'),
   ]);
   const error = [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult].find((result) => result.error)?.error;
   if (error) {
@@ -349,7 +349,6 @@ async function loadStandings() {
   // The completion migration adds roster snapshots. Until it has been run, do
   // not query a table that does not exist—current standings remain usable.
   let rosterSnapshots = [];
-  let weeklyRoleRates = [];
   if (weeksResult.data.some((week) => Object.prototype.hasOwnProperty.call(week, 'is_complete'))) {
     const snapshotColumns = weeksResult.data.some((week) => Object.prototype.hasOwnProperty.call(week, 'uses_rate_snapshots')) ? 'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role,appearance_points' : 'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role';
     const { data, error: snapshotError } = await db.from('weekly_roster_snapshots').select(snapshotColumns);
@@ -359,15 +358,7 @@ async function loadStandings() {
     }
     rosterSnapshots = data;
   }
-  if (weeksResult.data.some((week) => Object.prototype.hasOwnProperty.call(week, 'uses_rate_snapshots'))) {
-    const { data, error: rateError } = await db.from('weekly_role_rates').select('week_id,role,appearance_points');
-    if (rateError) {
-      $('#standingsContent').innerHTML = `<div class="card empty error">Couldn’t load weekly appearance rates: ${escapeHtml(rateError.message)}</div>`;
-      return;
-    }
-    weeklyRoleRates = data;
-  }
-  const data = { teams: teamsResult.data, members: membersResult.data, roles: rolesResult.data, partnerships: partnershipsResult.data, weeks: weeksResult.data, dances: dancesResult.data, scores: scoresResult.data, appearances: appearancesResult.data, rosterSnapshots, weeklyRoleRates };
+  const data = { teams: teamsResult.data, members: membersResult.data, roles: rolesResult.data, partnerships: partnershipsResult.data, weeks: weeksResult.data, dances: dancesResult.data, scores: scoresResult.data, appearances: appearancesResult.data, rosterSnapshots };
   const { teams, members, weeks, memberPoints, weekMemberPoints } = calculateLeaguePoints(data);
   const snapshotTeamByWeekMember = new Map(rosterSnapshots.map((snapshot) => [`${snapshot.week_id}:${snapshot.cast_member_id}`, snapshot.fantasy_team_id]));
   const snapshotByWeekMember = new Map(rosterSnapshots.map((snapshot) => [`${snapshot.week_id}:${snapshot.cast_member_id}`, snapshot]));
@@ -415,7 +406,6 @@ function calculateLeaguePoints(data) {
   const danceById = new Map(data.dances.map((dance) => [dance.id, dance]));
   const weekById = new Map(data.weeks.map((week) => [week.id, week]));
   const snapshotByWeekMember = new Map((data.rosterSnapshots || []).map((snapshot) => [`${snapshot.week_id}:${snapshot.cast_member_id}`, snapshot]));
-  const weeklyRoleRateMap = new Map((data.weeklyRoleRates || []).map((rate) => [`${rate.week_id}:${rate.role}`, rate.appearance_points]));
   const scoresByDance = new Map();
   const memberPoints = new Map(data.members.map((member) => [member.id, 0]));
   const weekMemberPoints = new Map();
@@ -438,7 +428,7 @@ function calculateLeaguePoints(data) {
   data.appearances.forEach((appearance) => {
     const dance = danceById.get(appearance.dance_id);
     const member = memberById.get(appearance.cast_member_id);
-    if (dance) add(member?.id, dance.week_id, 'appearances', appearanceValue(member, roleMap, weekById.get(dance.week_id), data.weeks, weeklyRoleRateMap, snapshotByWeekMember.get(`${dance.week_id}:${member?.id}`)));
+    if (dance) add(member?.id, dance.week_id, 'appearances', appearanceValue(member, roleMap, weekById.get(dance.week_id), data.weeks, snapshotByWeekMember.get(`${dance.week_id}:${member?.id}`)));
   });
   return { teams: data.teams, members: data.members, weeks: data.weeks, memberPoints, weekMemberPoints };
 }
@@ -486,7 +476,7 @@ async function loadScoreDesk() {
   const [{ data: dances, error: danceError }, { data: judgeScores, error: judgeError }, { data: appearances, error: appearanceError }] = await Promise.all([
     db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order'),
     db.from('dance_judge_scores').select('dance_id,judge_name,score'),
-    db.from('dance_appearances').select('dance_id,cast_member_id'),
+    db.from('dance_appearances').select('id,dance_id,cast_member_id'),
   ]);
   if (danceError || judgeError || appearanceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(danceError?.message || judgeError?.message || appearanceError?.message)}</div>`;
   const pairData = await getPairingData().catch(() => ({ players: [], partnerships: [] }));
@@ -507,8 +497,8 @@ async function loadScoreDesk() {
     loadRules();
   }
   const weekStatus = week.is_complete ? 'Week complete' : week.is_finale ? 'No elimination · ready to complete' : `${week.double_elimination ? 'Double elimination' : 'Standard elimination'} · elimination not set`;
-  const editable = canEdit && (!week.is_complete || Boolean(week.uses_rate_snapshots));
-  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card"><div><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable ? '<button class="week-edit-pill" id="editWeek">Edit setup</button>' : ''}</div><p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p></div><div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions"><button class="secondary" id="weekLedger">Week ledger</button>${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion && !week.is_complete ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div></div>
+  const editable = canEdit && !week.is_complete;
+  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card"><div><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div><p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p></div><div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div></div>
     <div class="dance-list">${dances.length ? dances.map((dance, index) => { const scores = judgeScores.filter((score) => score.dance_id === dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); return `<article class="card dance-row dance-${dance.kind}" data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${escapeHtml(labelForDance(dance, index))}"><div class="dance-card-top"><div><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${escapeHtml(labelForDance(dance, index))}</h3></div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>${dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}</div>` : ''}${appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
   $('#editWeek')?.addEventListener('click', () => openEditWeek(week));
@@ -544,57 +534,60 @@ async function openWeekLedger(week) {
     db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
     db.from('dances').select('id,kind,partnership_id,week_id').eq('week_id', week.id),
     db.from('dance_judge_scores').select('dance_id,score'),
-    db.from('dance_appearances').select('dance_id,cast_member_id'),
+    db.from('dance_appearances').select('id,dance_id,cast_member_id'),
   ]);
   const error = [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult, scoresResult, appearancesResult].find((result) => result.error)?.error;
   if (error) return alert(`Couldn’t load the week ledger: ${error.message}`);
   let snapshots = [];
-  let weeklyRoleRates = [];
   if (Object.prototype.hasOwnProperty.call(week, 'is_complete')) {
     const { data, error: snapshotError } = await db.from('weekly_roster_snapshots').select('*').eq('week_id', week.id);
     if (snapshotError) return alert(`Couldn’t load the week roster: ${snapshotError.message}`);
     snapshots = data;
   }
-  if (Object.prototype.hasOwnProperty.call(week, 'uses_rate_snapshots')) {
-    const { data, error: rateError } = await db.from('weekly_role_rates').select('week_id,role,appearance_points').eq('week_id', week.id);
-    if (rateError) return alert(`Couldn’t load week rates: ${rateError.message}`);
-    weeklyRoleRates = data;
-  }
-  const data = { teams: teamsResult.data, members: membersResult.data, roles: rolesResult.data, weeks: weeksResult.data, partnerships: partnershipsResult.data, dances: dancesResult.data, scores: scoresResult.data, appearances: appearancesResult.data, rosterSnapshots: snapshots, weeklyRoleRates };
+  const data = { teams: teamsResult.data, members: membersResult.data, roles: rolesResult.data, weeks: weeksResult.data, partnerships: partnershipsResult.data, dances: dancesResult.data, scores: scoresResult.data, appearances: appearancesResult.data, rosterSnapshots: snapshots };
   const { weekMemberPoints } = calculateLeaguePoints(data);
   const snapshotByMember = new Map(snapshots.map((snapshot) => [snapshot.cast_member_id, snapshot]));
   const teamById = new Map(teamsResult.data.map((team) => [team.id, team]));
   const roleMap = new Map(rolesResult.data.map((role) => [role.name, role.appearance_points]));
-  const rateMap = new Map(weeklyRoleRates.map((rate) => [rate.role, rate.appearance_points]));
   const draw = () => {
     const rows = membersResult.data.map((member) => {
       const snapshot = snapshotByMember.get(member.id);
       const entry = weekMemberPoints.get(week.id)?.get(member.id) || { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] };
       const role = snapshot?.cast_role || roleForWeek(member, week, weeksResult.data);
       const team = snapshot ? { manager_name: snapshot.manager_name, team_name: snapshot.team_name } : teamById.get(member.fantasy_team_id);
-      const rate = role === 'Surprise' ? Number(snapshot?.appearance_points ?? member.custom_appearance_points) || 0 : Number(rateMap.get(role) ?? roleMap.get(role)) || 0;
+      const rate = role === 'Surprise' ? Number(member.custom_appearance_points) || 0 : Number(roleMap.get(role)) || 0;
       return { member, role, team, rate, ...entry, total: entry.official + entry.appearances };
     }).sort((a, b) => b.total - a.total || a.member.name.localeCompare(b.member.name));
     const total = rows.reduce((sum, row) => sum + row.total, 0);
-    $('#weekLedgerBody').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">Week ${week.number} ledger</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">Scores, appearances, roster assignment, and the rate used for this week.</p></div><div class="breakdown-total"><strong>${total}</strong><span>league points</span></div></div>${canEdit && week.is_complete && week.uses_rate_snapshots ? '<div class="ledger-actions"><button class="secondary" id="editWeekRates">Edit week rates</button></div>' : ''}<div class="week-ledger-list">${rows.map((row) => { const teamName = row.team?.team_name || (row.team?.manager_name ? `${row.team.manager_name}'s Team` : 'Unassigned'); const appearanceText = row.appearanceCount ? `${row.appearanceCount} × +${row.rate} = +${row.appearances}` : '—'; return `<article class="week-ledger-row"><div><b>${escapeHtml(row.member.name)}</b><span>${escapeHtml(row.role)} · ${escapeHtml(teamName)}</span></div><div><span>Dance scores</span><b>${row.official}</b></div><div><span>Appearances</span><b>${appearanceText}</b></div><div class="week-ledger-total"><strong>${row.total}</strong><span>points</span></div></article>`; }).join('')}</div>`;
-    $('#editWeekRates')?.addEventListener('click', () => openWeekRateEditor(week, rolesResult.data, weeklyRoleRates));
+    const danceLabels = new Map(dancesResult.data.map((dance, index) => [dance.id, dance.kind === 'performance' ? dance.name || `Week ${week.number} Dance ${index + 1}` : (() => { const pair = partnershipsResult.data.find((item) => item.id === dance.partnership_id); const star = membersResult.data.find((member) => member.id === pair?.star_id); const pro = membersResult.data.find((member) => member.id === pair?.pro_id); return star && pro ? `${star.name} & ${pro.name}` : `Competitive Dance ${index + 1}`; })()]));
+    $('#weekLedgerBody').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">Week ${week.number} ledger</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">Correct a completed week’s scores and appearances here. Rates come from the league-wide Rules tab.</p></div><div class="breakdown-total"><strong>${total}</strong><span>league points</span></div></div>${canEdit ? `<div class="ledger-actions"><button class="secondary" id="addMissingDance">Add missing dance</button></div>` : ''}<div class="week-ledger-list">${rows.map((row) => { const teamName = row.team?.team_name || (row.team?.manager_name ? `${row.team.manager_name}'s Team` : 'Unassigned'); const appearanceText = row.appearanceCount ? `${row.appearanceCount} × +${row.rate} = +${row.appearances}` : '—'; return `<article class="week-ledger-row"><div><b>${escapeHtml(row.member.name)}</b><span>${escapeHtml(row.role)} · ${escapeHtml(teamName)}</span></div><div><span>Dance scores</span><b>${row.official}</b></div><div><span>Appearances</span><b>${appearanceText}</b>${canEdit ? `<button class="ledger-edit-appearance" data-ledger-member="${row.member.id}">Edit</button>` : ''}</div><div class="week-ledger-total"><strong>${row.total}</strong><span>points</span></div></article>`; }).join('')}</div><section class="ledger-dances"><h3>Recorded dances</h3>${dancesResult.data.map((dance, index) => `<div><span>${escapeHtml(danceLabels.get(dance.id))}</span>${canEdit ? `<button class="secondary" data-ledger-dance="${dance.id}">Edit scores</button>` : ''}</div>`).join('') || '<p class="sub">No dances recorded.</p>'}</section>`;
+    $('#addMissingDance')?.addEventListener('click', () => openNewDance(week, dancesResult.data.length));
+    document.querySelectorAll('[data-ledger-member]').forEach((button) => button.addEventListener('click', () => openMemberWeekAppearances(week, membersResult.data.find((member) => member.id === button.dataset.ledgerMember), dancesResult.data, appearancesResult.data, danceLabels)));
+    document.querySelectorAll('[data-ledger-dance]').forEach((button) => { const dance = dancesResult.data.find((item) => item.id === button.dataset.ledgerDance); button.addEventListener('click', () => openEditDance(week, dance, dancesResult.data.indexOf(dance))); });
   };
   openModal('<div id="weekLedgerBody"></div>');
   draw();
 }
 
-function openWeekRateEditor(week, roles, existingRates) {
-  const currentRates = new Map(existingRates.map((rate) => [rate.role, rate.appearance_points]));
-  const editableRoles = roles.filter((role) => role.name !== 'Surprise');
-  openModal(`<h2>Edit ${escapeHtml(weekTitle(week))} Rates</h2><p class="sub">These values affect only this completed week. Dance scores and appearance counts remain unchanged.</p><div class="rate-editor">${editableRoles.map((role) => `<label>${escapeHtml(role.name)}<input type="number" min="0" max="99" step="1" inputmode="numeric" data-week-role-rate="${escapeHtml(role.name)}" value="${Number(currentRates.get(role.name) ?? role.appearance_points) || 0}"></label>`).join('')}</div><div class="modal-actions"><button id="saveWeekRates">Save week rates</button></div>`);
-  $('#saveWeekRates').addEventListener('click', async () => {
-    const rates = [...document.querySelectorAll('[data-week-role-rate]')].map((input) => ({ week_id: week.id, role: input.dataset.weekRoleRate, appearance_points: Number(input.value) }));
-    if (rates.some((rate) => !Number.isInteger(rate.appearance_points) || rate.appearance_points < 0 || rate.appearance_points > 99)) return alert('Every appearance rate must be a whole number from 0 to 99.');
-    const { error } = await db.from('weekly_role_rates').upsert(rates, { onConflict: 'week_id,role' });
-    if (error) return alert(`Couldn’t save week rates: ${error.message}`);
+function openMemberWeekAppearances(week, member, dances, appearances, danceLabels) {
+  const recorded = appearances.filter((appearance) => appearance.cast_member_id === member.id);
+  const recordedDanceIds = new Set(recorded.map((appearance) => appearance.dance_id));
+  const availableDances = dances.filter((dance) => !recordedDanceIds.has(dance.id));
+  openModal(`<h2>${escapeHtml(member.name)}’s Appearances</h2><p class="sub">Remove a recorded appearance by choosing its dance, or add this cast member to another recorded dance.</p><section class="appearance-editor-section"><h3>Recorded appearances</h3>${recorded.length ? `<div class="appearance-edit-list">${recorded.map((appearance) => `<div><span>${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</span><button class="secondary" data-remove-appearance="${appearance.id}">Remove</button></div>`).join('')}</div>` : '<p class="sub">No appearances recorded for this week.</p>'}</section><section class="appearance-editor-section"><h3>Add to a dance</h3>${availableDances.length ? `<label>Dance<select id="addAppearanceDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addAppearance">Add appearance</button>` : '<p class="sub">This cast member is already recorded in every dance this week.</p>'}</section>`);
+  document.querySelectorAll('[data-remove-appearance]').forEach((button) => button.addEventListener('click', async () => {
+    const { error } = await db.from('dance_appearances').delete().eq('id', button.dataset.removeAppearance);
+    if (error) return alert(`Couldn’t remove the appearance: ${error.message}`);
+    $('#modal').close(); loadScoreDesk(); loadStandings();
+  }));
+  $('#addAppearance')?.addEventListener('click', async () => {
+    const danceId = $('#addAppearanceDance').value;
+    if (!danceId) return alert('Choose the dance first.');
+    const { error } = await db.from('dance_appearances').insert({ dance_id: danceId, cast_member_id: member.id });
+    if (error) return alert(`Couldn’t add the appearance: ${error.message}`);
     $('#modal').close(); loadScoreDesk(); loadStandings();
   });
 }
+
 
 async function openNewWeek() {
   const { data: existing, error } = await db.from('weeks').select('number').order('number', { ascending: false }).limit(1);

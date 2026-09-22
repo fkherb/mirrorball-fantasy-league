@@ -29,18 +29,13 @@ For a fresh rebuild, begin with the original schema and then apply migrations
 in their documented dependency order. For this existing league, only run a new
 file when its comment says it is the next needed migration.
 
-`supabase/harden-score-desk-and-role-rates.sql` is intentionally **prepared but
-not yet applied**. It is the next migration to run in the Supabase SQL Editor.
-It adds database-level Score Desk safeguards, commissioner editing for default
-role rates, completed-week protection, and weekly roster snapshots. It is safe
-to wait: until the migration is applied, the site deliberately leaves the new
-“Mark Complete” control hidden.
+`supabase/harden-score-desk-and-role-rates.sql` has been applied to the live
+league. It adds database-level Score Desk safeguards, default role-rate editing,
+and weekly roster snapshots.
 
-After that migration, run
-`supabase/allow-week-corrections-and-rate-ledger.sql`. It removes the
-completed-week editing lock while retaining score-integrity safeguards. It adds
-the per-week rate ledger used to keep past scoring independent from future
-default-rate changes.
+Run `supabase/remove-completed-week-edit-lock.sql` once after it. This removes
+only the old completed-week lock, leaving duplicate-dance and competing-pair
+safeguards intact. A completed week then hands corrections to its Week Ledger.
 
 ## Operational reminders
 
@@ -50,9 +45,9 @@ default-rate changes.
   week complete only after the show: that is when the eliminated couple(s) are
   chosen. Elimination appearance rates take effect in the following week.
 - Completion snapshots every cast member’s fantasy-team assignment and role
-  before applying the role changes. Future trades therefore do not rewrite
-  completed-week standings.
+  before applying the role changes.
 - Completion is a historical checkpoint, not an edit lock. Commissioners can
-  correct completed-week dances, scores, appearances, and setup. The weekly
-  ledger preserves the roster and rates used for that week.
+  correct completed-week dances, scores, and appearances in its Week Ledger.
+- Appearance rates in Rules are league-wide: changing one recalculates every
+  week. Surprise rates remain specific to each cast member in Cast Roster.
 - Export or back up the Supabase data before making large commissioner edits.
