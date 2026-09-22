@@ -1,14 +1,15 @@
+import { db } from './supabase-client.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button')];
   const views = [...document.querySelectorAll('.view')];
   const openView = (name) => {
     views.forEach((view) => view.classList.toggle('active', view.id === name));
     buttons.forEach((button) => button.classList.toggle('active', button.dataset.view === name));
+    buttons.find((button) => button.dataset.view === name)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   };
   buttons.forEach((button) => button.addEventListener('click', () => openView(button.dataset.view)));
 
-  const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-  const db = createClient('https://mdrrnanxqazecqviaass.supabase.co', 'sb_publishable_ylMIgpLXA0NBoeb3aPI8qQ_m0wrG7It');
   const auth = document.querySelector('#auth');
   const menu = document.querySelector('#accountMenu');
   const email = document.querySelector('#accountEmail');
