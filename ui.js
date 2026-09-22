@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const email = document.querySelector('#accountEmail');
   const firstNameInput = document.querySelector('#accountFirstName');
   const lastNameInput = document.querySelector('#accountLastName');
+  const nameEditor = document.querySelector('#accountNameEditor');
   const myTeamNav = document.querySelector('#myTeamNav');
   let currentSession = null;
   let currentMember = null;
@@ -30,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     membershipReady = false;
     let membershipError = null;
     if (session?.user) {
-      const { data, error } = await db.from('league_members').select('user_id,first_name,last_name,fantasy_team_id,is_commissioner').eq('user_id', session.user.id).maybeSingle();
+      const { data, error } = await db.from('league_members').select('*').eq('user_id', session.user.id).maybeSingle();
       membershipError = error;
       membershipReady = !error;
       currentMember = data || null;
@@ -38,16 +39,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const firstName = currentMember?.first_name || metadata.first_name || '';
     const lastName = currentMember?.last_name || metadata.last_name || '';
     const displayName = [firstName, lastName].filter(Boolean).join(' ') || metadata.display_name || metadata.full_name || metadata.name;
+    let teamName = '';
+    if (currentMember?.fantasy_team_id) {
+      const { data: team } = await db.from('fantasy_teams').select('team_name').eq('id', currentMember.fantasy_team_id).maybeSingle();
+      teamName = team?.team_name || '';
+    }
     const legacyCommissioner = signedInEmail === 'herbfreddy@gmail.com' && (missingMembershipTable(membershipError) || !currentMember);
     const isCommissioner = Boolean(currentMember?.is_commissioner) || legacyCommissioner;
-    auth.textContent = signedInEmail ? displayName || 'Signed in' : 'Sign in';
+    auth.textContent = signedInEmail ? firstName || displayName || 'Signed in' : 'Sign in';
     email.textContent = signedInEmail || '';
     firstNameInput.value = firstName;
     lastNameInput.value = lastName;
+    nameEditor.hidden = Boolean(firstName && lastName);
+    const labelMode = currentMember?.team_nav_label_mode || 'default';
+    myTeamNav.textContent = labelMode === 'custom' && currentMember?.custom_team_nav_label
+      ? currentMember.custom_team_nav_label
+      : labelMode === 'team' && teamName ? teamName : 'My Team';
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
     if (myTeamNav.hidden && document.querySelector('#teams').classList.contains('active')) openView('standings');
     menu.hidden = true;
-    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, displayName, isCommissioner, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
+    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, firstName, lastName, displayName, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
   }
 
   const { data: { session } } = await db.auth.getSession();

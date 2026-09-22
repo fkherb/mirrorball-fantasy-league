@@ -1,6 +1,6 @@
 import { db } from './supabase-client.js';
 const $ = (selector) => document.querySelector(selector);
-const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
+const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts', 'Surprise'];
 const imagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
 const isPairRole = (role) => role === 'Star' || role === 'Pro';
 const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(role);
@@ -16,7 +16,30 @@ let selectedOverviewTeamId = null;
 let selectedPublicTeamId = null;
 let selectedPublicWeekId = 'all';
 let managerTeamId = null;
+let managerFirstName = '';
+let managerLastName = '';
+let managerTeamName = '';
+let managerNavLabelMode = 'default';
+let managerCustomNavLabel = '';
 let supportsDatabaseHardening = false;
+
+function displayRole(memberOrRole) {
+  const member = typeof memberOrRole === 'string' ? { role: memberOrRole } : memberOrRole || {};
+  if (member.role === 'Eliminated Pro') return 'Elim Pro';
+  if (member.role === 'Eliminated Star') return 'Elim Star';
+  if (member.role === 'Judges + Hosts') return `${member.role_detail || 'Judge + Host'}${member.is_hough ? ' · Hough' : ''}`;
+  return member.role || '';
+}
+
+async function getTeamManagerMap() {
+  const { data, error } = await db.rpc('get_league_team_managers');
+  if (error) return new Map();
+  return new Map((data || []).map((person) => [person.fantasy_team_id, { ...person, name: [person.first_name, person.last_name].filter(Boolean).join(' ') }]));
+}
+
+function managerNameFor(team, managerMap) {
+  return managerMap?.get(team.id)?.name || team.manager_name;
+}
 
 function castCategory(player) {
   if (player.role === 'Pro' || player.role === 'Eliminated Pro') return 'pros';
@@ -44,14 +67,15 @@ function escapeHtml(value = '') {
 }
 
 async function getPairingData() {
-  const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }, { data: teams, error: teamError }] = await Promise.all([
+  const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }, { data: teams, error: teamError }, managerMap] = await Promise.all([
     db.from('cast_members').select('*').order('name'),
     db.from('partnerships').select('id,star_id,pro_id,active,partnership_name').eq('active', true),
     db.from('weeks').select('id,number,label').order('number', { ascending: false }),
     db.from('fantasy_teams').select('id,manager_name,team_name'),
+    getTeamManagerMap(),
   ]);
   if (playerError || pairingError || weekError || teamError) throw new Error(playerError?.message || pairingError?.message || weekError?.message || teamError?.message);
-  return { players, partnerships, weeks, teams };
+  return { players, partnerships, weeks, teams: teams.map((team) => ({ ...team, manager_name: managerNameFor(team, managerMap) })) };
 }
 
 function partnerFor(player, partnerships, players) {
@@ -107,7 +131,7 @@ async function loadRoster() {
 function rosterDetail(player, partnerships, players, weeks, teams) {
   const partner = partnerFor(player, partnerships, players);
   const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
-  const base = player.role === 'Surprise' && player.custom_appearance_points ? `Surprise · +${player.custom_appearance_points}` : player.role;
+  const base = player.role === 'Surprise' && player.custom_appearance_points ? `Surprise · +${player.custom_appearance_points}` : displayRole(player);
   const fantasyTeam = teams.find((team) => team.id === player.fantasy_team_id);
   const teamText = fantasyTeam ? ` · ${fantasyTeam.team_name || `${fantasyTeam.manager_name}'s Team`}` : '';
   if (!isAnyPairRole(player.role)) return `${base}${teamText}`;
@@ -125,6 +149,7 @@ async function editPlayer(id) {
     const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
     openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${player.image_path || imagePathFor(player.name)}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${player.name}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
       <label>Role<select id="editRole">${roles.map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
+      <div id="roleDetailField" ${player.role === 'Judges + Hosts' ? '' : 'hidden'}><label>Type<select id="editRoleDetail"><option ${player.role_detail === 'Judge' ? 'selected' : ''}>Judge</option><option ${player.role_detail === 'Host' ? 'selected' : ''}>Host</option><option ${!player.role_detail || player.role_detail === 'Judge + Host' ? 'selected' : ''}>Judge + Host</option></select></label><label class="check-row"><input id="editIsHough" type="checkbox" ${player.is_hough || player.role === 'Hough' ? 'checked' : ''}> Hough scoring rate</label></div>
       <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
       <label id="partnerField" ${isAnyPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(activePairRole(player.role), players, partnerships, partner?.id)}</select></label>
       <label id="partnershipNameField" ${partner ? '' : 'hidden'}>Partnership name <span class="optional">(optional)</span><input id="partnershipName" value="${escapeHtml(partnership?.partnership_name || '')}" placeholder="e.g., Team Sparkle"></label>
@@ -133,6 +158,7 @@ async function editPlayer(id) {
     $('#editRole').addEventListener('change', (event) => {
       const role = event.target.value;
       $('#surpriseRate').hidden = role !== 'Surprise';
+      $('#roleDetailField').hidden = role !== 'Judges + Hosts';
       $('#partnerField').hidden = !isAnyPairRole(role);
       if (isAnyPairRole(role)) $('#editPartner').innerHTML = `<option value="">No partner</option>${partnerOptions(activePairRole(role), players, partnerships, partner?.id)}`;
     });
@@ -142,7 +168,10 @@ async function editPlayer(id) {
       const role = $('#editRole').value;
       const partnerId = isAnyPairRole(role) ? $('#editPartner').value : '';
       const partnershipName = $('#editPartner').value ? $('#partnershipName').value.trim() || null : null;
-      const { error: saveError } = await db.from('cast_members').update({ role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name), image_position: Number($('#imagePosition').value) }).eq('id', id);
+      const updates = { role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name), image_position: Number($('#imagePosition').value) };
+      if (Object.prototype.hasOwnProperty.call(player, 'role_detail')) updates.role_detail = role === 'Judges + Hosts' ? $('#editRoleDetail').value : null;
+      if (Object.prototype.hasOwnProperty.call(player, 'is_hough')) updates.is_hough = role === 'Judges + Hosts' && $('#editIsHough').checked;
+      const { error: saveError } = await db.from('cast_members').update(updates).eq('id', id);
       if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
       const pairingError = await replacePartnership(player, activePairRole(role), partnerId, partnerships, partnershipName);
       if (pairingError) return alert(`The cast member saved, but the partnership could not be saved: ${pairingError.message}`);
@@ -166,12 +195,14 @@ async function openAddPlayer() {
   openModal(`<h2>Add Cast Member</h2><p class="sub">Their image path is set automatically from their name.</p>
     <label>Name<input id="newName" autocomplete="off" required></label>
     <label>Role<select id="newRole">${roles.map((role) => `<option>${role}</option>`).join('')}</select></label>
+    <div id="newRoleDetailField" hidden><label>Type<select id="newRoleDetail"><option>Judge</option><option>Host</option><option>Judge + Host</option></select></label><label class="check-row"><input id="newIsHough" type="checkbox"> Hough scoring rate</label></div>
     <label id="newSurpriseRate" hidden>Points per appearance<input id="newRate" type="number" min="0"></label>
     <label id="newPartnerField">Add partnership <span class="optional">(optional)</span><select id="newPartner"><option value="">No partner yet</option>${partnerOptions('Star', players, partnerships)}</select></label>
     <button id="createPlayer">Create cast member</button>`);
   $('#newRole').addEventListener('change', (event) => {
     const role = event.target.value;
     $('#newSurpriseRate').hidden = role !== 'Surprise';
+    $('#newRoleDetailField').hidden = role !== 'Judges + Hosts';
     $('#newPartnerField').hidden = !isPairRole(role);
     if (isPairRole(role)) $('#newPartner').innerHTML = `<option value="">No partner yet</option>${partnerOptions(role, players, partnerships)}`;
   });
@@ -179,7 +210,10 @@ async function openAddPlayer() {
     const name = $('#newName').value.trim();
     if (!name) return alert('Enter a cast member name first.');
     const role = $('#newRole').value;
-    const { data: created, error } = await db.from('cast_members').insert({ name, role, image_path: imagePathFor(name), custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) || null : null }).select().single();
+    const newPlayer = { name, role, image_path: imagePathFor(name), custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) || null : null };
+    if (players.some((player) => Object.prototype.hasOwnProperty.call(player, 'role_detail'))) newPlayer.role_detail = role === 'Judges + Hosts' ? $('#newRoleDetail').value : null;
+    if (players.some((player) => Object.prototype.hasOwnProperty.call(player, 'is_hough'))) newPlayer.is_hough = role === 'Judges + Hosts' && $('#newIsHough').checked;
+    const { data: created, error } = await db.from('cast_members').insert(newPlayer).select().single();
     if (error) return alert(`Couldn’t create ${name}: ${error.message}`);
     const partnerId = isPairRole(role) ? $('#newPartner').value : '';
     const pairingError = await replacePartnership(created, role, partnerId, partnerships);
@@ -189,9 +223,10 @@ async function openAddPlayer() {
 }
 
 async function loadTeams() {
-  const [{ data: teams, error: teamError }, { data: castMembers, error: castError }] = await Promise.all([
+  const [{ data: teams, error: teamError }, { data: castMembers, error: castError }, managerMap] = await Promise.all([
     db.from('fantasy_teams').select('*').order('manager_name'),
-    db.from('cast_members').select('id,name,role,image_path,image_position,fantasy_team_id').order('name'),
+    db.from('cast_members').select('*').order('name'),
+    getTeamManagerMap(),
   ]);
   if (teamError || castError) {
     $('#commissionerTeamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(teamError?.message || castError?.message)}</div>`;
@@ -208,10 +243,11 @@ async function loadTeams() {
   }
   $('#commissionerTeamResults').innerHTML = teams.map((team) => {
     const roster = castMembers.filter((member) => member.fantasy_team_id === team.id);
-    const displayName = team.team_name || `${team.manager_name}'s Team`;
-    return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : ''}</div>
+    const managerName = managerNameFor(team, managerMap);
+    const displayName = team.team_name || `${managerName}'s Team`;
+    return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : ''}</div>
       <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p>
-      ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(member.role)}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
+      ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
       ${canEdit && availableCount ? `<div class="team-actions"><button data-team-id="${team.id}">Add Cast Members</button></div>` : ''}
     </article>`;
   }).join('');
@@ -225,37 +261,45 @@ async function loadTeams() {
 }
 
 async function openTeamDetail(teamId) {
-  const [{ data: team, error: teamError }, { data: roster, error: rosterError }] = await Promise.all([
+  const [{ data: team, error: teamError }, { data: roster, error: rosterError }, managerMap] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
-    db.from('cast_members').select('id,name,role,image_path,image_position').eq('fantasy_team_id', teamId).order('name'),
+    db.from('cast_members').select('*').eq('fantasy_team_id', teamId).order('name'),
+    getTeamManagerMap(),
   ]);
   const error = teamError || rosterError;
   if (error) return alert(`Couldn’t load this team: ${error.message}`);
-  const displayName = team.team_name || `${team.manager_name}'s Team`;
-  openModal(`<div class="team-detail-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} cast member${roster.length === 1 ? '' : 's'} on the current roster</p></div></div>
-    ${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member"><img src="${member.image_path || imagePathFor(member.name)}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)}</span></div></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
+  const managerName = managerNameFor(team, managerMap);
+  const displayName = team.team_name || `${managerName}'s Team`;
+  openModal(`<div class="team-detail-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} cast member${roster.length === 1 ? '' : 's'} on the current roster</p></div></div>
+    ${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member"><img src="${member.image_path || imagePathFor(member.name)}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
 }
 
 async function editTeamCard(teamId) {
-  const [{ data: team, error: teamError }, { data: roster, error: rosterError }] = await Promise.all([
+  const [{ data: team, error: teamError }, { data: roster, error: rosterError }, { data: manager }] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
-    db.from('cast_members').select('id,name,role').eq('fantasy_team_id', teamId).order('name'),
+    db.from('cast_members').select('*').eq('fantasy_team_id', teamId).order('name'),
+    db.from('league_members').select('user_id,first_name,last_name').eq('fantasy_team_id', teamId).maybeSingle(),
   ]);
   const error = teamError || rosterError;
   if (error) return alert(`Couldn’t edit this team: ${error.message}`);
   const card = document.querySelector(`[data-team-card-id="${teamId}"]`);
   if (!card) return;
   card.classList.add('editing');
-  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>Name<input id="teamManager-${teamId}" value="${escapeHtml(team.manager_name)}"></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div></div>
+  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>First name<input id="teamManagerFirst-${teamId}" value="${escapeHtml(manager?.first_name || team.manager_name.split(' ')[0] || '')}" ${manager ? '' : 'disabled'}></label><label>Last name<input id="teamManagerLast-${teamId}" value="${escapeHtml(manager?.last_name || team.manager_name.split(' ').slice(1).join(' '))}" ${manager ? '' : 'disabled'}></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div></div>
     <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p>
-    ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(member.role)}</small><button class="remove-member" data-remove-team-cast-id="${member.id}">Remove</button></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
+    ${!manager ? '<p class="sub compact-note">Connect an account to this team before editing its manager name.</p>' : ''}${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small><button class="remove-member" data-remove-team-cast-id="${member.id}">Remove</button></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
   document.querySelector(`[data-cancel-team-id="${teamId}"]`).addEventListener('click', loadTeams);
   document.querySelector(`[data-save-team-id="${teamId}"]`).addEventListener('click', async () => {
-    const manager_name = $(`#teamManager-${teamId}`).value.trim();
     const team_name = $(`#teamName-${teamId}`).value.trim();
-    if (!manager_name) return alert('Enter the name first.');
-    const { error: saveError } = await db.from('fantasy_teams').update({ manager_name, team_name: team_name || null }).eq('id', teamId);
+    const firstName = $(`#teamManagerFirst-${teamId}`).value.trim();
+    const lastName = $(`#teamManagerLast-${teamId}`).value.trim();
+    if (manager && (!firstName || !lastName)) return alert('Enter both the first and last name.');
+    const { error: saveError } = await db.from('fantasy_teams').update({ team_name: team_name || null }).eq('id', teamId);
     if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
+    if (manager) {
+      const { error: managerError } = await db.from('league_members').update({ first_name: firstName, last_name: lastName }).eq('user_id', manager.user_id);
+      if (managerError) return alert(`The team name saved, but the manager name could not be updated: ${managerError.message}`);
+    }
     loadTeams(); loadStandings();
   });
   document.querySelectorAll('[data-remove-team-cast-id]').forEach((button) => button.addEventListener('click', async () => {
@@ -268,31 +312,30 @@ async function editTeamCard(teamId) {
 }
 
 function openNewTeam() {
-  openModal(`<h2>Add Fantasy Team</h2><p class="sub">Enter the manager's name. A team name is optional.</p>
-    <label>Name<input id="newManagerName" autocomplete="off" required></label>
+  openModal(`<h2>Add Fantasy Team</h2><p class="sub">A manager name will appear after an account is linked to this team.</p>
     <label>Team name <span class="optional">(optional)</span><input id="newTeamName" autocomplete="off"></label>
     <button id="createTeam">Create fantasy team</button>`);
   $('#createTeam').addEventListener('click', async () => {
-    const managerName = $('#newManagerName').value.trim();
     const teamName = $('#newTeamName').value.trim();
-    if (!managerName) return alert('Enter the manager name first.');
-    const { error } = await db.from('fantasy_teams').insert({ manager_name: managerName, team_name: teamName || null });
+    const { error } = await db.from('fantasy_teams').insert({ manager_name: 'Unassigned', team_name: teamName || null });
     if (error) return alert(`Couldn’t create this team: ${error.message}`);
     $('#modal').close(); loadTeams(); loadStandings();
   });
 }
 
 async function openAssignCastMember(teamId) {
-  const [{ data: castMembers, error: castError }, { data: team, error: teamError }] = await Promise.all([
-    db.from('cast_members').select('id,name,role,fantasy_team_id').order('name'),
-    db.from('fantasy_teams').select('manager_name,team_name').eq('id', teamId).single(),
+  const [{ data: castMembers, error: castError }, { data: team, error: teamError }, managerMap] = await Promise.all([
+    db.from('cast_members').select('*').order('name'),
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
+    getTeamManagerMap(),
   ]);
   const error = castError || teamError;
   if (error) return alert(`Couldn’t open available cast: ${error.message}`);
   const available = castMembers.filter((member) => !member.fantasy_team_id);
-  const displayName = team.team_name || `${team.manager_name}'s Team`;
+  const managerName = managerNameFor(team, managerMap);
+  const displayName = team.team_name || (managerName === 'Unassigned' ? 'this team' : `${managerName}'s Team`);
   openModal(`<h2>Add Cast Members</h2><p class="sub">Select one or more currently available cast members for ${escapeHtml(displayName)}.</p>
-    ${available.length ? `<input id="castPickerSearch" placeholder="Search available cast" autocomplete="off"><div class="filter-tabs" id="pickerTabs"><button class="selected" data-picker-filter="all">All</button><button data-picker-filter="pros">Pros</button><button data-picker-filter="stars">Stars</button><button data-picker-filter="bonus">Bonus</button></div><div id="castPicker" class="cast-picker">${available.map((player) => `<label class="cast-choice" data-cast-name="${escapeHtml(player.name.toLowerCase())}" data-cast-category="${castCategory(player)}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(player.role)}</small></span></label>`).join('')}</div><button id="assignCastMember">Add 0 cast members</button>` : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
+    ${available.length ? `<input id="castPickerSearch" placeholder="Search available cast" autocomplete="off"><div class="filter-tabs" id="pickerTabs"><button class="selected" data-picker-filter="all">All</button><button data-picker-filter="pros">Pros</button><button data-picker-filter="stars">Stars</button><button data-picker-filter="bonus">Bonus</button></div><div id="castPicker" class="cast-picker">${available.map((player) => `<label class="cast-choice" data-cast-name="${escapeHtml(player.name.toLowerCase())}" data-cast-category="${castCategory(player)}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(displayRole(player))}</small></span></label>`).join('')}</div><button id="assignCastMember">Add 0 cast members</button>` : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
   const updateSelection = () => {
     const count = document.querySelectorAll('#castPicker input:checked').length;
     $('#assignCastMember').textContent = `Add ${count} cast member${count === 1 ? '' : 's'}`;
@@ -333,6 +376,7 @@ function roleForWeek(member, week, weeks) {
 
 function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
   if (!member) return 0;
+  if (member.is_hough) return Number(roleMap.get('Hough')?.appearance_points) || 0;
   const role = snapshot?.cast_role || roleForWeek(member, week, weeks);
   if (role === 'Surprise') return Number(member.custom_appearance_points) || 0;
   return Number(roleMap.get(role)?.appearance_points) || 0;
@@ -341,7 +385,7 @@ function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
 async function loadStandings() {
   const [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').order('manager_name'),
-    db.from('cast_members').select('id,name,role,image_path,image_position,custom_appearance_points,fantasy_team_id,eliminated_week_id').order('name'),
+    db.from('cast_members').select('*').order('name'),
     db.from('roles').select('name,appearance_points'),
     db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
     db.from('weeks').select('*').order('number'),
@@ -370,7 +414,9 @@ async function loadStandings() {
     }
     rosterSnapshots = data;
   }
-  const data = { teams: teamsResult.data, members: membersResult.data, roles: rolesResult.data, partnerships: partnershipsResult.data, weeks: weeksResult.data, dances: dancesResult.data, scores: scoresResult.data, appearances: appearancesResult.data, rosterSnapshots };
+  const managerMap = await getTeamManagerMap();
+  const displayTeams = teamsResult.data.map((team) => ({ ...team, manager_name: managerNameFor(team, managerMap) }));
+  const data = { teams: displayTeams, members: membersResult.data, roles: rolesResult.data, partnerships: partnershipsResult.data, weeks: weeksResult.data, dances: dancesResult.data, scores: scoresResult.data, appearances: appearancesResult.data, rosterSnapshots };
   const { teams, members, weeks, memberPoints, weekMemberPoints } = calculateLeaguePoints(data);
   const snapshotTeamByWeekMember = new Map(rosterSnapshots.map((snapshot) => [`${snapshot.week_id}:${snapshot.cast_member_id}`, snapshot.fantasy_team_id]));
   const snapshotByWeekMember = new Map(rosterSnapshots.map((snapshot) => [`${snapshot.week_id}:${snapshot.cast_member_id}`, snapshot]));
@@ -442,15 +488,15 @@ function teamScoreBreakdown(teamId, weekId = 'all') {
     }, { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] });
     const snapshot = selectedWeeks.length === 1 ? snapshotByWeekMember.get(`${selectedWeeks[0].id}:${member.id}`) : null;
     const role = selectedWeeks.length === 1 ? snapshot?.cast_role || roleForWeek(member, selectedWeeks[0], weeks) : member.role;
-    const appearanceRate = role === 'Surprise' ? Number(member.custom_appearance_points) || 0 : roleRates.get(role) || 0;
+    const appearanceRate = member.is_hough ? roleRates.get('Hough') || 0 : role === 'Surprise' ? Number(member.custom_appearance_points) || 0 : roleRates.get(role) || 0;
     return { member, role, appearanceRate, ...sources, total: sources.official + sources.appearances };
   }).sort((a, b) => b.total - a.total || a.member.name.localeCompare(b.member.name));
   return { rows, total: rows.reduce((sum, row) => sum + row.total, 0) };
 }
 
-function scoreBreakdownMarkup(rows, limit = null) {
+function scoreBreakdownMarkup(rows, limit = null, withImages = false) {
   const visible = limit ? rows.slice(0, limit) : rows;
-  return `<div class="league-score-list">${visible.map((row) => `<div class="league-score-row"><div class="league-score-member"><strong>${escapeHtml(row.member.name)}</strong><span class="role-rate-pill">${escapeHtml(row.role)} <b>+${row.appearanceRate}</b></span></div><div class="league-score-parts"><span>Judges Total <b>${row.official}</b></span><span class="appearance-part">Appearances <b>${row.appearances}</b></span></div><strong class="league-score-total">${row.total}</strong></div>`).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>`;
+  return `<div class="league-score-list">${visible.map((row) => `<div class="league-score-row ${withImages ? 'with-photo' : ''}">${withImages ? `<img class="score-member-photo" src="${escapeHtml(row.member.image_path || imagePathFor(row.member.name))}" style="object-position:${row.member.image_position ?? 50}% center" alt="">` : ''}<div class="league-score-member"><strong>${escapeHtml(row.member.name)}</strong><span class="role-rate-pill">${escapeHtml(displayRole({ ...row.member, role: row.role }))} <b>+${row.appearanceRate}</b></span></div><div class="league-score-parts"><span>Judges Total <b>${row.official}</b></span><span class="appearance-part">Appearances <b>${row.appearances}</b></span></div><strong class="league-score-total">${row.total}</strong></div>`).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>`;
 }
 
 function overviewTeamDetailMarkup(row) {
@@ -524,11 +570,43 @@ function renderPublicTeams() {
     }, 0);
     return `<div><span>Week ${week.number}</span><strong>${total}</strong></div>`;
   }).join('');
-  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person"><img src="${escapeHtml(member.image_path || imagePathFor(member.name))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.role)}</small></div></article>`).join('');
+  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person"><img src="${escapeHtml(member.image_path || imagePathFor(member.name))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></div></article>`).join('');
   const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
-  $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="league-detail-head"><div><p class="eyebrow">${escapeHtml(selected.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} current cast member${roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${selected.total}</strong><span>season points</span></div></div><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Points breakdown</h3></div><label>View<select id="publicTeamWeek"><option value="all">Season total</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === selectedPublicWeekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label></div>${scoreBreakdownMarkup(breakdown.rows)}</section><section><div class="public-section-head"><div><p class="eyebrow">Current lineup</p><h3>Team roster</h3></div></div><div class="league-cast-grid">${peopleMarkup(roster) || '<p class="sub">No cast members assigned.</p>'}</div></section></div></section><section class="available-cast"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h2>Available Cast</h2><p class="sub">Cast members in the league who are not currently assigned to a fantasy team.</p></div><span>${available.length} available</span></div><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="card empty">Every cast member is currently assigned.</div>'}</div></section>`;
+  const canEditThisTeam = Boolean(managerTeamId && selected.team.id === managerTeamId);
+  $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="league-detail-head"><div><p class="eyebrow">${escapeHtml(selected.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} current cast member${roster.length === 1 ? '' : 's'}</p></div><div class="team-profile-actions">${canEditThisTeam ? '<button id="editMyTeam" class="secondary">Edit</button>' : ''}<div class="league-detail-total"><strong>${selected.total}</strong><span>season points</span></div></div></div><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Team Roster</h3></div><label>View<select id="publicTeamWeek"><option value="all">Season total</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === selectedPublicWeekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label></div>${scoreBreakdownMarkup(breakdown.rows, null, true)}</section><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">Cast members not currently assigned to a fantasy team.</p><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="empty compact-empty">Every cast member is currently assigned.</div>'}</div></section></div></section>`;
   document.querySelectorAll('[data-public-team]').forEach((button) => button.addEventListener('click', () => { selectedPublicTeamId = button.dataset.publicTeam; selectedPublicWeekId = 'all'; renderPublicTeams(); }));
   $('#publicTeamWeek')?.addEventListener('change', (event) => { selectedPublicWeekId = event.target.value; renderPublicTeams(); });
+  $('#editMyTeam')?.addEventListener('click', () => openMyTeamEditor(selected.team));
+}
+
+function openMyTeamEditor(team) {
+  const replacing = managerNavLabelMode !== 'default';
+  const selectedMode = managerNavLabelMode === 'custom' ? 'custom' : 'team';
+  openModal(`<p class="eyebrow">Manager settings</p><h2>Edit My Team</h2><p class="sub">Update your manager name, fantasy team name, and how this page appears in navigation.</p><div class="profile-name-fields"><label>First name<input id="myFirstName" value="${escapeHtml(managerFirstName)}" autocomplete="given-name"></label><label>Last name<input id="myLastName" value="${escapeHtml(managerLastName)}" autocomplete="family-name"></label></div><label>Team name <span class="optional">(optional)</span><input id="myTeamName" value="${escapeHtml(team.team_name || '')}"></label><label class="check-row"><input id="replaceMyTeamLabel" type="checkbox" ${replacing ? 'checked' : ''}> Replace “My Team” in the navigation</label><div id="myTeamLabelOptions" class="nav-label-options" ${replacing ? '' : 'hidden'}><label>Use<select id="myTeamLabelMode"><option value="team" ${selectedMode === 'team' ? 'selected' : ''}>Team name</option><option value="custom" ${selectedMode === 'custom' ? 'selected' : ''}>Custom label</option></select></label><label id="customTeamLabelField" ${selectedMode === 'custom' ? '' : 'hidden'}>Custom label<input id="customTeamLabel" maxlength="24" value="${escapeHtml(managerCustomNavLabel)}" placeholder="e.g., Freddy’s Team"></label></div><div class="modal-actions"><button id="saveMyTeamProfile">Save changes</button></div>`);
+  const syncOptions = () => {
+    $('#myTeamLabelOptions').hidden = !$('#replaceMyTeamLabel').checked;
+    $('#customTeamLabelField').hidden = $('#myTeamLabelMode').value !== 'custom';
+  };
+  $('#replaceMyTeamLabel').addEventListener('change', syncOptions);
+  $('#myTeamLabelMode').addEventListener('change', syncOptions);
+  $('#saveMyTeamProfile').addEventListener('click', async () => {
+    const firstName = $('#myFirstName').value.trim();
+    const lastName = $('#myLastName').value.trim();
+    const teamName = $('#myTeamName').value.trim();
+    const navMode = $('#replaceMyTeamLabel').checked ? $('#myTeamLabelMode').value : 'default';
+    const customLabel = navMode === 'custom' ? $('#customTeamLabel').value.trim() : null;
+    if (!firstName || !lastName) return alert('Enter both your first and last name.');
+    if (navMode === 'team' && !teamName) return alert('Add a team name before using it in the navigation.');
+    if (navMode === 'custom' && !customLabel) return alert('Enter a custom navigation label.');
+    const { error } = await db.rpc('update_my_team_profile', { p_first_name: firstName, p_last_name: lastName, p_team_name: teamName || null, p_nav_label_mode: navMode, p_custom_nav_label: customLabel });
+    if (error) return alert(`Couldn’t save your team profile: ${error.message}`);
+    const { error: authError } = await db.auth.updateUser({ data: { first_name: firstName, last_name: lastName, display_name: `${firstName} ${lastName}` } });
+    if (authError) return alert(`The league profile saved, but your sign-in profile could not be updated: ${authError.message}`);
+    managerFirstName = firstName; managerLastName = lastName; managerTeamName = teamName; managerNavLabelMode = navMode; managerCustomNavLabel = customLabel || '';
+    $('#auth').textContent = firstName;
+    $('#myTeamNav').textContent = navMode === 'custom' ? customLabel : navMode === 'team' ? teamName : 'My Team';
+    $('#modal').close(); loadTeams(); loadStandings();
+  });
 }
 
 function calculateLeaguePoints(data) {
@@ -635,13 +713,13 @@ function openDanceDetail(week, dance, index, pairData, scores, cast) {
   const pairing = pairData.partnerships.find((item) => item.id === dance.partnership_id);
   const star = pairData.players.find((player) => player.id === pairing?.star_id);
   const pro = pairData.players.find((player) => player.id === pairing?.pro_id);
-  const displayRole = (member) => roleForWeek(member, week, pairData.weeks || [week]);
-  openModal(`<div class="dance-detail-head"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${escapeHtml(title)}</h2>${dance.kind === 'competitive' ? `<p class="sub">${escapeHtml(dance.dance_type || 'Dance type not set')}${dance.song ? ` · ${escapeHtml(dance.song)}` : ''}</p>` : ''}</div>${dance.kind === 'competitive' ? `<section class="detail-section"><h3>Judges’ scores</h3><div class="detail-judges">${scores.map((score) => `<div><img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}"><span>${escapeHtml(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section><section class="detail-section"><h3>Competing couple</h3><div class="full-cast-list">${[star, pro].filter(Boolean).map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div>`).join('')}</div></section>` : ''}<section class="detail-section"><h3>${dance.kind === 'competitive' ? 'Additional cast' : 'Cast'}</h3>${cast.length ? `<div class="full-cast-list">${cast.map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>`);
+  const roleAtWeek = (member) => roleForWeek(member, week, pairData.weeks || [week]);
+  openModal(`<div class="dance-detail-head"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${escapeHtml(title)}</h2>${dance.kind === 'competitive' ? `<p class="sub">${escapeHtml(dance.dance_type || 'Dance type not set')}${dance.song ? ` · ${escapeHtml(dance.song)}` : ''}</p>` : ''}</div>${dance.kind === 'competitive' ? `<section class="detail-section"><h3>Judges’ scores</h3><div class="detail-judges">${scores.map((score) => `<div><img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}"><span>${escapeHtml(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section><section class="detail-section"><h3>Competing couple</h3><div class="full-cast-list">${[star, pro].filter(Boolean).map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole({ ...member, role: roleAtWeek(member) }))}</span></div>`).join('')}</div></section>` : ''}<section class="detail-section"><h3>${dance.kind === 'competitive' ? 'Additional cast' : 'Cast'}</h3>${cast.length ? `<div class="full-cast-list">${cast.map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole({ ...member, role: roleAtWeek(member) }))}</span></div>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>`);
 }
 
 async function openWeekLedger(week) {
   const [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
-    db.from('cast_members').select('id,name,role,custom_appearance_points,fantasy_team_id,eliminated_week_id').order('name'),
+    db.from('cast_members').select('*').order('name'),
     db.from('fantasy_teams').select('id,manager_name,team_name'),
     db.from('roles').select('name,appearance_points'),
     db.from('weeks').select('*').order('number'),
@@ -671,7 +749,7 @@ async function openWeekLedger(week) {
       const entry = weekMemberPoints.get(week.id)?.get(member.id) || { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] };
       const role = snapshot?.cast_role || roleForWeek(member, week, weeksResult.data);
       const team = snapshot ? { manager_name: snapshot.manager_name, team_name: snapshot.team_name } : teamById.get(member.fantasy_team_id);
-      const rate = role === 'Surprise' ? Number(member.custom_appearance_points) || 0 : Number(roleMap.get(role)) || 0;
+      const rate = member.is_hough ? Number(roleMap.get('Hough')) || 0 : role === 'Surprise' ? Number(member.custom_appearance_points) || 0 : Number(roleMap.get(role)) || 0;
       return { member, role, team, rate, ...entry, total: entry.official + entry.appearances };
     }).sort((a, b) => b.total - a.total || a.member.name.localeCompare(b.member.name));
     const total = rows.reduce((sum, row) => sum + row.total, 0);
@@ -682,7 +760,7 @@ async function openWeekLedger(week) {
     const usedDanceIds = new Set(memberAppearances.map((appearance) => appearance.dance_id));
     const availableDances = dancesResult.data.filter((dance) => !usedDanceIds.has(dance.id));
     const competitiveBody = `<section class="ledger-dances"><h3>Competitive dances</h3>${competitiveDances.map((dance) => `<div><span>${escapeHtml(danceLabels.get(dance.id))}</span>${canEdit ? `<button class="secondary" data-ledger-dance="${dance.id}">Edit scores</button>` : ''}</div>`).join('') || '<p class="sub">No competitive dances recorded.</p>'}</section>`;
-    const performanceBody = `<section class="ledger-performance"><input id="ledgerCastSearch" placeholder="Search cast member" autocomplete="off"><div class="ledger-cast-list">${[...rows].sort((a, b) => a.member.name.localeCompare(b.member.name)).map((row) => `<button class="ledger-cast-choice ${row.member.id === selectedMemberId ? 'selected' : ''}" data-ledger-member="${row.member.id}" data-ledger-name="${escapeHtml(row.member.name.toLowerCase())}"><span>${escapeHtml(row.member.name)}</span><small>${escapeHtml(row.role)} · ${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'}</small></button>`).join('')}</div>${selectedMember ? `<section class="ledger-member-editor"><h3>${escapeHtml(selectedMember.name)}</h3><p class="ledger-member-summary">${memberAppearances.length} recorded appearance${memberAppearances.length === 1 ? '' : 's'} this week</p><div class="ledger-action-block"><label>Remove from dance<select id="ledgerRemoveDance"><option value="">Select recorded dance</option>${memberAppearances.map((appearance) => `<option value="${appearance.id}">${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</option>`).join('')}</select></label><button class="secondary" id="removeLedgerAppearance">Remove appearance</button></div><div class="ledger-action-block"><label>Add to existing dance<select id="ledgerAddDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addLedgerAppearance">Add appearance</button></div>${canEdit ? '<div class="ledger-new-performance"><span>Missing a performance?</span><button class="secondary" id="addLedgerPerformance">Create performance dance</button></div>' : ''}</section>` : '<p class="sub ledger-prompt">Select a cast member to edit their recorded dance appearances.</p>'}</section>`;
+    const performanceBody = `<section class="ledger-performance"><input id="ledgerCastSearch" placeholder="Search cast member" autocomplete="off"><div class="ledger-cast-list">${[...rows].sort((a, b) => a.member.name.localeCompare(b.member.name)).map((row) => `<button class="ledger-cast-choice ${row.member.id === selectedMemberId ? 'selected' : ''}" data-ledger-member="${row.member.id}" data-ledger-name="${escapeHtml(row.member.name.toLowerCase())}"><span>${escapeHtml(row.member.name)}</span><small>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'}</small></button>`).join('')}</div>${selectedMember ? `<section class="ledger-member-editor"><h3>${escapeHtml(selectedMember.name)}</h3><p class="ledger-member-summary">${memberAppearances.length} recorded appearance${memberAppearances.length === 1 ? '' : 's'} this week</p><div class="ledger-action-block"><label>Remove from dance<select id="ledgerRemoveDance"><option value="">Select recorded dance</option>${memberAppearances.map((appearance) => `<option value="${appearance.id}">${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</option>`).join('')}</select></label><button class="secondary" id="removeLedgerAppearance">Remove appearance</button></div><div class="ledger-action-block"><label>Add to existing dance<select id="ledgerAddDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addLedgerAppearance">Add appearance</button></div>${canEdit ? '<div class="ledger-new-performance"><span>Missing a performance?</span><button class="secondary" id="addLedgerPerformance">Create performance dance</button></div>' : ''}</section>` : '<p class="sub ledger-prompt">Select a cast member to edit their recorded dance appearances.</p>'}</section>`;
     $('#weekLedgerBody').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">Week ${week.number} ledger</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">Correct completed-week scoring here. Role rates always come from the league-wide Rules tab.</p></div><div class="breakdown-total"><strong>${total}</strong><span>league points</span></div></div><div class="filter-tabs ledger-mode-tabs"><button class="${mode === 'competitive' ? 'selected' : ''}" data-ledger-mode="competitive">Competitive</button><button class="${mode === 'performance' ? 'selected' : ''}" data-ledger-mode="performance">Performance</button></div>${mode === 'competitive' ? competitiveBody : performanceBody}`;
     document.querySelectorAll('[data-ledger-mode]').forEach((button) => button.addEventListener('click', () => { mode = button.dataset.ledgerMode; draw(); }));
     document.querySelectorAll('[data-ledger-dance]').forEach((button) => { const dance = dancesResult.data.find((item) => item.id === button.dataset.ledgerDance); button.addEventListener('click', () => openEditDance(week, dance, dancesResult.data.indexOf(dance), true)); });
@@ -817,7 +895,7 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
   const availablePairs = activePairs.filter((pairing) => !usedPairIds.has(pairing.id));
   const existingPair = partnerships.find((pairing) => pairing.id === existingDance?.partnership_id);
   const selectablePairs = existingPair && !availablePairs.some((pairing) => pairing.id === existingPair.id) ? [...availablePairs, existingPair] : availablePairs;
-  const castPicker = (excludedIds = []) => players.filter((player) => !excludedIds.includes(player.id)).map((player) => `<label class="cast-choice" data-dance-cast-name="${escapeHtml(player.name.toLowerCase())}" data-dance-cast-category="${castCategory(player)}" data-dance-bonus-category="${bonusCastCategory(player)}"><input type="checkbox" value="${player.id}" ${existingAppearanceIds.some((appearance) => (appearance.cast_member_id || appearance) === player.id) ? 'checked' : ''}><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(player.role)}</small></span></label>`).join('');
+  const castPicker = (excludedIds = []) => players.filter((player) => !excludedIds.includes(player.id)).map((player) => `<label class="cast-choice" data-dance-cast-name="${escapeHtml(player.name.toLowerCase())}" data-dance-cast-category="${castCategory(player)}" data-dance-bonus-category="${bonusCastCategory(player)}"><input type="checkbox" value="${player.id}" ${existingAppearanceIds.some((appearance) => (appearance.cast_member_id || appearance) === player.id) ? 'checked' : ''}><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(displayRole(player))}</small></span></label>`).join('');
   const drawForm = (kind) => {
     const judgeNames = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
     const pairOptions = selectablePairs.map((pairing) => { const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id); return `<option value="${pairing.id}" ${pairing.id === existingDance?.partnership_id ? 'selected' : ''}>${escapeHtml(star.name)} & ${escapeHtml(pro.name)}</option>`; }).join('');
@@ -905,7 +983,7 @@ async function loadRules() {
   }
   const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
   const rates = [...roleRows].sort((a, b) => (roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)) || a.name.localeCompare(b.name));
-  $('#roleRatesContent').innerHTML = `<div class="rate-grid">${rates.map((role) => role.name === 'Surprise' ? `<article class="card rate-card"><span>Surprise +?*</span><strong>Varies</strong><small>set for each cast member</small></article>` : `<article class="card rate-card"><span>${escapeHtml(role.name)}</span><strong>+${Number(role.appearance_points) || 0}</strong><small>per dance appearance</small></article>`).join('')}</div><p class="surprise-rate-note">* Surprise cast is added as seen on the show. Its custom rate is set on that cast member.</p>`;
+  $('#roleRatesContent').innerHTML = `<div class="card role-rate-table"><div class="role-rate-heading"><span>Role</span><span>Per appearance</span></div>${rates.map((role) => `<div class="role-rate-row"><span>${escapeHtml(role.name === 'Judges + Hosts' ? 'Judge / Host' : displayRole(role.name))}${role.name === 'Surprise' ? ' *' : ''}</span><strong>${role.name === 'Surprise' ? 'Varies' : `+${Number(role.appearance_points) || 0}`}</strong></div>`).join('')}</div><p class="surprise-rate-note">* Surprise cast is added as seen on the show. Its custom rate is set on that cast member.</p>`;
   $('#editRules').hidden = !canEdit || !supportsDatabaseHardening;
   $('#editRules').onclick = () => openRulesEditor(rates);
 }
@@ -940,6 +1018,11 @@ $('#rulesButton').addEventListener('click', openRulesSummary);
 window.addEventListener('mirrorball-auth-change', async (event) => {
   canEdit = event.detail.isCommissioner;
   managerTeamId = event.detail.fantasyTeamId;
+  managerFirstName = event.detail.firstName || '';
+  managerLastName = event.detail.lastName || '';
+  managerTeamName = event.detail.teamName || '';
+  managerNavLabelMode = event.detail.teamNavLabelMode || 'default';
+  managerCustomNavLabel = event.detail.customTeamNavLabel || '';
   if (managerTeamId) selectedPublicTeamId = managerTeamId;
   $('#newPlayer').hidden = !canEdit;
   $('#newTeam').hidden = !canEdit;

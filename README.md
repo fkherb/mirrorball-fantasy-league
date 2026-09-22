@@ -28,8 +28,9 @@ Row-level security policies—not that key—restrict commissioner writes.
   full cast roster, and role rates. Team, roster, and role-rate editing controls
   appear there only for the signed-in commissioner.
 - **Rules** is a compact header popup rather than a full navigation page.
-- Signed-in users have first and last names. The header uses their full name
-  instead of exposing the account email.
+- Signed-in users have first and last names. The header uses only their first
+  name instead of exposing the account email; their full name remains the
+  fantasy team's manager name.
 
 ## Local preview
 
@@ -66,6 +67,13 @@ names, commissioner flag, row-level security, and a safe name-update function.
 After creating users in Supabase Authentication, add one `league_members` row
 per user to connect that Auth user to a fantasy team. Until this migration is
 run, the existing commissioner account continues to use the legacy fallback.
+
+Then run `supabase/refine-manager-profiles-and-cast-labels.sql`. It adds each
+manager's optional My Team navigation preference, the safe manager self-edit
+function, public team-manager display names, and Judge/Host subtypes. It also
+converts the old Hough cast role into a Hough scoring-rate checkbox within the
+Judges + Hosts category. The separate Hough role rate remains the scoring rate
+used by anyone with that checkbox selected.
 
 ## Operational reminders
 

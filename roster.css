@@ -24,6 +24,7 @@
 .account-menu input { margin-top: 4px; padding: 8px; }
 .account-menu button { width: 100%; margin-top: 6px; }
 .account-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.account-menu [hidden] { display: none; }
 .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
 .team-card { padding: 20px; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
 .team-card:hover { transform: translateY(-2px); border-color: #cfbac5; box-shadow: 0 14px 30px #2b193014; }
@@ -164,6 +165,8 @@
 .league-detail-total span { margin-top: 4px; color: #786e79; font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .league-score-list { display: grid; gap: 7px; margin-top: 16px; }
 .league-score-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(145px, 1fr) 42px; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid #ebe3e9; border-radius: 9px; background: #fcfafb; }
+.league-score-row.with-photo { grid-template-columns: 42px minmax(120px, 1fr) minmax(140px, 1fr) 42px; }
+.score-member-photo { width: 42px; height: 42px; border-radius: 9px; object-fit: cover; background: #eee8ed; }
 .league-score-member { min-width: 0; }
 .league-score-member > strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .role-rate-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; margin-top: 4px; padding: 3px 6px; border-radius: 999px; background: #eee8ed; color: #665b64; font-size: 9px; font-weight: 750; }
@@ -199,6 +202,12 @@
 .team-history-strip span { color: #786e79; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .team-history-strip strong { margin-top: 3px; font: 700 18px Georgia, serif; }
 .public-team-columns { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr); gap: 24px; padding-top: 18px; border-top: 1px solid #e8e0e7; }
+.team-profile-actions { display: flex; align-items: flex-start; gap: 12px; }
+.team-profile-actions > button { margin: 0; padding: 7px 10px; }
+.available-cast-panel { min-width: 0; padding: 14px; border-radius: 11px; background: #faf7f9; border: 1px solid #ebe3e9; }
+.available-cast-panel > .sub { margin-bottom: 12px; }
+.available-cast-panel .league-cast-grid { grid-template-columns: 1fr; max-height: 430px; overflow-y: auto; padding-right: 3px; }
+.compact-empty { padding: 20px 10px; }
 .public-section-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .public-section-head h2, .public-section-head h3 { margin: 0; }
 .public-section-head h3 { font-size: 17px; }
@@ -217,6 +226,28 @@
 .available-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .commissioner-section + .commissioner-section { margin-top: 38px; padding-top: 28px; border-top: 1px solid #e2d9e0; }
 .commissioner-section > .splithead h2 { margin: 0 0 4px; font-size: 24px; }
+.league-directory { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(315px, .9fr); align-items: start; gap: 22px; }
+.league-directory .commissioner-section + .commissioner-section { margin: 0; padding: 0; border: 0; }
+.league-directory .splithead { min-height: 65px; align-items: start; }
+.league-directory .team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.league-directory .team-card { padding: 15px; }
+.league-directory .team-roster { grid-template-columns: 1fr; }
+.roster-scroll-card { max-height: 690px; overflow: hidden; }
+.roster-scroll-card #rosterResults { max-height: 545px; overflow-y: auto; padding-right: 4px; }
+.role-rates-section { margin-top: 30px !important; padding-top: 24px !important; }
+.role-rate-table { overflow: hidden; }
+.role-rate-heading, .role-rate-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; gap: 12px; padding: 9px 13px; }
+.role-rate-heading { background: #f2edf0; color: #786e79; font-size: 10px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
+.role-rate-heading span:last-child, .role-rate-row strong { text-align: right; }
+.role-rate-row + .role-rate-row { border-top: 1px solid #eee7ec; }
+.role-rate-row span { font-size: 12px; font-weight: 750; }
+.role-rate-row strong { color: #745b29; font-size: 13px; }
+.profile-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.check-row { display: flex; align-items: center; gap: 9px; margin-top: 14px; padding: 11px; border-radius: 9px; background: #f4eff2; color: #493f49; }
+.check-row input { width: auto; margin: 0; accent-color: #302638; }
+.nav-label-options { margin-top: 10px; padding: 12px; border: 1px solid #e8e0e7; border-radius: 9px; }
+.nav-label-options[hidden] { display: none; }
+.compact-note { margin: 8px 0; }
 .league-at-a-glance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 26px; padding: 18px; }
 .league-at-a-glance > div { padding: 0 18px; border-left: 1px solid #e8e0e7; }
 .league-at-a-glance > div:first-child { border-left: 0; }
@@ -424,6 +455,10 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .team-switcher button { flex: 0 0 170px; }
   .public-team-columns { grid-template-columns: 1fr; gap: 22px; }
   .available-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .league-directory { grid-template-columns: 1fr; }
+  .league-directory .team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .league-directory .commissioner-section + .commissioner-section { margin-top: 24px; }
+  .roster-scroll-card { max-height: 580px; }
 }
 @media (max-width: 520px) {
   header { padding: 0 14px; }
@@ -435,8 +470,12 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .league-detail-head h2 { font-size: 20px; }
   .league-detail-total strong { font-size: 27px; }
   .league-score-row { grid-template-columns: minmax(105px, 1fr) 43px; gap: 7px; }
+  .league-score-row.with-photo { grid-template-columns: 40px minmax(90px, 1fr) 43px; }
+  .league-score-row.with-photo .score-member-photo { width: 40px; height: 40px; }
   .league-score-parts { grid-column: 1; }
+  .league-score-row.with-photo .league-score-parts { grid-column: 2; }
   .league-score-total { grid-column: 2; grid-row: 1 / span 2; align-self: stretch; display: grid; align-items: center; }
+  .league-score-row.with-photo .league-score-total { grid-column: 3; }
   .league-cast-grid, .available-grid { grid-template-columns: 1fr; }
   .public-section-head { align-items: flex-start; }
   .public-section-head label { min-width: 125px; }
@@ -444,6 +483,8 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .league-at-a-glance > div { padding: 0 9px; }
   .league-at-a-glance span { font-size: 23px; }
   .league-at-a-glance small { font-size: 8px; }
+  .league-directory .team-grid { grid-template-columns: 1fr; }
+  .profile-name-fields { grid-template-columns: 1fr; gap: 0; }
 }
 @media (max-width: 700px) {
   #overviewTeamDetail { display: none; }
