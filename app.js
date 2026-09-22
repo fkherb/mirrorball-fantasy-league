@@ -197,6 +197,9 @@ async function loadTeams() {
     return;
   }
   const availableCount = castMembers.filter((member) => !member.fantasy_team_id).length;
+  $('#leagueTeamCount').textContent = teams.length;
+  $('#leagueCastCount').textContent = castMembers.length;
+  $('#leagueAvailableCount').textContent = availableCount;
   $('#newTeam').hidden = !canEdit || !availableCount;
   if (!teams.length) {
     $('#commissionerTeamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
@@ -445,13 +448,13 @@ function teamScoreBreakdown(teamId, weekId = 'all') {
 
 function scoreBreakdownMarkup(rows, limit = null) {
   const visible = limit ? rows.slice(0, limit) : rows;
-  return `<div class="league-score-list">${visible.map((row) => `<div class="league-score-row"><div class="league-score-member"><strong>${escapeHtml(row.member.name)}</strong><span class="role-rate-pill">${escapeHtml(row.role)} <b>+${row.appearanceRate}</b></span></div><div class="league-score-parts"><span>Judges Total <b>${row.official}</b></span><span class="appearance-part">Appearances <b>${row.appearances}</b></span></div><strong class="league-score-total">${row.total}</strong></div>`).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>${limit && rows.length > limit ? `<p class="league-more">+${rows.length - limit} more scoring cast member${rows.length - limit === 1 ? '' : 's'} on the Teams page</p>` : ''}`;
+  return `<div class="league-score-list">${visible.map((row) => `<div class="league-score-row"><div class="league-score-member"><strong>${escapeHtml(row.member.name)}</strong><span class="role-rate-pill">${escapeHtml(row.role)} <b>+${row.appearanceRate}</b></span></div><div class="league-score-parts"><span>Judges Total <b>${row.official}</b></span><span class="appearance-part">Appearances <b>${row.appearances}</b></span></div><strong class="league-score-total">${row.total}</strong></div>`).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>`;
 }
 
 function overviewTeamDetailMarkup(row) {
   const breakdown = teamScoreBreakdown(row.team.id);
   const displayName = row.team.team_name || `${row.team.manager_name}'s Team`;
-  return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)} · ${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div>${scoreBreakdownMarkup(breakdown.rows, 5)}`;
+  return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)} · ${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div><p class="top-cast-label">Top Five Cast Members</p>${scoreBreakdownMarkup(breakdown.rows, 5)}`;
 }
 
 function renderOverviewTeamDetail() {
@@ -506,6 +509,7 @@ function renderPublicTeams() {
   if (!selected) return $('#publicTeamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
   if (selectedPublicWeekId !== 'all' && !weeks.some((week) => week.id === selectedPublicWeekId)) selectedPublicWeekId = 'all';
   const displayName = selected.team.team_name || `${selected.team.manager_name}'s Team`;
+  $('#myTeamTitle').textContent = selected.team.team_name || 'My Team';
   const roster = members.filter((member) => member.fantasy_team_id === selected.team.id).sort((a, b) => a.name.localeCompare(b.name));
   const available = members.filter((member) => !member.fantasy_team_id).sort((a, b) => a.name.localeCompare(b.name));
   const breakdown = teamScoreBreakdown(selected.team.id, selectedPublicWeekId);
@@ -891,16 +895,18 @@ async function openEditDance(week, dance, index, scoresOnly = false) {
 async function loadRules() {
   const { data: roleRows, error } = await db.from('roles').select('name,appearance_points');
   if (error) {
-    $('#rulesContent').innerHTML = `<div class="card empty error">Couldn’t load the scoring rules: ${escapeHtml(error.message)}</div>`;
+    $('#roleRatesContent').innerHTML = `<div class="card empty error">Couldn’t load role rates: ${escapeHtml(error.message)}</div>`;
     return;
   }
   const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
   const rates = [...roleRows].sort((a, b) => (roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)) || a.name.localeCompare(b.name));
-  $('#rulesContent').innerHTML = `<div class="rules-intro card"><div><p class="eyebrow">How points are earned</p><h2>Score the show, then count the moments around it.</h2></div><p>Fantasy teams collect official dance scores for their cast, plus points when rostered cast members appear in other recorded dances.</p></div>
-    <div class="rules-grid"><article class="card rule-card"><span class="rule-number">01</span><h2>Competitive dances</h2><p>Each official judge score is awarded to both members of the competing couple. If your team has both partners, it receives both scores.</p></article><article class="card rule-card"><span class="rule-number">02</span><h2>Cast appearances</h2><p>A cast member earns their role’s appearance rate once for every recorded dance appearance. The commissioner logs each appearance in the Score Desk.</p></article><article class="card rule-card"><span class="rule-number">03</span><h2>Eliminations</h2><p>Couples keep their regular roles through their elimination week. Their eliminated appearance rates begin with the following week.</p></article><article class="card rule-card"><span class="rule-number">04</span><h2>Surprise guests</h2><p>Surprise cast members use a custom appearance rate chosen by the commissioner when they are added to the Cast Roster.</p></article></div>
-    <section class="appearance-rates"><div class="rules-section-head"><div><p class="eyebrow">Appearance rates</p><h2>Points per recorded dance</h2></div><div class="rules-actions"><p class="sub">These values come directly from the current league setup.</p>${canEdit && supportsDatabaseHardening ? '<button class="secondary" id="editRules">Edit Rules</button>' : ''}</div></div><div class="rate-grid">${rates.map((role) => role.name === 'Surprise' ? `<article class="card rate-card"><span>Surprise +?*</span><strong>Varies</strong><small>set for each cast member</small></article>` : `<article class="card rate-card"><span>${escapeHtml(role.name)}</span><strong>+${Number(role.appearance_points) || 0}</strong><small>per dance appearance</small></article>`).join('')}</div><p class="surprise-rate-note">* Surprise cast is added as seen on the show. Their scoring varies based on the surprise cast member’s role.</p></section>
-    <section class="card rules-note"><h2>Weekly notes</h2><ul><li>A guest judge’s score is included in the official total for that week’s competitive dances.</li><li>Double eliminations are recorded with the week so each eliminated couple changes to its new rate at the right time.</li><li>The Score Desk prevents the same active couple from being entered twice for a regular competitive dance in the same week.</li></ul></section>`;
-  $('#editRules')?.addEventListener('click', () => openRulesEditor(rates));
+  $('#roleRatesContent').innerHTML = `<div class="rate-grid">${rates.map((role) => role.name === 'Surprise' ? `<article class="card rate-card"><span>Surprise +?*</span><strong>Varies</strong><small>set for each cast member</small></article>` : `<article class="card rate-card"><span>${escapeHtml(role.name)}</span><strong>+${Number(role.appearance_points) || 0}</strong><small>per dance appearance</small></article>`).join('')}</div><p class="surprise-rate-note">* Surprise cast is added as seen on the show. Its custom rate is set on that cast member.</p>`;
+  $('#editRules').hidden = !canEdit || !supportsDatabaseHardening;
+  $('#editRules').onclick = () => openRulesEditor(rates);
+}
+
+function openRulesSummary() {
+  openModal(`<div class="rules-summary"><p class="eyebrow">Mirrorball Fantasy League</p><h2>Rules & Scoring</h2><p class="sub">The short version of how your roster earns points.</p><div class="rules-summary-list"><article><b>Competitive dances</b><p>Both members of a competing couple receive the total of the official judges’ scores.</p></article><article><b>Cast appearances</b><p>Cast appearing in another recorded dance earns the appearance rate for their role.</p></article><article><b>Eliminations</b><p>A couple keeps its regular roles through elimination night. Eliminated-role rates begin the following week.</p></article><article><b>Surprise cast</b><p>Surprise additions use a custom appearance rate set by the commissioner.</p></article></div><p class="rules-summary-note">Guest-judge scores count toward competitive totals. Current role rates are listed on the League page.</p></div>`);
 }
 
 function openRulesEditor(rates) {
@@ -925,6 +931,7 @@ document.querySelectorAll('[data-roster-filter]').forEach((button) => button.add
 $('#newPlayer').addEventListener('click', openAddPlayer);
 $('#newTeam').addEventListener('click', openNewTeam);
 $('#newWeek').addEventListener('click', openNewWeek);
+$('#rulesButton').addEventListener('click', openRulesSummary);
 window.addEventListener('mirrorball-auth-change', async (event) => {
   canEdit = event.detail.signedIn;
   $('#newPlayer').hidden = !canEdit;

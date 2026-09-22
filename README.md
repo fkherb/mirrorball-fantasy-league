@@ -20,14 +20,16 @@ Row-level security policies—not that key—restrict commissioner writes.
   wider screens. On phones, selecting a team opens that summary in a compact
   detail window. League Highlights are calculated from the latest completed
   week and show its top fantasy team, cast scorer, and appearance leader.
-- **Teams** is the public manager view. Until manager accounts exist, anyone can
-  choose a team to see its weekly history, scoring breakdown, current roster,
-  and the cast members who are still available.
-- **Score Desk** contains the live and completed-week scoring workflow.
-- **Rules** displays the active scoring rules and appearance rates.
-- **Commissioner** appears only after commissioner sign-in. It contains fantasy
-  team management and the complete editable Cast Roster; it intentionally does
-  not duplicate team scoring or history.
+- **My Team** is the future manager view. Until manager accounts are connected,
+  its team switcher remains available so any team can be previewed. The heading
+  adopts the selected team name when one exists.
+- **Scoring** contains the live and completed-week scoring workflow.
+- **League** is the public league directory: every fantasy team, the searchable
+  full cast roster, and role rates. Team, roster, and role-rate editing controls
+  appear there only for the signed-in commissioner.
+- **Rules** is a compact header popup rather than a full navigation page.
+- Signed-in users can store a display name in Supabase Auth metadata. The header
+  uses that name instead of exposing the account email.
 
 ## Local preview
 
@@ -45,7 +47,7 @@ in their documented dependency order. For this existing league, only run a new
 file when its comment says it is the next needed migration.
 
 `supabase/harden-score-desk-and-role-rates.sql` has been applied to the live
-league. It adds database-level Score Desk safeguards, default role-rate editing,
+league. It adds database-level scoring safeguards, default role-rate editing,
 and weekly roster snapshots.
 
 Run `supabase/remove-completed-week-edit-lock.sql` once after it. This removes
@@ -60,7 +62,7 @@ for the migration.
 
 ## Operational reminders
 
-- The Score Desk is the source of truth for dances, judges’ scores, and cast
+- Scoring is the source of truth for dances, judges’ scores, and cast
   appearances.
 - Create a competitive dance ahead of the show with its couple, dance type,
   and song. Judge scores may stay blank until they are announced. Use Edit on

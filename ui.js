@@ -13,15 +13,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const auth = document.querySelector('#auth');
   const menu = document.querySelector('#accountMenu');
   const email = document.querySelector('#accountEmail');
+  const accountName = document.querySelector('#accountName');
+  let currentSession = null;
 
   function showAccess(session) {
+    currentSession = session;
     const signedInEmail = session?.user?.email;
-    auth.textContent = signedInEmail || 'Sign in';
+    const displayName = session?.user?.user_metadata?.display_name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name;
+    auth.textContent = signedInEmail ? displayName || 'Signed in' : 'Sign in';
     email.textContent = signedInEmail || '';
-    document.querySelector('#commissionerNav').hidden = !signedInEmail;
-    if (!signedInEmail && document.querySelector('#commissioner').classList.contains('active')) openView('standings');
+    accountName.value = displayName || '';
     menu.hidden = true;
-    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail } }));
+    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, displayName } }));
   }
 
   const { data: { session } } = await db.auth.getSession();
@@ -29,9 +32,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   db.auth.onAuthStateChange((_event, nextSession) => showAccess(nextSession));
 
   auth.addEventListener('click', () => {
-    const signedIn = Boolean(email.textContent);
+    const signedIn = Boolean(currentSession);
     if (!signedIn) return openView('signin');
     menu.hidden = !menu.hidden;
+  });
+  document.querySelector('#saveAccountName').addEventListener('click', async () => {
+    const displayName = accountName.value.trim();
+    if (!displayName) return alert('Enter the name you want displayed in the league.');
+    const { data, error } = await db.auth.updateUser({ data: { display_name: displayName } });
+    if (error) return alert(`Couldn’t save your name: ${error.message}`);
+    showAccess({ ...currentSession, user: data.user });
   });
   document.querySelector('#magic').addEventListener('click', async () => {
     const button = document.querySelector('#magic');
