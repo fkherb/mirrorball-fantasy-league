@@ -23,6 +23,7 @@
 .account-menu label { display: block; margin: 0 0 8px; }
 .account-menu input { margin-top: 4px; padding: 8px; }
 .account-menu button { width: 100%; margin-top: 6px; }
+.account-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
 .team-card { padding: 20px; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
 .team-card:hover { transform: translateY(-2px); border-color: #cfbac5; box-shadow: 0 14px 30px #2b193014; }

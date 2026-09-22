@@ -15,6 +15,7 @@ let standingsSnapshot = null;
 let selectedOverviewTeamId = null;
 let selectedPublicTeamId = null;
 let selectedPublicWeekId = 'all';
+let managerTeamId = null;
 let supportsDatabaseHardening = false;
 
 function castCategory(player) {
@@ -401,7 +402,8 @@ async function loadStandings() {
   const leaderTotal = teamRows[0].total;
   const isFirstPlaceTie = teamRows.filter((row) => row.total === leaderTotal).length > 1;
   if (!teamRows.some((row) => row.team.id === selectedOverviewTeamId)) selectedOverviewTeamId = teamRows[0].team.id;
-  if (!teamRows.some((row) => row.team.id === selectedPublicTeamId)) selectedPublicTeamId = teamRows[0].team.id;
+  if (managerTeamId && teamRows.some((row) => row.team.id === managerTeamId)) selectedPublicTeamId = managerTeamId;
+  else if (!teamRows.some((row) => row.team.id === selectedPublicTeamId)) selectedPublicTeamId = teamRows[0].team.id;
   $('#standingsContent').innerHTML = `<div class="standings-grid">${teamRows.map((row, index) => {
     const contributors = members.filter((member) => (teamMemberPoints.get(row.team.id)?.get(member.id) || 0) > 0 || member.fantasy_team_id === row.team.id).sort((a, b) => (teamMemberPoints.get(row.team.id)?.get(b.id) || 0) - (teamMemberPoints.get(row.team.id)?.get(a.id) || 0) || a.name.localeCompare(b.name));
     const tiedLeader = isFirstPlaceTie && row.total === leaderTotal;
@@ -505,8 +507,10 @@ function renderLeagueHighlights() {
 function renderPublicTeams() {
   if (!standingsSnapshot) return;
   const { teamRows, members, weeks, weekMemberPoints, teamForMemberInWeek } = standingsSnapshot;
-  const selected = teamRows?.find((row) => row.team.id === selectedPublicTeamId);
-  if (!selected) return $('#publicTeamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
+  const visibleTeamRows = managerTeamId ? teamRows.filter((row) => row.team.id === managerTeamId) : teamRows;
+  const selected = visibleTeamRows?.find((row) => row.team.id === selectedPublicTeamId) || visibleTeamRows?.[0];
+  if (!selected) return $('#publicTeamResults').innerHTML = '<div class="card empty">This account is not connected to a fantasy team yet.</div>';
+  selectedPublicTeamId = selected.team.id;
   if (selectedPublicWeekId !== 'all' && !weeks.some((week) => week.id === selectedPublicWeekId)) selectedPublicWeekId = 'all';
   const displayName = selected.team.team_name || `${selected.team.manager_name}'s Team`;
   $('#myTeamTitle').textContent = selected.team.team_name || 'My Team';
@@ -521,7 +525,8 @@ function renderPublicTeams() {
     return `<div><span>Week ${week.number}</span><strong>${total}</strong></div>`;
   }).join('');
   const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person"><img src="${escapeHtml(member.image_path || imagePathFor(member.name))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.role)}</small></div></article>`).join('');
-  $('#publicTeamResults').innerHTML = `<div class="team-switcher" aria-label="Choose a fantasy team">${teamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</span><small>${row.total} pts</small></button>`).join('')}</div><section class="card public-team-detail"><div class="league-detail-head"><div><p class="eyebrow">${escapeHtml(selected.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} current cast member${roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${selected.total}</strong><span>season points</span></div></div><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Points breakdown</h3></div><label>View<select id="publicTeamWeek"><option value="all">Season total</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === selectedPublicWeekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label></div>${scoreBreakdownMarkup(breakdown.rows)}</section><section><div class="public-section-head"><div><p class="eyebrow">Current lineup</p><h3>Team roster</h3></div></div><div class="league-cast-grid">${peopleMarkup(roster) || '<p class="sub">No cast members assigned.</p>'}</div></section></div></section><section class="available-cast"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h2>Available Cast</h2><p class="sub">Cast members in the league who are not currently assigned to a fantasy team.</p></div><span>${available.length} available</span></div><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="card empty">Every cast member is currently assigned.</div>'}</div></section>`;
+  const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
+  $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="league-detail-head"><div><p class="eyebrow">${escapeHtml(selected.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} current cast member${roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${selected.total}</strong><span>season points</span></div></div><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Points breakdown</h3></div><label>View<select id="publicTeamWeek"><option value="all">Season total</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === selectedPublicWeekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label></div>${scoreBreakdownMarkup(breakdown.rows)}</section><section><div class="public-section-head"><div><p class="eyebrow">Current lineup</p><h3>Team roster</h3></div></div><div class="league-cast-grid">${peopleMarkup(roster) || '<p class="sub">No cast members assigned.</p>'}</div></section></div></section><section class="available-cast"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h2>Available Cast</h2><p class="sub">Cast members in the league who are not currently assigned to a fantasy team.</p></div><span>${available.length} available</span></div><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="card empty">Every cast member is currently assigned.</div>'}</div></section>`;
   document.querySelectorAll('[data-public-team]').forEach((button) => button.addEventListener('click', () => { selectedPublicTeamId = button.dataset.publicTeam; selectedPublicWeekId = 'all'; renderPublicTeams(); }));
   $('#publicTeamWeek')?.addEventListener('change', (event) => { selectedPublicWeekId = event.target.value; renderPublicTeams(); });
 }
@@ -933,7 +938,9 @@ $('#newTeam').addEventListener('click', openNewTeam);
 $('#newWeek').addEventListener('click', openNewWeek);
 $('#rulesButton').addEventListener('click', openRulesSummary);
 window.addEventListener('mirrorball-auth-change', async (event) => {
-  canEdit = event.detail.signedIn;
+  canEdit = event.detail.isCommissioner;
+  managerTeamId = event.detail.fantasyTeamId;
+  if (managerTeamId) selectedPublicTeamId = managerTeamId;
   $('#newPlayer').hidden = !canEdit;
   $('#newTeam').hidden = !canEdit;
   $('#newWeek').hidden = !canEdit;
@@ -943,14 +950,8 @@ window.addEventListener('mirrorball-auth-change', async (event) => {
   loadScoreDesk();
   loadRules();
 });
-db.auth.getSession().then(({ data: { session } }) => {
-  canEdit = Boolean(session);
-  $('#newPlayer').hidden = !canEdit;
-  $('#newTeam').hidden = !canEdit;
-  $('#newWeek').hidden = !canEdit;
-  loadStandings();
-  loadRoster();
-  loadTeams();
-  loadScoreDesk();
-  loadRules();
-});
+loadStandings();
+loadRoster();
+loadTeams();
+loadScoreDesk();
+loadRules();

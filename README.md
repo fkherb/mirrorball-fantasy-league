@@ -20,16 +20,16 @@ Row-level security policies—not that key—restrict commissioner writes.
   wider screens. On phones, selecting a team opens that summary in a compact
   detail window. League Highlights are calculated from the latest completed
   week and show its top fantasy team, cast scorer, and appearance leader.
-- **My Team** is the future manager view. Until manager accounts are connected,
-  its team switcher remains available so any team can be previewed. The heading
-  adopts the selected team name when one exists.
+- **My Team** appears for signed-in users. Before an account is linked it keeps
+  the temporary team switcher; once `league_members.fantasy_team_id` is set, it
+  displays only that account’s team and adopts the team name as its heading.
 - **Scoring** contains the live and completed-week scoring workflow.
 - **League** is the public league directory: every fantasy team, the searchable
   full cast roster, and role rates. Team, roster, and role-rate editing controls
   appear there only for the signed-in commissioner.
 - **Rules** is a compact header popup rather than a full navigation page.
-- Signed-in users can store a display name in Supabase Auth metadata. The header
-  uses that name instead of exposing the account email.
+- Signed-in users have first and last names. The header uses their full name
+  instead of exposing the account email.
 
 ## Local preview
 
@@ -59,6 +59,13 @@ saves and the inline week editor's dance reordering. It does not change existing
 dances or scores. Until it is run, dance entry keeps using the older save path
 and week details can still be edited, but saving a changed dance order will ask
 for the migration.
+
+Run `supabase/add-league-member-accounts.sql` before adding manager accounts.
+It creates the private `league_members` account-to-team mapping, first and last
+names, commissioner flag, row-level security, and a safe name-update function.
+After creating users in Supabase Authentication, add one `league_members` row
+per user to connect that Auth user to a fantasy team. Until this migration is
+run, the existing commissioner account continues to use the legacy fallback.
 
 ## Operational reminders
 

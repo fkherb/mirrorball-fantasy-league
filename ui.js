@@ -13,23 +13,46 @@ document.addEventListener('DOMContentLoaded', async () => {
   const auth = document.querySelector('#auth');
   const menu = document.querySelector('#accountMenu');
   const email = document.querySelector('#accountEmail');
-  const accountName = document.querySelector('#accountName');
+  const firstNameInput = document.querySelector('#accountFirstName');
+  const lastNameInput = document.querySelector('#accountLastName');
+  const myTeamNav = document.querySelector('#myTeamNav');
   let currentSession = null;
+  let currentMember = null;
+  let membershipReady = false;
 
-  function showAccess(session) {
+  const missingMembershipTable = (error) => ['42P01', 'PGRST205'].includes(error?.code) || /league_members/i.test(error?.message || '') && /not find|does not exist/i.test(error.message);
+
+  async function showAccess(session) {
     currentSession = session;
     const signedInEmail = session?.user?.email;
-    const displayName = session?.user?.user_metadata?.display_name || session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name;
+    const metadata = session?.user?.user_metadata || {};
+    currentMember = null;
+    membershipReady = false;
+    let membershipError = null;
+    if (session?.user) {
+      const { data, error } = await db.from('league_members').select('user_id,first_name,last_name,fantasy_team_id,is_commissioner').eq('user_id', session.user.id).maybeSingle();
+      membershipError = error;
+      membershipReady = !error;
+      currentMember = data || null;
+    }
+    const firstName = currentMember?.first_name || metadata.first_name || '';
+    const lastName = currentMember?.last_name || metadata.last_name || '';
+    const displayName = [firstName, lastName].filter(Boolean).join(' ') || metadata.display_name || metadata.full_name || metadata.name;
+    const legacyCommissioner = signedInEmail === 'herbfreddy@gmail.com' && (missingMembershipTable(membershipError) || !currentMember);
+    const isCommissioner = Boolean(currentMember?.is_commissioner) || legacyCommissioner;
     auth.textContent = signedInEmail ? displayName || 'Signed in' : 'Sign in';
     email.textContent = signedInEmail || '';
-    accountName.value = displayName || '';
+    firstNameInput.value = firstName;
+    lastNameInput.value = lastName;
+    myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
+    if (myTeamNav.hidden && document.querySelector('#teams').classList.contains('active')) openView('standings');
     menu.hidden = true;
-    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, displayName } }));
+    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, displayName, isCommissioner, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
   }
 
   const { data: { session } } = await db.auth.getSession();
-  showAccess(session);
-  db.auth.onAuthStateChange((_event, nextSession) => showAccess(nextSession));
+  await showAccess(session);
+  db.auth.onAuthStateChange((_event, nextSession) => { queueMicrotask(() => showAccess(nextSession)); });
 
   auth.addEventListener('click', () => {
     const signedIn = Boolean(currentSession);
@@ -37,11 +60,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     menu.hidden = !menu.hidden;
   });
   document.querySelector('#saveAccountName').addEventListener('click', async () => {
-    const displayName = accountName.value.trim();
-    if (!displayName) return alert('Enter the name you want displayed in the league.');
-    const { data, error } = await db.auth.updateUser({ data: { display_name: displayName } });
+    const firstName = firstNameInput.value.trim();
+    const lastName = lastNameInput.value.trim();
+    if (!firstName || !lastName) return alert('Enter both your first and last name.');
+    const displayName = `${firstName} ${lastName}`;
+    const { data, error } = await db.auth.updateUser({ data: { first_name: firstName, last_name: lastName, display_name: displayName } });
     if (error) return alert(`Couldn’t save your name: ${error.message}`);
-    showAccess({ ...currentSession, user: data.user });
+    if (membershipReady && currentMember) {
+      const { error: memberError } = await db.rpc('update_my_league_name', { p_first_name: firstName, p_last_name: lastName });
+      if (memberError) return alert(`Your sign-in name was saved, but the league profile could not be updated: ${memberError.message}`);
+    }
+    await showAccess({ ...currentSession, user: data.user });
   });
   document.querySelector('#magic').addEventListener('click', async () => {
     const button = document.querySelector('#magic');
