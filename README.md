@@ -30,15 +30,22 @@ in their documented dependency order. For this existing league, only run a new
 file when its comment says it is the next needed migration.
 
 `supabase/harden-score-desk-and-role-rates.sql` is intentionally **prepared but
-not yet applied**. It adds database-level score-desk safeguards and permission
-to edit default role rates. Run it in the Supabase SQL Editor only when the
-commissioner is ready.
+not yet applied**. It is the next migration to run in the Supabase SQL Editor.
+It adds database-level Score Desk safeguards, commissioner editing for default
+role rates, completed-week protection, and weekly roster snapshots. It is safe
+to wait: until the migration is applied, the site deliberately leaves the new
+“Mark Complete” control hidden.
 
 ## Operational reminders
 
 - The Score Desk is the source of truth for dances, judges’ scores, and cast
   appearances.
-- A fantasy-team assignment is current-state data. Before implementing real
-  trades, add weekly roster snapshots/history so a trade does not rewrite old
-  standings.
+- During live scoring, edit dances, scores, and appearances normally. Mark a
+  week complete only after the show: that is when the eliminated couple(s) are
+  chosen. Elimination appearance rates take effect in the following week.
+- Completion snapshots every cast member’s fantasy-team assignment and role
+  before applying the role changes. Future trades therefore do not rewrite
+  completed-week standings.
+- A completed week is intentionally read-only. A controlled “reopen latest
+  week” workflow is a future improvement; do not alter completed data directly.
 - Export or back up the Supabase data before making large commissioner edits.

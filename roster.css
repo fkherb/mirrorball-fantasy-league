@@ -200,6 +200,12 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .rules-section-head { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 12px; }
 .rules-section-head h2 { margin: 0; font-size: 23px; }
 .rules-section-head .sub { max-width: 280px; margin: 0; text-align: right; }
+.rules-actions { display: flex; align-items: center; justify-content: end; gap: 10px; }
+.rules-actions button { margin: 0; white-space: nowrap; }
+.surprise-rate-note { margin: 10px 2px 0; color: #786e79; font-size: 12px; line-height: 1.45; }
+.rate-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rate-editor label { padding: 10px; border: 1px solid #e6dde4; border-radius: 9px; background: #fcfafb; }
+.rate-editor input { margin-top: 5px; }
 .rate-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .rate-card { min-height: 112px; padding: 16px; background: #fff; }
 .rate-card span, .rate-card small { display: block; color: #786e79; }
@@ -243,9 +249,12 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .rule-card p { font-size: 11px; }
   .rules-section-head { display: block; margin-bottom: 10px; }
   .rules-section-head .sub { max-width: none; margin-top: 5px; text-align: left; }
+  .rules-actions { justify-content: space-between; margin-top: 7px; }
+  .rules-actions .sub { margin-top: 0; }
   .rate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .rate-card { min-height: 104px; padding: 13px; }
   .rate-card strong { font-size: 25px; }
   .rules-note { padding: 17px; }
   .rules-note ul { grid-template-columns: 1fr; gap: 8px; }
 }
+@media (max-width: 520px) { .rate-editor { grid-template-columns: 1fr; } }
