@@ -141,7 +141,7 @@ async function editPlayer(id) {
       if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
       const pairingError = await replacePartnership(player, activePairRole(role), partnerId, partnerships, partnershipName);
       if (pairingError) return alert(`The cast member saved, but the partnership could not be saved: ${pairingError.message}`);
-      $('#modal').close(); loadRoster();
+      $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
     });
     $('#deletePlayer').addEventListener('click', async () => {
       if (!confirm(`Delete ${player.name}? This cannot be undone.`)) return;
@@ -149,7 +149,7 @@ async function editPlayer(id) {
       if (pairingError) return alert(`Couldn’t remove the partnership: ${pairingError.message}`);
       const { error: deleteError } = await db.from('cast_members').delete().eq('id', id);
       if (deleteError) return alert(`Couldn’t delete ${player.name}: ${deleteError.message}`);
-      $('#modal').close(); loadRoster();
+      $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
     });
   } catch (error) { alert(`Couldn’t open this cast member: ${error.message}`); }
 }
@@ -179,7 +179,7 @@ async function openAddPlayer() {
     const partnerId = isPairRole(role) ? $('#newPartner').value : '';
     const pairingError = await replacePartnership(created, role, partnerId, partnerships);
     if (pairingError) return alert(`${name} was created, but the partnership could not be saved: ${pairingError.message}`);
-    $('#modal').close(); loadRoster();
+    $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
   });
 }
 
@@ -230,14 +230,14 @@ async function editTeamCard(teamId) {
     if (!manager_name) return alert('Enter the name first.');
     const { error: saveError } = await db.from('fantasy_teams').update({ manager_name, team_name: team_name || null }).eq('id', teamId);
     if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
-    loadTeams();
+    loadTeams(); loadStandings();
   });
   document.querySelectorAll('[data-remove-team-cast-id]').forEach((button) => button.addEventListener('click', async () => {
     const member = roster.find((item) => item.id === button.dataset.removeTeamCastId);
     if (!confirm(`Remove ${member.name} from this fantasy team?`)) return;
     const { error: removeError } = await db.from('cast_members').update({ fantasy_team_id: null }).eq('id', member.id);
     if (removeError) return alert(`Couldn’t remove ${member.name}: ${removeError.message}`);
-    editTeamCard(teamId);
+    editTeamCard(teamId); loadStandings();
   }));
 }
 
@@ -252,7 +252,7 @@ function openNewTeam() {
     if (!managerName) return alert('Enter the manager name first.');
     const { error } = await db.from('fantasy_teams').insert({ manager_name: managerName, team_name: teamName || null });
     if (error) return alert(`Couldn’t create this team: ${error.message}`);
-    $('#modal').close(); loadTeams();
+    $('#modal').close(); loadTeams(); loadStandings();
   });
 }
 
@@ -290,52 +290,32 @@ async function openAssignCastMember(teamId) {
     if (!playerIds.length) return alert('Choose at least one cast member first.');
     const { error: assignError } = await db.from('cast_members').update({ fantasy_team_id: teamId }).in('id', playerIds);
     if (assignError) return alert(`Couldn’t add those cast members: ${assignError.message}`);
-    $('#modal').close(); loadTeams();
+    $('#modal').close(); loadTeams(); loadStandings();
   });
-}
-
-async function openEditTeam(teamId) {
-  const [{ data: team, error: teamError }, { data: roster, error: rosterError }] = await Promise.all([
-    db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
-    db.from('cast_members').select('id,name,role').eq('fantasy_team_id', teamId).order('name'),
-  ]);
-  const error = teamError || rosterError;
-  if (error) return alert(`Couldn’t open this team: ${error.message}`);
-  openModal(`<h2>Edit Fantasy Team</h2><label>Name<input id="editManagerName" value="${escapeHtml(team.manager_name)}" required></label>
-    <label>Team name <span class="optional">(optional)</span><input id="editTeamName" value="${escapeHtml(team.team_name || '')}"></label>
-    <button id="saveTeam">Save changes</button><hr><h3>Cast Roster</h3>
-    ${roster.length ? `<div class="edit-roster">${roster.map((member) => `<div><span><b>${escapeHtml(member.name)}</b><small>${escapeHtml(member.role)}</small></span><button class="secondary" data-remove-cast-id="${member.id}">Remove</button></div>`).join('')}</div>` : '<p class="sub">No cast members assigned.</p>'}`);
-  $('#saveTeam').addEventListener('click', async () => {
-    const manager_name = $('#editManagerName').value.trim();
-    const team_name = $('#editTeamName').value.trim();
-    if (!manager_name) return alert('Enter the name first.');
-    const { error: saveError } = await db.from('fantasy_teams').update({ manager_name, team_name: team_name || null }).eq('id', teamId);
-    if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
-    $('#modal').close(); loadTeams();
-  });
-  document.querySelectorAll('[data-remove-cast-id]').forEach((button) => button.addEventListener('click', async () => {
-    const castMember = roster.find((member) => member.id === button.dataset.removeCastId);
-    if (!confirm(`Remove ${castMember.name} from this fantasy team?`)) return;
-    const { error: removeError } = await db.from('cast_members').update({ fantasy_team_id: null }).eq('id', castMember.id);
-    if (removeError) return alert(`Couldn’t remove ${castMember.name}: ${removeError.message}`);
-    $('#modal').close(); loadTeams();
-  }));
 }
 
 function weekTitle(week) {
   return week.title || (week.theme ? `${week.theme} Week` : `Week ${week.number}`);
 }
 
-function appearanceValue(member, roleMap) {
+function roleForWeek(member, week, weeks) {
+  if (!member?.role?.startsWith('Eliminated')) return member?.role || '';
+  const eliminatedWeek = weeks.find((item) => item.id === member.eliminated_week_id);
+  if (week && eliminatedWeek && week.number <= eliminatedWeek.number) return member.role.replace('Eliminated ', '');
+  return member.role;
+}
+
+function appearanceValue(member, roleMap, week, weeks) {
   if (!member) return 0;
-  if (member.role === 'Surprise') return Number(member.custom_appearance_points) || 0;
-  return Number(roleMap.get(member.role)?.appearance_points) || 0;
+  const role = roleForWeek(member, week, weeks);
+  if (role === 'Surprise') return Number(member.custom_appearance_points) || 0;
+  return Number(roleMap.get(role)?.appearance_points) || 0;
 }
 
 async function loadStandings() {
   const [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').order('manager_name'),
-    db.from('cast_members').select('id,name,role,custom_appearance_points,fantasy_team_id').order('name'),
+    db.from('cast_members').select('id,name,role,custom_appearance_points,fantasy_team_id,eliminated_week_id').order('name'),
     db.from('roles').select('name,appearance_points'),
     db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
     db.from('weeks').select('id,number,title,theme').order('number'),
@@ -378,16 +358,18 @@ function calculateLeaguePoints(data) {
   const roleMap = new Map(data.roles.map((role) => [role.name, role]));
   const partnershipById = new Map(data.partnerships.map((partnership) => [partnership.id, partnership]));
   const danceById = new Map(data.dances.map((dance) => [dance.id, dance]));
+  const weekById = new Map(data.weeks.map((week) => [week.id, week]));
   const scoresByDance = new Map();
   const memberPoints = new Map(data.members.map((member) => [member.id, 0]));
   const weekMemberPoints = new Map();
   const add = (memberId, weekId, kind, points) => {
-    if (!memberById.has(memberId) || !points) return;
+    if (!memberById.has(memberId)) return;
     memberPoints.set(memberId, (memberPoints.get(memberId) || 0) + points);
     if (!weekMemberPoints.has(weekId)) weekMemberPoints.set(weekId, new Map());
     const memberWeek = weekMemberPoints.get(weekId);
-    const record = memberWeek.get(memberId) || { official: 0, appearances: 0 };
+    const record = memberWeek.get(memberId) || { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] };
     record[kind] += points;
+    if (kind === 'appearances') { record.appearanceCount += 1; record.appearanceRates.push(points); }
     memberWeek.set(memberId, record);
   };
   data.scores.forEach((score) => scoresByDance.set(score.dance_id, (scoresByDance.get(score.dance_id) || 0) + score.score));
@@ -399,14 +381,14 @@ function calculateLeaguePoints(data) {
   data.appearances.forEach((appearance) => {
     const dance = danceById.get(appearance.dance_id);
     const member = memberById.get(appearance.cast_member_id);
-    if (dance) add(member?.id, dance.week_id, 'appearances', appearanceValue(member, roleMap));
+    if (dance) add(member?.id, dance.week_id, 'appearances', appearanceValue(member, roleMap, weekById.get(dance.week_id), data.weeks));
   });
   return { teams: data.teams, members: data.members, weeks: data.weeks, memberPoints, weekMemberPoints };
 }
 
 function openStandingBreakdown(teamId) {
   if (!standingsSnapshot) return;
-  const { teams, members, weeks, memberPoints, weekMemberPoints } = standingsSnapshot;
+  const { teams, members, weeks, weekMemberPoints } = standingsSnapshot;
   const team = teams.find((item) => item.id === teamId);
   const roster = members.filter((member) => member.fantasy_team_id === teamId);
   if (!team) return;
@@ -418,11 +400,13 @@ function openStandingBreakdown(teamId) {
       return total + (entry?.official || 0) + (entry?.appearances || 0);
     }, 0);
     const rows = [...roster].map((member) => {
-      const sources = currentWeeks.reduce((result, week) => { const entry = weekMemberPoints.get(week.id)?.get(member.id); result.official += entry?.official || 0; result.appearances += entry?.appearances || 0; return result; }, { official: 0, appearances: 0 });
-      return { member, ...sources, total: pointsFor(member) };
+      const sources = currentWeeks.reduce((result, week) => { const entry = weekMemberPoints.get(week.id)?.get(member.id); result.official += entry?.official || 0; result.appearances += entry?.appearances || 0; result.appearanceCount += entry?.appearanceCount || 0; result.appearanceRates.push(...(entry?.appearanceRates || [])); return result; }, { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] });
+      const status = currentWeeks.length === 1 ? roleForWeek(member, currentWeeks[0], weeks) : member.role;
+      return { member, status, ...sources, total: pointsFor(member) };
     }).sort((a, b) => b.total - a.total || a.member.name.localeCompare(b.member.name));
     const total = rows.reduce((sum, row) => sum + row.total, 0);
-    $('#standingBreakdown').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2><p class="sub">Where this team’s fantasy points came from.</p></div><div class="breakdown-total"><strong>${total}</strong><span>points</span></div></div><label class="breakdown-week">View<select id="standingWeek"> <option value="all">All weeks</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === weekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label><div class="breakdown-table"><div class="breakdown-row breakdown-labels"><span>Cast member</span><span>Judges</span><span>Appearances</span><span>Total</span></div>${rows.map((row) => `<div class="breakdown-row"><span><b>${escapeHtml(row.member.name)}</b><small>${escapeHtml(row.member.role)}</small></span><span>${row.official}</span><span>${row.appearances}</span><strong>${row.total}</strong></div>`).join('') || '<p class="sub">No cast members assigned.</p>'}</div>`;
+    const appearanceLabel = (row) => { if (!row.appearanceCount) return '—'; const rates = [...new Set(row.appearanceRates)]; const rateText = rates.length === 1 ? `+${rates[0]} each` : rates.map((rate) => `+${rate}`).join(' / '); return `${row.appearanceCount} dance${row.appearanceCount === 1 ? '' : 's'} · ${rateText}`; };
+    $('#standingBreakdown').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2><p class="sub">Where this team’s fantasy points came from.</p></div><div class="breakdown-total"><strong>${total}</strong><span>points</span></div></div><label class="breakdown-week">View<select id="standingWeek"> <option value="all">All weeks</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === weekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label><div class="breakdown-table"><div class="breakdown-row breakdown-labels"><span>Cast member</span><span>Judges</span><span>Appearances</span><span>Total</span></div>${rows.map((row) => `<div class="breakdown-row"><span><b>${escapeHtml(row.member.name)}</b><small>${escapeHtml(row.status)}</small></span><span>${row.official}</span><span class="appearance-detail">${escapeHtml(appearanceLabel(row))}<small>${row.appearances ? `${row.appearances} points` : ''}</small></span><strong>${row.total}</strong></div>`).join('') || '<p class="sub">No cast members assigned.</p>'}</div>`;
     $('#standingWeek').addEventListener('change', (event) => draw(event.target.value));
   };
   draw();
@@ -479,7 +463,8 @@ function openDanceDetail(week, dance, index, pairData, scores, cast) {
   const pairing = pairData.partnerships.find((item) => item.id === dance.partnership_id);
   const star = pairData.players.find((player) => player.id === pairing?.star_id);
   const pro = pairData.players.find((player) => player.id === pairing?.pro_id);
-  openModal(`<div class="dance-detail-head"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${escapeHtml(title)}</h2>${dance.kind === 'competitive' ? `<p class="sub">${escapeHtml(dance.dance_type || 'Dance type not set')}${dance.song ? ` · ${escapeHtml(dance.song)}` : ''}</p>` : ''}</div>${dance.kind === 'competitive' ? `<section class="detail-section"><h3>Judges’ scores</h3><div class="detail-judges">${scores.map((score) => `<div><img src="Images/Judges Scores/${score.score}.png" alt="${escapeHtml(score.judge_name)}: ${score.score}"><span>${escapeHtml(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section><section class="detail-section"><h3>Competing couple</h3><div class="full-cast-list">${[star, pro].filter(Boolean).map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)}</span></div>`).join('')}</div></section>` : ''}<section class="detail-section"><h3>${dance.kind === 'competitive' ? 'Additional cast' : 'Cast'}</h3>${cast.length ? `<div class="full-cast-list">${cast.map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)}</span></div>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>`);
+  const displayRole = (member) => roleForWeek(member, week, pairData.weeks || [week]);
+  openModal(`<div class="dance-detail-head"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${escapeHtml(title)}</h2>${dance.kind === 'competitive' ? `<p class="sub">${escapeHtml(dance.dance_type || 'Dance type not set')}${dance.song ? ` · ${escapeHtml(dance.song)}` : ''}</p>` : ''}</div>${dance.kind === 'competitive' ? `<section class="detail-section"><h3>Judges’ scores</h3><div class="detail-judges">${scores.map((score) => `<div><img src="Images/Judges Scores/${score.score}.png" alt="${escapeHtml(score.judge_name)}: ${score.score}"><span>${escapeHtml(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section><section class="detail-section"><h3>Competing couple</h3><div class="full-cast-list">${[star, pro].filter(Boolean).map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div>`).join('')}</div></section>` : ''}<section class="detail-section"><h3>${dance.kind === 'competitive' ? 'Additional cast' : 'Cast'}</h3>${cast.length ? `<div class="full-cast-list">${cast.map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>`);
 }
 
 async function openNewWeek() {
@@ -535,7 +520,7 @@ async function openEditWeek(week) {
         if (starUpdate.error || proUpdate.error) return alert(`Week saved, but ${star.name} and ${pro.name} could not be restored: ${(starUpdate.error || proUpdate.error).message}`);
       }
     }
-    $('#modal').close(); loadScoreDesk();
+    $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings();
   });
 }
 
@@ -545,7 +530,8 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
     const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id);
     return star?.role === 'Star' && pro?.role === 'Pro';
   });
-  const { data: scoredDances } = await db.from('dances').select('partnership_id').eq('week_id', week.id).eq('kind', 'competitive');
+  const { data: scoredDances, error: scoredDancesError } = await db.from('dances').select('partnership_id').eq('week_id', week.id).eq('kind', 'competitive');
+  if (scoredDancesError) return alert(`Couldn’t prepare this dance: ${scoredDancesError.message}`);
   const usedPairIds = new Set((scoredDances || []).map((dance) => dance.partnership_id).filter((id) => id !== existingDance?.partnership_id));
   const availablePairs = activePairs.filter((pairing) => !usedPairIds.has(pairing.id));
   const existingPair = partnerships.find((pairing) => pairing.id === existingDance?.partnership_id);
@@ -579,7 +565,7 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
     if (existingDance) { await db.from('dance_judge_scores').delete().eq('dance_id', dance.id); await db.from('dance_appearances').delete().eq('dance_id', dance.id); }
     if (scores.length) { const { error: scoreError } = await db.from('dance_judge_scores').insert(scores); if (scoreError) return alert(`Dance saved, but judge scores could not be saved: ${scoreError.message}`); }
     if (appearances.length) { const { error: appearanceError } = await db.from('dance_appearances').insert(appearances); if (appearanceError) return alert(`Dance saved, but appearances could not be saved: ${appearanceError.message}`); }
-    $('#modal').close(); loadScoreDesk();
+    $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings();
   });
 }
 
