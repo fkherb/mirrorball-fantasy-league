@@ -4,6 +4,13 @@
 
 begin;
 
+-- Remove the old completed-week lock before touching existing completed rows.
+-- The duplicate-dance and competing-pair safeguards remain in force.
+drop trigger if exists prevent_completed_dance_edit on public.dances;
+drop trigger if exists prevent_completed_judge_score_edit on public.dance_judge_scores;
+drop trigger if exists prevent_completed_appearance_edit on public.dance_appearances;
+drop trigger if exists prevent_completed_week_metadata_edit on public.weeks;
+
 -- Save a surprise cast member's custom rate with the week roster. Default role
 -- rates live in the new table below.
 alter table public.weekly_roster_snapshots
@@ -118,12 +125,5 @@ begin
   update public.weeks set is_complete = true where id = p_week_id;
 end;
 $$;
-
--- Remove the old completed-week lock. The duplicate-dance and competing-pair
--- safeguards from the earlier migration remain in force.
-drop trigger if exists prevent_completed_dance_edit on public.dances;
-drop trigger if exists prevent_completed_judge_score_edit on public.dance_judge_scores;
-drop trigger if exists prevent_completed_appearance_edit on public.dance_appearances;
-drop trigger if exists prevent_completed_week_metadata_edit on public.weeks;
 
 commit;
