@@ -10,6 +10,7 @@ const judgeScoreImage = (score) => `Images/Judges Scores/${score}.png?v=20260921
 let canEdit = false;
 let rosterFilter = 'all';
 let selectedWeekId = null;
+let editingWeekId = null;
 let standingsSnapshot = null;
 let supportsDatabaseHardening = false;
 
@@ -471,7 +472,7 @@ async function loadScoreDesk() {
   }
   if (!weeks.some((week) => week.id === selectedWeekId)) selectedWeekId = weeks[weeks.length - 1].id;
   $('#weekTabs').innerHTML = weeks.map((week) => `<button class="${week.id === selectedWeekId ? 'selected' : ''}" data-score-week="${week.id}">Week ${week.number}</button>`).join('');
-  document.querySelectorAll('[data-score-week]').forEach((button) => button.addEventListener('click', () => { selectedWeekId = button.dataset.scoreWeek; loadScoreDesk(); }));
+  document.querySelectorAll('[data-score-week]').forEach((button) => button.addEventListener('click', () => { selectedWeekId = button.dataset.scoreWeek; editingWeekId = null; loadScoreDesk(); }));
   const week = weeks.find((item) => item.id === selectedWeekId);
   const [{ data: dances, error: danceError }, { data: judgeScores, error: judgeError }, { data: appearances, error: appearanceError }] = await Promise.all([
     db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order'),
@@ -480,6 +481,8 @@ async function loadScoreDesk() {
   ]);
   if (danceError || judgeError || appearanceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(danceError?.message || judgeError?.message || appearanceError?.message)}</div>`;
   const pairData = await getPairingData().catch(() => ({ players: [], partnerships: [] }));
+  const judgeOrder = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
+  const scoresForDance = (danceId) => judgeScores.filter((score) => score.dance_id === danceId).sort((a, b) => judgeOrder.indexOf(a.judge_name) - judgeOrder.indexOf(b.judge_name));
   const labelForDance = (dance, index) => {
     if (dance.kind === 'performance') return dance.name || `Week ${week.number} Dance ${index + 1}`;
     const pairing = pairData.partnerships.find((item) => item.id === dance.partnership_id);
@@ -498,10 +501,18 @@ async function loadScoreDesk() {
   }
   const weekStatus = week.is_complete ? 'Week complete' : week.is_finale ? 'No elimination · ready to complete' : `${week.double_elimination ? 'Double elimination' : 'Standard elimination'} · elimination not set`;
   const editable = canEdit && !week.is_complete;
-  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card"><div><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div><p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p></div><div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div></div>
-    <div class="dance-list">${dances.length ? dances.map((dance, index) => { const scores = judgeScores.filter((score) => score.dance_id === dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); return `<article class="card dance-row dance-${dance.kind}" data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${escapeHtml(labelForDance(dance, index))}"><div class="dance-card-top"><div><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${escapeHtml(labelForDance(dance, index))}</h3></div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>${dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}</div>` : ''}${appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
+  const weekEditing = editable && editingWeekId === week.id;
+  if (!editable) editingWeekId = null;
+  const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Week ${week.number}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label></div>`;
+  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
+    ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
-  $('#editWeek')?.addEventListener('click', () => openEditWeek(week));
+  $('#editWeek')?.addEventListener('click', () => { editingWeekId = week.id; loadScoreDesk(); });
+  $('#cancelWeekEdit')?.addEventListener('click', () => { editingWeekId = null; loadScoreDesk(); });
+  $('#guestJudgeEnabled')?.addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
+  $('#isFinale')?.addEventListener('change', (event) => { $('#doubleElimination').disabled = event.target.checked; if (event.target.checked) $('#doubleElimination').checked = false; });
+  $('#saveWeek')?.addEventListener('click', () => saveInlineWeek(week, dances));
+  if (weekEditing) attachDanceReorder();
   $('#completeWeek')?.addEventListener('click', () => openCompleteWeek(week));
   $('#weekLedger')?.addEventListener('click', () => openWeekLedger(week));
   document.querySelectorAll('[data-edit-dance]').forEach((button) => {
@@ -510,7 +521,7 @@ async function loadScoreDesk() {
   });
   document.querySelectorAll('[data-dance-detail]').forEach((tile) => {
     const dance = dances.find((item) => item.id === tile.dataset.danceDetail);
-    const open = () => openDanceDetail(week, dance, dances.indexOf(dance), pairData, judgeScores.filter((score) => score.dance_id === dance.id), dancers(dance.id));
+    const open = () => openDanceDetail(week, dance, dances.indexOf(dance), pairData, scoresForDance(dance.id), dancers(dance.id));
     tile.addEventListener('click', open);
     tile.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
   });
@@ -591,28 +602,80 @@ async function openNewWeek() {
   $('#weekTitle').addEventListener('input', () => { titleTouched = true; });
   $('#weekTheme').addEventListener('input', (event) => { if (!titleTouched) $('#weekTitle').value = event.target.value.trim() ? `${event.target.value.trim()} Week` : `Week ${number}`; });
   $('#guestJudgeEnabled').addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
+  $('#isFinale').addEventListener('change', (event) => { $('#doubleElimination').disabled = event.target.checked; if (event.target.checked) $('#doubleElimination').checked = false; });
   $('#createWeek').addEventListener('click', async () => {
     const theme = $('#weekTheme').value.trim();
     const title = $('#weekTitle').value.trim() || (theme ? `${theme} Week` : `Week ${number}`);
     const guest_judge_name = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() || null : null;
     if ($('#guestJudgeEnabled').checked && !guest_judge_name) return alert('Enter the guest judge’s name.');
+    if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guest_judge_name?.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
     const { data: week, error: createError } = await db.from('weeks').insert({ number, theme: theme || null, title, guest_judge_name, double_elimination: $('#doubleElimination').checked, is_finale: $('#isFinale').checked }).select().single();
     if (createError) return alert(`Couldn’t create Week ${number}: ${createError.message}`);
     selectedWeekId = week.id; $('#modal').close(); loadScoreDesk();
   });
 }
 
-async function openEditWeek(week) {
-  openModal(`<h2>Edit Week ${week.number}</h2><p class="sub">Update the week’s setup whenever needed. An elimination is selected only when the week is first marked complete.</p><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="${escapeHtml(weekTitle(week))}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label><div class="modal-actions"><button id="saveWeek">Save changes</button></div>`);
-  $('#guestJudgeEnabled').addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
-  $('#saveWeek').addEventListener('click', async () => {
-    const theme = $('#weekTheme').value.trim(); const title = $('#weekTitle').value.trim() || (theme ? `${theme} Week` : `Week ${week.number}`); const guest_judge_name = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() || null : null;
-    if ($('#guestJudgeEnabled').checked && !guest_judge_name) return alert('Enter the guest judge’s name.');
-    const is_finale = $('#isFinale').checked;
-    const doubleElimination = !is_finale && $('#doubleElimination').checked;
-    const { error } = await db.from('weeks').update({ theme: theme || null, title, guest_judge_name, double_elimination: doubleElimination, is_finale }).eq('id', week.id);
-    if (error) return alert(`Couldn’t save Week ${week.number}: ${error.message}`);
-    $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings();
+const missingRpc = (error) => error?.code === 'PGRST202' || /could not find the function|function .* does not exist/i.test(error?.message || '');
+
+async function saveInlineWeek(week, dances) {
+  const theme = $('#weekTheme').value.trim();
+  const title = $('#weekTitle').value.trim() || (theme ? `${theme} Week` : `Week ${week.number}`);
+  const guestJudge = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() : '';
+  if ($('#guestJudgeEnabled').checked && !guestJudge) return alert('Enter the guest judge’s name.');
+  if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guestJudge.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
+  const isFinale = $('#isFinale').checked;
+  const danceIds = [...document.querySelectorAll('#scoreDeskContent [data-reorder-id]')].map((row) => row.dataset.reorderId);
+  const orderChanged = danceIds.some((id, index) => id !== dances[index]?.id);
+  const payload = { p_week_id: week.id, p_theme: theme || null, p_title: title, p_guest_judge_name: guestJudge || null, p_double_elimination: !isFinale && $('#doubleElimination').checked, p_is_finale: isFinale, p_dance_ids: danceIds };
+  const saveButton = $('#saveWeek'); saveButton.disabled = true;
+  let { error } = await db.rpc('update_week_setup_and_order', payload);
+  if (missingRpc(error) && !orderChanged) {
+    ({ error } = await db.from('weeks').update({ theme: payload.p_theme, title, guest_judge_name: payload.p_guest_judge_name, double_elimination: payload.p_double_elimination, is_finale: isFinale }).eq('id', week.id));
+  } else if (missingRpc(error)) {
+    saveButton.disabled = false;
+    return alert('Run the new Score Desk SQL migration in Supabase before saving a new dance order.');
+  }
+  saveButton.disabled = false;
+  if (error) return alert(`Couldn’t save Week ${week.number}: ${error.message}`);
+  editingWeekId = null;
+  loadScoreDesk(); loadRoster(); loadStandings();
+}
+
+function attachDanceReorder() {
+  const list = $('#scoreDeskContent .dance-list');
+  let activeRow = null;
+  let startY = 0;
+  list.addEventListener('pointerdown', (event) => {
+    const handle = event.target.closest('.dance-drag-handle');
+    if (!handle || (event.button !== 0 && event.pointerType === 'mouse')) return;
+    event.preventDefault();
+    activeRow = handle.closest('[data-reorder-id]');
+    startY = event.clientY;
+    list.setPointerCapture(event.pointerId);
+    activeRow.classList.add('is-dragging');
+    handle.focus();
+  });
+  list.addEventListener('pointermove', (event) => {
+    if (!activeRow || !list.hasPointerCapture(event.pointerId) || Math.abs(event.clientY - startY) < 3) return;
+    if (event.clientY < 60) window.scrollBy(0, -18);
+    if (event.clientY > window.innerHeight - 60) window.scrollBy(0, 18);
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-reorder-id]');
+    if (!target || target === activeRow || target.parentElement !== list) return;
+    const midpoint = target.getBoundingClientRect().top + target.offsetHeight / 2;
+    list.insertBefore(activeRow, event.clientY < midpoint ? target : target.nextSibling);
+  });
+  const release = () => { activeRow?.classList.remove('is-dragging'); activeRow = null; };
+  list.addEventListener('pointerup', release);
+  list.addEventListener('pointercancel', release);
+  list.querySelectorAll('.dance-drag-handle').forEach((handle) => {
+    const row = handle.closest('[data-reorder-id]');
+    handle.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      if (event.key === 'ArrowUp' && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+      if (event.key === 'ArrowDown' && row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+      handle.focus();
+    });
   });
 }
 
@@ -656,7 +719,7 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
     const judgeNames = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
     const pairOptions = selectablePairs.map((pairing) => { const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id); return `<option value="${pairing.id}" ${pairing.id === existingDance?.partnership_id ? 'selected' : ''}>${escapeHtml(star.name)} & ${escapeHtml(pro.name)}</option>`; }).join('');
     const castEditor = scoresOnly ? '' : `<h3>Cast appearances</h3><input id="danceCastSearch" placeholder="Search cast" autocomplete="off"><div class="filter-tabs" id="danceCastTabs"><button class="selected" data-dance-filter="all">All</button><button data-dance-filter="pros">Pros</button><button data-dance-filter="stars">Stars</button><button data-dance-filter="bonus">Bonus</button></div><div id="bonusDanceFilters" class="mini-filters" hidden><button class="selected" data-dance-bonus-filter="all">All bonus</button><button data-dance-bonus-filter="troupe">Troupe</button><button data-dance-bonus-filter="nextpro">Next Pro</button><button data-dance-bonus-filter="judges">Judges + Hosts</button></div><div id="danceCastPicker" class="cast-picker">${castPicker()}</div>`;
-    const competitiveEditor = scoresOnly ? `<p class="sub">Update the individual judge scores for this competitive dance.</p><div class="judge-grid">${judgeNames.map((judge) => `<label>${escapeHtml(judge)}<input data-judge="${escapeHtml(judge)}" type="number" min="0" max="10" step="1" inputmode="numeric" value="${existingScores.find((score) => score.judge_name === judge)?.score ?? ''}"></label>`).join('')}</div>` : `<label class="couple-select">Couple<select id="dancePartnership"><option value="">Select couple</option>${pairOptions}</select></label><div class="dance-details"><label>Dance type <span class="optional">(optional)</span><input id="danceType" value="${escapeHtml(existingDance?.dance_type || '')}" placeholder="e.g., Cha-cha-cha"></label><label>Song <span class="optional">(optional)</span><input id="danceSong" value="${escapeHtml(existingDance?.song || '')}" placeholder="Song title"></label></div><div class="judge-grid">${judgeNames.map((judge) => `<label>${escapeHtml(judge)}<input data-judge="${escapeHtml(judge)}" type="number" min="0" max="10" step="1" inputmode="numeric" value="${existingScores.find((score) => score.judge_name === judge)?.score ?? ''}"></label>`).join('')}</div>`;
+    const competitiveEditor = scoresOnly ? `<p class="sub">Update the individual judge scores for this competitive dance.</p><div class="judge-grid">${judgeNames.map((judge) => `<label>${escapeHtml(judge)}<input data-judge="${escapeHtml(judge)}" type="number" min="0" max="10" step="1" inputmode="numeric" value="${existingScores.find((score) => score.judge_name === judge)?.score ?? ''}"></label>`).join('')}</div>` : `<label class="couple-select">Couple<select id="dancePartnership"><option value="">Select couple</option>${pairOptions}</select></label><div class="dance-details"><label>Dance type <span class="optional">(optional)</span><input id="danceType" value="${escapeHtml(existingDance?.dance_type || '')}" placeholder="e.g., Cha-cha-cha"></label><label>Song <span class="optional">(optional)</span><input id="danceSong" value="${escapeHtml(existingDance?.song || '')}" placeholder="Song title"></label></div><p class="sub judge-hint">You can save the lineup now and enter judges’ scores during the show.</p><div class="judge-grid">${judgeNames.map((judge) => `<label>${escapeHtml(judge)}<input data-judge="${escapeHtml(judge)}" type="number" min="0" max="10" step="1" inputmode="numeric" value="${existingScores.find((score) => score.judge_name === judge)?.score ?? ''}"></label>`).join('')}</div>`;
     $('#danceForm').innerHTML = `${kind === 'competitive' ? competitiveEditor : `<label>Dance name <span class="optional">(optional)</span><input id="danceName" value="${escapeHtml(existingDance?.name || '')}" placeholder="Week ${week.number} Dance ${danceCount + 1}"></label>`}${castEditor}`;
     if (!scoresOnly) {
       let filter = 'all'; let bonusFilter = 'all'; let excluded = [];
@@ -675,32 +738,42 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
   $('#saveDance').addEventListener('click', async () => {
     const partnership_id = kind === 'competitive' ? (scoresOnly ? existingDance.partnership_id : $('#dancePartnership').value || null) : null;
     if (kind === 'competitive' && !partnership_id) return alert('Select the competing couple.');
-    const name = kind === 'performance' ? $('#danceName').value.trim() || `Week ${week.number} Dance ${danceCount + 1}` : null;
+    const name = kind === 'performance' ? $('#danceName').value.trim() || null : null;
     const dance_type = kind === 'competitive' ? (scoresOnly ? existingDance.dance_type : $('#danceType').value.trim() || null) : null;
     const song = kind === 'competitive' ? (scoresOnly ? existingDance.song : $('#danceSong').value.trim() || null) : null;
     const scoreInputs = kind === 'competitive' ? [...document.querySelectorAll('[data-judge]')].filter((input) => input.value !== '') : [];
     if (scoreInputs.some((input) => !Number.isInteger(Number(input.value)) || Number(input.value) < 0 || Number(input.value) > 10)) return alert('Each judge score must be a whole number from 0 to 10.');
     const selectedAppearanceIds = scoresOnly ? existingAppearanceIds.map((appearance) => appearance.cast_member_id || appearance) : [...document.querySelectorAll('#danceCastPicker input:checked')].map((input) => input.value);
+    const saveButton = $('#saveDance'); saveButton.disabled = true;
+    const atomicSave = await db.rpc('save_dance_atomic', {
+      p_week_id: week.id, p_dance_id: existingDance?.id || null, p_kind: kind, p_partnership_id: partnership_id,
+      p_name: name, p_dance_type: dance_type, p_song: song,
+      p_judge_scores: scoreInputs.map((input) => ({ judge_name: input.dataset.judge, score: Number(input.value) })),
+      p_cast_member_ids: selectedAppearanceIds, p_scores_only: scoresOnly,
+    });
+    if (!atomicSave.error) { $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings(); return; }
+    if (!missingRpc(atomicSave.error)) { saveButton.disabled = false; return alert(`Couldn’t save this dance: ${atomicSave.error.message}`); }
+    // Keep existing score entry usable until the commissioner runs the migration.
     const danceOperation = existingDance ? db.from('dances').update({ kind, partnership_id, name, dance_type, song }).eq('id', existingDance.id).select().single() : db.from('dances').insert({ week_id: week.id, kind, partnership_id, name, dance_type, song, sort_order: danceCount + 1 }).select().single();
     const { data: dance, error: danceError } = await danceOperation;
-    if (danceError) return alert(`Couldn’t save this dance: ${danceError.message}`);
+    if (danceError) { saveButton.disabled = false; return alert(`Couldn’t save this dance: ${danceError.message}`); }
     const scores = scoreInputs.map((input) => ({ dance_id: dance.id, judge_name: input.dataset.judge, score: Number(input.value) }));
     const appearances = selectedAppearanceIds.map((cast_member_id) => ({ dance_id: dance.id, cast_member_id }));
     if (scores.length) {
       const scoreWrite = existingDance ? db.from('dance_judge_scores').upsert(scores, { onConflict: 'dance_id,judge_name' }) : db.from('dance_judge_scores').insert(scores);
       const { error: scoreError } = await scoreWrite;
-      if (scoreError) return alert(`Dance saved, but judge scores could not be saved: ${scoreError.message}`);
+      if (scoreError) { saveButton.disabled = false; return alert(`Dance saved, but judge scores could not be saved: ${scoreError.message}`); }
     }
     if (appearances.length) {
       const appearanceWrite = existingDance ? db.from('dance_appearances').upsert(appearances, { onConflict: 'dance_id,cast_member_id' }) : db.from('dance_appearances').insert(appearances);
       const { error: appearanceError } = await appearanceWrite;
-      if (appearanceError) return alert(`Dance saved, but appearances could not be saved: ${appearanceError.message}`);
+      if (appearanceError) { saveButton.disabled = false; return alert(`Dance saved, but appearances could not be saved: ${appearanceError.message}`); }
     }
     if (existingDance) {
       const scoreIdsToRemove = existingScores.filter((oldScore) => !scores.some((score) => score.judge_name === oldScore.judge_name)).map((oldScore) => oldScore.id).filter(Boolean);
       const appearanceIdsToRemove = existingAppearanceIds.filter((oldAppearance) => !appearances.some((appearance) => appearance.cast_member_id === oldAppearance.cast_member_id)).map((oldAppearance) => oldAppearance.id).filter(Boolean);
-      if (scoreIdsToRemove.length) { const { error: removeScoresError } = await db.from('dance_judge_scores').delete().in('id', scoreIdsToRemove); if (removeScoresError) return alert(`Dance saved, but old judge scores could not be removed: ${removeScoresError.message}`); }
-      if (appearanceIdsToRemove.length) { const { error: removeAppearancesError } = await db.from('dance_appearances').delete().in('id', appearanceIdsToRemove); if (removeAppearancesError) return alert(`Dance saved, but old appearances could not be removed: ${removeAppearancesError.message}`); }
+      if (scoreIdsToRemove.length) { const { error: removeScoresError } = await db.from('dance_judge_scores').delete().in('id', scoreIdsToRemove); if (removeScoresError) { saveButton.disabled = false; return alert(`Dance saved, but old judge scores could not be removed: ${removeScoresError.message}`); } }
+      if (appearanceIdsToRemove.length) { const { error: removeAppearancesError } = await db.from('dance_appearances').delete().in('id', appearanceIdsToRemove); if (removeAppearancesError) { saveButton.disabled = false; return alert(`Dance saved, but old appearances could not be removed: ${removeAppearancesError.message}`); } }
     }
     $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings();
   });

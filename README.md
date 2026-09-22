@@ -37,10 +37,20 @@ Run `supabase/remove-completed-week-edit-lock.sql` once after it. This removes
 only the old completed-week lock, leaving duplicate-dance and competing-pair
 safeguards intact. A completed week then hands corrections to its Week Ledger.
 
+Run `supabase/atomic-dance-saves-and-week-order.sql` once to enable atomic dance
+saves and the inline week editor's dance reordering. It does not change existing
+dances or scores. Until it is run, dance entry keeps using the older save path
+and week details can still be edited, but saving a changed dance order will ask
+for the migration.
+
 ## Operational reminders
 
 - The Score Desk is the source of truth for dances, judges’ scores, and cast
   appearances.
+- Create a competitive dance ahead of the show with its couple, dance type,
+  and song. Judge scores may stay blank until they are announced. Use Edit on
+  the week to update its details and drag dances into show order; Save changes
+  stores the week and order together.
 - During live scoring, edit dances, scores, and appearances normally. Mark a
   week complete only after the show: that is when the eliminated couple(s) are
   chosen. Elimination appearance rates take effect in the following week.
