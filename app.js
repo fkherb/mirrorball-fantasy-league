@@ -325,6 +325,62 @@ function weekTitle(week) {
   return week.title || (week.theme ? `${week.theme} Week` : `Week ${week.number}`);
 }
 
+function appearanceValue(member, roleMap) {
+  if (!member) return 0;
+  if (member.role === 'Surprise') return Number(member.custom_appearance_points) || 0;
+  return Number(roleMap.get(member.role)?.appearance_points) || 0;
+}
+
+async function loadStandings() {
+  const [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
+    db.from('fantasy_teams').select('id,manager_name,team_name').order('manager_name'),
+    db.from('cast_members').select('id,name,role,custom_appearance_points,fantasy_team_id').order('name'),
+    db.from('roles').select('name,appearance_points'),
+    db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
+    db.from('weeks').select('id,number,title,theme').order('number'),
+    db.from('dances').select('id,kind,partnership_id,week_id'),
+    db.from('dance_judge_scores').select('dance_id,score'),
+    db.from('dance_appearances').select('dance_id,cast_member_id'),
+  ]);
+  const error = [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult].find((result) => result.error)?.error;
+  if (error) {
+    $('#standingsContent').innerHTML = `<div class="card empty error">Couldn’t load standings: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const teams = teamsResult.data;
+  const members = membersResult.data;
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const roleMap = new Map(rolesResult.data.map((role) => [role.name, role]));
+  const scoresByDance = new Map();
+  scoresResult.data.forEach((score) => scoresByDance.set(score.dance_id, (scoresByDance.get(score.dance_id) || 0) + score.score));
+  const memberPoints = new Map(members.map((member) => [member.id, 0]));
+  const partnershipById = new Map(partnershipsResult.data.map((partnership) => [partnership.id, partnership]));
+  dancesResult.data.filter((dance) => dance.kind === 'competitive').forEach((dance) => {
+    const pairing = partnershipById.get(dance.partnership_id);
+    const score = scoresByDance.get(dance.id) || 0;
+    if (pairing) [pairing.star_id, pairing.pro_id].forEach((id) => memberPoints.set(id, (memberPoints.get(id) || 0) + score));
+  });
+  appearancesResult.data.forEach((appearance) => {
+    const member = memberById.get(appearance.cast_member_id);
+    memberPoints.set(appearance.cast_member_id, (memberPoints.get(appearance.cast_member_id) || 0) + appearanceValue(member, roleMap));
+  });
+  const teamRows = teams.map((team) => {
+    const roster = members.filter((member) => member.fantasy_team_id === team.id);
+    const total = roster.reduce((sum, member) => sum + (memberPoints.get(member.id) || 0), 0);
+    return { team, roster, total };
+  }).sort((a, b) => b.total - a.total || (a.team.team_name || a.team.manager_name).localeCompare(b.team.team_name || b.team.manager_name));
+  const latestWeek = weeksResult.data.at(-1);
+  $('#standingsSubtitle').textContent = latestWeek ? `Through ${weekTitle(latestWeek)} · current fantasy-team totals` : 'Current fantasy-team totals.';
+  if (!teamRows.length) {
+    $('#standingsContent').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
+    return;
+  }
+  $('#standingsContent').innerHTML = `<div class="standings-grid">${teamRows.map((row, index) => {
+    const contributors = [...row.roster].sort((a, b) => (memberPoints.get(b.id) || 0) - (memberPoints.get(a.id) || 0) || a.name.localeCompare(b.name));
+    return `<article class="card standing-card ${index === 0 ? 'leader' : ''}"><div class="standing-rank">${index + 1}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</h2><p class="standing-roster">${row.roster.length} cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${memberPoints.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div></article>`;
+  }).join('')}</div>`;
+}
+
 async function loadScoreDesk() {
   const { data: weeks, error } = await db.from('weeks').select('id,number,label,theme,title,guest_judge_name,double_elimination,is_finale').order('number');
   if (error) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load weeks: ${escapeHtml(error.message)}</div>`;
@@ -337,11 +393,12 @@ async function loadScoreDesk() {
   $('#weekTabs').innerHTML = weeks.map((week) => `<button class="${week.id === selectedWeekId ? 'selected' : ''}" data-score-week="${week.id}">Week ${week.number}</button>`).join('');
   document.querySelectorAll('[data-score-week]').forEach((button) => button.addEventListener('click', () => { selectedWeekId = button.dataset.scoreWeek; loadScoreDesk(); }));
   const week = weeks.find((item) => item.id === selectedWeekId);
-  const [{ data: dances, error: danceError }, { data: judgeScores, error: judgeError }] = await Promise.all([
-      db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order'),
+  const [{ data: dances, error: danceError }, { data: judgeScores, error: judgeError }, { data: appearances, error: appearanceError }] = await Promise.all([
+    db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order'),
     db.from('dance_judge_scores').select('dance_id,judge_name,score'),
+    db.from('dance_appearances').select('dance_id,cast_member_id'),
   ]);
-  if (danceError || judgeError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(danceError?.message || judgeError?.message)}</div>`;
+  if (danceError || judgeError || appearanceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(danceError?.message || judgeError?.message || appearanceError?.message)}</div>`;
   const pairData = await getPairingData().catch(() => ({ players: [], partnerships: [] }));
   const labelForDance = (dance, index) => {
     if (dance.kind === 'performance') return dance.name || `Week ${week.number} Dance ${index + 1}`;
@@ -350,8 +407,12 @@ async function loadScoreDesk() {
     const pro = pairData.players.find((player) => player.id === pairing?.pro_id);
     return star && pro ? `${star.name} & ${pro.name}` : `Competitive Dance ${index + 1}`;
   };
-  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card"><div><p class="eyebrow">Week ${week.number}</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${week.is_finale ? 'No elimination' : (week.double_elimination ? 'Double elimination' : 'Standard elimination')}</p></div>${canEdit ? '<div class="score-week-actions"><button class="secondary" id="editWeek">Edit Week</button><button id="newDance">Add Dance</button></div>' : ''}</div>
-    <div class="dance-list">${dances.length ? dances.map((dance, index) => { const scores = judgeScores.filter((score) => score.dance_id === dance.id); const total = scores.reduce((sum, score) => sum + score.score, 0); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml).join(' · '); return `<div class="card dance-row"><div><p class="eyebrow">${dance.kind}</p><b>${escapeHtml(labelForDance(dance, index))}</b><small>${dance.kind === 'competitive' ? details || 'Competitive dance' : 'Performance'}</small></div>${dance.kind === 'competitive' ? `<div class="judge-paddles">${scores.map((score) => `<img style="width:28px;height:38px;object-fit:contain" src="Images/Judges Scores/${score.score}.png" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}<strong>${total}</strong></div>` : ''}${canEdit ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
+  const dancers = (danceId) => appearances.filter((appearance) => appearance.dance_id === danceId).map((appearance) => pairData.players.find((player) => player.id === appearance.cast_member_id)).filter(Boolean);
+  const appearanceSummary = (danceId) => { const cast = dancers(danceId); if (!cast.length) return ''; const shown = cast.slice(0, 3); return `<div class="dance-cast" title="${escapeHtml(cast.map((member) => member.name).join(', '))}"><span>Cast</span>${shown.map((member) => `<b>${escapeHtml(member.name)}</b>`).join('')}${cast.length > shown.length ? `<b>+${cast.length - shown.length}</b>` : ''}</div>`; };
+  const competitiveCount = dances.filter((dance) => dance.kind === 'competitive').length;
+  const performanceCount = dances.length - competitiveCount;
+  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card"><div><p class="eyebrow">Week ${week.number}</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${week.is_finale ? 'No elimination' : (week.double_elimination ? 'Double elimination' : 'Standard elimination')}</p></div><div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span></div>${canEdit ? '<div class="score-week-actions"><button class="secondary" id="editWeek">Edit Week</button><button id="newDance">Add Dance</button></div>' : ''}</div>
+    <div class="dance-list">${dances.length ? dances.map((dance, index) => { const scores = judgeScores.filter((score) => score.dance_id === dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); return `<article class="card dance-row dance-${dance.kind}"><div class="dance-card-top"><div><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${escapeHtml(labelForDance(dance, index))}</h3></div>${canEdit ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>${dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="Images/Judges Scores/${score.score}.png" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}</div>` : ''}${appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
   $('#editWeek')?.addEventListener('click', () => openEditWeek(week));
   document.querySelectorAll('[data-edit-dance]').forEach((button) => {
@@ -484,6 +545,7 @@ window.addEventListener('mirrorball-auth-change', async (event) => {
   $('#newPlayer').hidden = !canEdit;
   $('#newTeam').hidden = !canEdit;
   $('#newWeek').hidden = !canEdit;
+  loadStandings();
   loadRoster();
   loadTeams();
   loadScoreDesk();
@@ -493,6 +555,7 @@ db.auth.getSession().then(({ data: { session } }) => {
   $('#newPlayer').hidden = !canEdit;
   $('#newTeam').hidden = !canEdit;
   $('#newWeek').hidden = !canEdit;
+  loadStandings();
   loadRoster();
   loadTeams();
   loadScoreDesk();
