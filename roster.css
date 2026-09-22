@@ -249,8 +249,11 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .ledger-cast-choice small { margin-top: 2px; color: #786e79; font-size: 10px; }
 .ledger-member-editor { grid-column: 2; grid-row: 1 / span 2; align-self: start; padding: 15px; border: 1px solid #e8e0e7; border-radius: 11px; background: #fcfafb; }
 .ledger-member-editor h3 { margin: 0 0 12px; }
-.ledger-member-editor label { display: block; margin-top: 11px; }
-.ledger-member-editor button { margin-top: 7px; }
+.ledger-member-summary { margin: -7px 0 13px; color: #786e79; font-size: 11px; }
+.ledger-action-block { padding: 11px; border: 1px solid #e8e0e7; border-radius: 9px; background: #fff; }
+.ledger-action-block + .ledger-action-block { margin-top: 9px; }
+.ledger-action-block label { display: block; }
+.ledger-action-block button { margin-top: 7px; }
 .ledger-new-performance { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin-top: 18px; padding-top: 12px; border-top: 1px solid #e8e0e7; color: #786e79; font-size: 11px; }
 .ledger-new-performance button { margin: 0; }
 .ledger-prompt { grid-column: 2; margin: 0; padding: 15px; border: 1px dashed #d9cfd8; border-radius: 11px; }

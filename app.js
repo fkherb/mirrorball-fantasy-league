@@ -532,7 +532,7 @@ async function openWeekLedger(week) {
     db.from('roles').select('name,appearance_points'),
     db.from('weeks').select('*').order('number'),
     db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
-    db.from('dances').select('id,kind,partnership_id,week_id').eq('week_id', week.id),
+    db.from('dances').select('id,kind,partnership_id,name,sort_order,week_id').eq('week_id', week.id).order('sort_order'),
     db.from('dance_judge_scores').select('dance_id,score'),
     db.from('dance_appearances').select('id,dance_id,cast_member_id'),
   ]);
@@ -568,7 +568,7 @@ async function openWeekLedger(week) {
     const usedDanceIds = new Set(memberAppearances.map((appearance) => appearance.dance_id));
     const availableDances = dancesResult.data.filter((dance) => !usedDanceIds.has(dance.id));
     const competitiveBody = `<section class="ledger-dances"><h3>Competitive dances</h3>${competitiveDances.map((dance) => `<div><span>${escapeHtml(danceLabels.get(dance.id))}</span>${canEdit ? `<button class="secondary" data-ledger-dance="${dance.id}">Edit scores</button>` : ''}</div>`).join('') || '<p class="sub">No competitive dances recorded.</p>'}</section>`;
-    const performanceBody = `<section class="ledger-performance"><input id="ledgerCastSearch" placeholder="Search cast member" autocomplete="off"><div class="ledger-cast-list">${[...rows].sort((a, b) => a.member.name.localeCompare(b.member.name)).map((row) => `<button class="ledger-cast-choice ${row.member.id === selectedMemberId ? 'selected' : ''}" data-ledger-member="${row.member.id}" data-ledger-name="${escapeHtml(row.member.name.toLowerCase())}"><span>${escapeHtml(row.member.name)}</span><small>${escapeHtml(row.role)} · ${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'}</small></button>`).join('')}</div>${selectedMember ? `<section class="ledger-member-editor"><h3>${escapeHtml(selectedMember.name)}</h3><label>Remove from dance<select id="ledgerRemoveDance"><option value="">Select recorded dance</option>${memberAppearances.map((appearance) => `<option value="${appearance.id}">${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</option>`).join('')}</select></label><button class="secondary" id="removeLedgerAppearance">Remove appearance</button><label>Add to existing dance<select id="ledgerAddDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addLedgerAppearance">Add appearance</button>${canEdit ? '<div class="ledger-new-performance"><span>Missing a performance?</span><button class="secondary" id="addLedgerPerformance">Create performance dance</button></div>' : ''}</section>` : '<p class="sub ledger-prompt">Select a cast member to edit their recorded dance appearances.</p>'}</section>`;
+    const performanceBody = `<section class="ledger-performance"><input id="ledgerCastSearch" placeholder="Search cast member" autocomplete="off"><div class="ledger-cast-list">${[...rows].sort((a, b) => a.member.name.localeCompare(b.member.name)).map((row) => `<button class="ledger-cast-choice ${row.member.id === selectedMemberId ? 'selected' : ''}" data-ledger-member="${row.member.id}" data-ledger-name="${escapeHtml(row.member.name.toLowerCase())}"><span>${escapeHtml(row.member.name)}</span><small>${escapeHtml(row.role)} · ${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'}</small></button>`).join('')}</div>${selectedMember ? `<section class="ledger-member-editor"><h3>${escapeHtml(selectedMember.name)}</h3><p class="ledger-member-summary">${memberAppearances.length} recorded appearance${memberAppearances.length === 1 ? '' : 's'} this week</p><div class="ledger-action-block"><label>Remove from dance<select id="ledgerRemoveDance"><option value="">Select recorded dance</option>${memberAppearances.map((appearance) => `<option value="${appearance.id}">${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</option>`).join('')}</select></label><button class="secondary" id="removeLedgerAppearance">Remove appearance</button></div><div class="ledger-action-block"><label>Add to existing dance<select id="ledgerAddDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addLedgerAppearance">Add appearance</button></div>${canEdit ? '<div class="ledger-new-performance"><span>Missing a performance?</span><button class="secondary" id="addLedgerPerformance">Create performance dance</button></div>' : ''}</section>` : '<p class="sub ledger-prompt">Select a cast member to edit their recorded dance appearances.</p>'}</section>`;
     $('#weekLedgerBody').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">Week ${week.number} ledger</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">Correct completed-week scoring here. Role rates always come from the league-wide Rules tab.</p></div><div class="breakdown-total"><strong>${total}</strong><span>league points</span></div></div><div class="filter-tabs ledger-mode-tabs"><button class="${mode === 'competitive' ? 'selected' : ''}" data-ledger-mode="competitive">Competitive</button><button class="${mode === 'performance' ? 'selected' : ''}" data-ledger-mode="performance">Performance</button></div>${mode === 'competitive' ? competitiveBody : performanceBody}`;
     document.querySelectorAll('[data-ledger-mode]').forEach((button) => button.addEventListener('click', () => { mode = button.dataset.ledgerMode; draw(); }));
     document.querySelectorAll('[data-ledger-dance]').forEach((button) => { const dance = dancesResult.data.find((item) => item.id === button.dataset.ledgerDance); button.addEventListener('click', () => openEditDance(week, dance, dancesResult.data.indexOf(dance), true)); });
@@ -581,26 +581,6 @@ async function openWeekLedger(week) {
   openModal('<div id="weekLedgerBody"></div>');
   draw();
 }
-
-function openMemberWeekAppearances(week, member, dances, appearances, danceLabels) {
-  const recorded = appearances.filter((appearance) => appearance.cast_member_id === member.id);
-  const recordedDanceIds = new Set(recorded.map((appearance) => appearance.dance_id));
-  const availableDances = dances.filter((dance) => !recordedDanceIds.has(dance.id));
-  openModal(`<h2>${escapeHtml(member.name)}’s Appearances</h2><p class="sub">Remove a recorded appearance by choosing its dance, or add this cast member to another recorded dance.</p><section class="appearance-editor-section"><h3>Recorded appearances</h3>${recorded.length ? `<div class="appearance-edit-list">${recorded.map((appearance) => `<div><span>${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</span><button class="secondary" data-remove-appearance="${appearance.id}">Remove</button></div>`).join('')}</div>` : '<p class="sub">No appearances recorded for this week.</p>'}</section><section class="appearance-editor-section"><h3>Add to a dance</h3>${availableDances.length ? `<label>Dance<select id="addAppearanceDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addAppearance">Add appearance</button>` : '<p class="sub">This cast member is already recorded in every dance this week.</p>'}</section>`);
-  document.querySelectorAll('[data-remove-appearance]').forEach((button) => button.addEventListener('click', async () => {
-    const { error } = await db.from('dance_appearances').delete().eq('id', button.dataset.removeAppearance);
-    if (error) return alert(`Couldn’t remove the appearance: ${error.message}`);
-    $('#modal').close(); loadScoreDesk(); loadStandings();
-  }));
-  $('#addAppearance')?.addEventListener('click', async () => {
-    const danceId = $('#addAppearanceDance').value;
-    if (!danceId) return alert('Choose the dance first.');
-    const { error } = await db.from('dance_appearances').insert({ dance_id: danceId, cast_member_id: member.id });
-    if (error) return alert(`Couldn’t add the appearance: ${error.message}`);
-    $('#modal').close(); loadScoreDesk(); loadStandings();
-  });
-}
-
 
 async function openNewWeek() {
   const { data: existing, error } = await db.from('weeks').select('number').order('number', { ascending: false }).limit(1);
