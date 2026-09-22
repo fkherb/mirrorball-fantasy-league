@@ -82,7 +82,6 @@
 .dance-cast { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee8ed; }
 .dance-cast span { margin-right: 2px; color: #877c87; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .dance-cast b { padding: 4px 6px; border-radius: 5px; background: #f7f3f5; color: #5e525e; font-size: 11px; font-weight: 700; }
-.dance-performance { border-left: 3px solid #d8c9d4; }
 .judge-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
 .judge-grid label { width: 88px; }
 .judge-grid input { width: 82px; padding: 9px; }
@@ -112,5 +111,61 @@
 .standing-total strong, .standing-total span { display: block; }
 .standing-total strong { color: #302638; font: 700 28px/1 Georgia, serif; }
 .standing-total span { margin-top: 3px; color: #786e79; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.standing-card, .dance-row { cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.standing-card:hover, .dance-row:hover { transform: translateY(-2px); border-color: #cfbac5; box-shadow: 0 14px 30px #2b193014; }
+.standing-card:focus-visible, .dance-row:focus-visible { outline: 3px solid #c9a25c80; outline-offset: 2px; }
+.breakdown-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.breakdown-head h2 { margin: 0 0 3px; }
+.breakdown-head .sub { margin: 0; }
+.breakdown-total { min-width: 66px; text-align: right; }
+.breakdown-total strong, .breakdown-total span { display: block; }
+.breakdown-total strong { font: 700 30px/1 Georgia, serif; }
+.breakdown-total span { margin-top: 3px; color: #786e79; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.breakdown-week { display: block; max-width: 260px; margin: 18px 0 12px; }
+.breakdown-table { overflow: hidden; border: 1px solid #e8e0e7; border-radius: 10px; }
+.breakdown-row { display: grid; grid-template-columns: minmax(0, 1fr) 68px 92px 54px; gap: 8px; align-items: center; min-height: 47px; padding: 8px 10px; border-top: 1px solid #eee8ed; font-size: 12px; }
+.breakdown-row:first-child { border-top: 0; }
+.breakdown-row > span:not(:first-child), .breakdown-row > strong { text-align: right; }
+.breakdown-row small { display: block; margin-top: 2px; color: #786e79; font-size: 10px; }
+.breakdown-labels { min-height: auto; background: #faf7f9; color: #877c87; font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.dance-detail-head h2 { margin: 0 0 4px; }
+.dance-detail-head .sub { margin: 0; }
+.detail-section { margin-top: 20px; }
+.detail-section h3 { margin: 0 0 9px; font-size: 13px; }
+.detail-judges { display: flex; flex-wrap: wrap; gap: 10px; }
+.detail-judges > div { display: grid; justify-items: center; gap: 3px; min-width: 58px; padding: 7px; border: 1px solid #ece5eb; border-radius: 9px; background: #fcfafb; }
+.detail-judges img { width: 36px; height: 48px; object-fit: contain; }
+.detail-judges span { color: #786e79; font-size: 10px; font-weight: 700; }
+.full-cast-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.full-cast-list > div { min-width: 0; padding: 9px; border: 1px solid #ece5eb; border-radius: 8px; background: #fcfafb; }
+.full-cast-list b, .full-cast-list span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.full-cast-list span { margin-top: 2px; color: #786e79; font-size: 11px; }
+
+/* Ballroom polish: deep velvet, a restrained champagne accent, and brighter stage cards. */
+body { background: radial-gradient(circle at 92% 0%, #e9d9e166 0, transparent 28rem), linear-gradient(135deg, #f9f6f8 0%, #f4f0f3 100%); }
+header { position: relative; height: 70px; overflow: hidden; padding: 0 28px; background: linear-gradient(110deg, #17101b 0%, #2d2031 55%, #211825 100%); box-shadow: 0 4px 18px #1c122333; }
+header::after { content: ''; position: absolute; inset: 0 0 0 auto; width: 42%; pointer-events: none; opacity: .6; background: radial-gradient(circle at 78% 52%, #e7c8794d 0 1px, transparent 2px) 0 0 / 29px 29px; mask-image: linear-gradient(to right, transparent, #000); }
+.brand { position: relative; z-index: 1; display: flex; align-items: center; height: 100%; }
+.brand img { display: block; width: min(245px, 56vw); height: auto; max-height: 42px; object-fit: contain; object-position: left center; }
+.account { z-index: 2; }
+nav { background: #fffdfefa; border-right-color: #e6dde4; box-shadow: 4px 0 18px #271a2c06; }
+nav button { margin: 2px 0; padding: 10px 11px; color: #665967; transition: background .15s ease, color .15s ease; }
+nav button:hover { background: #f4edf2; color: #302638; }
+nav button.active { background: linear-gradient(105deg, #34253a, #4a3046); box-shadow: 0 5px 12px #2b19301c; }
+main { max-width: 1240px; padding: 34px 36px; }
+h1 { font-size: 34px; letter-spacing: -.025em; }
+.card { border-color: #e6dde4; box-shadow: 0 10px 25px #2b19300d; }
+.splithead { margin-bottom: 20px; }
+button { background: linear-gradient(110deg, #302638, #463248); box-shadow: 0 3px 8px #24182c18; }
+button.secondary { background: #f0eaf0; box-shadow: none; }
+.auth-button { border: 1px solid #e8d2a2; box-shadow: 0 2px 7px #00000022; }
+.score-week-head { border-color: #dfd1d9; background: linear-gradient(108deg, #fff 0%, #fffafd 100%); }
+.week-tabs button.selected { background: linear-gradient(110deg, #302638, #5a3c53); }
+.dance-row { background: #fff; }
+.dance-row .eyebrow { color: #927282; }
+.dance-row .dance-details span:first-child { background: #eee4d4; color: #70572c; }
+.standing-card.leader { background: linear-gradient(110deg, #fffdfa 0%, #fff 70%); }
+@media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: min(210px, 54vw); max-height: 36px; } .breakdown-row { grid-template-columns: minmax(0, 1fr) 54px 76px 44px; padding: 8px; font-size: 11px; } }
+@media (max-width: 520px) { .full-cast-list { grid-template-columns: 1fr; } .breakdown-row { grid-template-columns: minmax(0, 1fr) 43px 67px 39px; gap: 4px; } .breakdown-labels { font-size: 8px; } }
 @media (max-width: 700px) { .score-week-head { align-items: flex-start; flex-wrap: wrap; } .week-summary { margin-left: 0; } .score-week-actions { margin-left: auto; } .dance-list { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } .team-edit-fields { grid-template-columns: 1fr; } .score-week-actions { width: 100%; margin-left: 0; } .standing-card { grid-template-columns: 38px minmax(0, 1fr); gap: 10px; } .standing-total { grid-column: 2; text-align: left; } }
