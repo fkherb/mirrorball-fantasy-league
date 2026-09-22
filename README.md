@@ -14,6 +14,20 @@ browser is the interface; Supabase stores the shared league data.
 The Supabase publishable key in `supabase-client.js` is expected to be public.
 Row-level security policies—not that key—restrict commissioner writes.
 
+## Current pages
+
+- **Overview** shows the standings and an in-page summary for the selected
+  fantasy team. The League Highlights cards are intentionally a visual preview
+  only; they do not query or calculate highlight data yet.
+- **Teams** is the public manager view. Until manager accounts exist, anyone can
+  choose a team to see its weekly history, scoring breakdown, current roster,
+  and the cast members who are still available.
+- **Score Desk** contains the live and completed-week scoring workflow.
+- **Rules** displays the active scoring rules and appearance rates.
+- **Commissioner** appears only after commissioner sign-in. It contains fantasy
+  team management and the complete editable Cast Roster; it intentionally does
+  not duplicate team scoring or history.
+
 ## Local preview
 
 There is no build step. Open the project through any simple static web server,

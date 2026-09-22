@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const signedInEmail = session?.user?.email;
     auth.textContent = signedInEmail || 'Sign in';
     email.textContent = signedInEmail || '';
+    document.querySelector('#commissionerNav').hidden = !signedInEmail;
+    if (!signedInEmail && document.querySelector('#commissioner').classList.contains('active')) openView('standings');
     menu.hidden = true;
     window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail } }));
   }

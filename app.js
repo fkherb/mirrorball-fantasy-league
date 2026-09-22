@@ -12,6 +12,9 @@ let rosterFilter = 'all';
 let selectedWeekId = null;
 let editingWeekId = null;
 let standingsSnapshot = null;
+let selectedOverviewTeamId = null;
+let selectedPublicTeamId = null;
+let selectedPublicWeekId = 'all';
 let supportsDatabaseHardening = false;
 
 function castCategory(player) {
@@ -190,16 +193,16 @@ async function loadTeams() {
     db.from('cast_members').select('id,name,role,image_path,image_position,fantasy_team_id').order('name'),
   ]);
   if (teamError || castError) {
-    $('#teamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(teamError?.message || castError?.message)}</div>`;
+    $('#commissionerTeamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(teamError?.message || castError?.message)}</div>`;
     return;
   }
   const availableCount = castMembers.filter((member) => !member.fantasy_team_id).length;
   $('#newTeam').hidden = !canEdit || !availableCount;
   if (!teams.length) {
-    $('#teamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
+    $('#commissionerTeamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
     return;
   }
-  $('#teamResults').innerHTML = teams.map((team) => {
+  $('#commissionerTeamResults').innerHTML = teams.map((team) => {
     const roster = castMembers.filter((member) => member.fantasy_team_id === team.id);
     const displayName = team.team_name || `${team.manager_name}'s Team`;
     return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : ''}</div>
@@ -334,7 +337,7 @@ function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
 async function loadStandings() {
   const [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').order('manager_name'),
-    db.from('cast_members').select('id,name,role,custom_appearance_points,fantasy_team_id,eliminated_week_id').order('name'),
+    db.from('cast_members').select('id,name,role,image_path,image_position,custom_appearance_points,fantasy_team_id,eliminated_week_id').order('name'),
     db.from('roles').select('name,appearance_points'),
     db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
     db.from('weeks').select('*').order('number'),
@@ -345,6 +348,8 @@ async function loadStandings() {
   const error = [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult].find((result) => result.error)?.error;
   if (error) {
     $('#standingsContent').innerHTML = `<div class="card empty error">Couldn’t load standings: ${escapeHtml(error.message)}</div>`;
+    $('#overviewTeamDetail').innerHTML = '';
+    $('#publicTeamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(error.message)}</div>`;
     return;
   }
   // The completion migration adds roster snapshots. Until it has been run, do
@@ -355,6 +360,8 @@ async function loadStandings() {
     const { data, error: snapshotError } = await db.from('weekly_roster_snapshots').select(snapshotColumns);
     if (snapshotError) {
       $('#standingsContent').innerHTML = `<div class="card empty error">Couldn’t load roster snapshots: ${escapeHtml(snapshotError.message)}</div>`;
+      $('#overviewTeamDetail').innerHTML = '';
+      $('#publicTeamResults').innerHTML = `<div class="card empty error">Couldn’t load team history: ${escapeHtml(snapshotError.message)}</div>`;
       return;
     }
     rosterSnapshots = data;
@@ -384,20 +391,89 @@ async function loadStandings() {
   $('#standingsSubtitle').textContent = latestWeek ? `Through ${weekTitle(latestWeek)} · current fantasy-team totals` : 'Current fantasy-team totals.';
   if (!teamRows.length) {
     $('#standingsContent').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
+    $('#overviewTeamDetail').innerHTML = '';
+    $('#publicTeamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
     return;
   }
   const leaderTotal = teamRows[0].total;
   const isFirstPlaceTie = teamRows.filter((row) => row.total === leaderTotal).length > 1;
+  if (!teamRows.some((row) => row.team.id === selectedOverviewTeamId)) selectedOverviewTeamId = teamRows[0].team.id;
+  if (!teamRows.some((row) => row.team.id === selectedPublicTeamId)) selectedPublicTeamId = teamRows[0].team.id;
   $('#standingsContent').innerHTML = `<div class="standings-grid">${teamRows.map((row, index) => {
     const contributors = members.filter((member) => (teamMemberPoints.get(row.team.id)?.get(member.id) || 0) > 0 || member.fantasy_team_id === row.team.id).sort((a, b) => (teamMemberPoints.get(row.team.id)?.get(b.id) || 0) - (teamMemberPoints.get(row.team.id)?.get(a.id) || 0) || a.name.localeCompare(b.name));
     const tiedLeader = isFirstPlaceTie && row.total === leaderTotal;
-    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)} score breakdown"><div class="standing-rank">${tiedLeader ? 'T-1' : index + 1}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<p class="standing-roster">${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div></article>`;
+    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''} ${row.team.id === selectedOverviewTeamId ? 'selected' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)} score breakdown"><div class="standing-rank">${tiedLeader ? 'T-1' : index + 1}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<p class="standing-roster">${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div></article>`;
   }).join('')}</div>`;
   document.querySelectorAll('[data-standing-team]').forEach((card) => {
-    const open = () => openStandingBreakdown(card.dataset.standingTeam);
+    const open = () => { selectedOverviewTeamId = card.dataset.standingTeam; document.querySelectorAll('[data-standing-team]').forEach((item) => item.classList.toggle('selected', item === card)); renderOverviewTeamDetail(); };
     card.addEventListener('click', open);
     card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
   });
+  standingsSnapshot.teamRows = teamRows;
+  renderOverviewTeamDetail();
+  renderPublicTeams();
+}
+
+function teamScoreBreakdown(teamId, weekId = 'all') {
+  const { members, weeks, weekMemberPoints, teamForMemberInWeek, snapshotByWeekMember } = standingsSnapshot;
+  const selectedWeeks = weekId === 'all' ? weeks : weeks.filter((week) => week.id === weekId);
+  const rows = members.filter((member) => selectedWeeks.some((week) => teamForMemberInWeek(member, week) === teamId)).map((member) => {
+    const sources = selectedWeeks.reduce((result, week) => {
+      if (teamForMemberInWeek(member, week) !== teamId) return result;
+      const entry = weekMemberPoints.get(week.id)?.get(member.id);
+      result.official += entry?.official || 0;
+      result.appearances += entry?.appearances || 0;
+      result.appearanceCount += entry?.appearanceCount || 0;
+      result.appearanceRates.push(...(entry?.appearanceRates || []));
+      return result;
+    }, { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] });
+    const snapshot = selectedWeeks.length === 1 ? snapshotByWeekMember.get(`${selectedWeeks[0].id}:${member.id}`) : null;
+    const role = selectedWeeks.length === 1 ? snapshot?.cast_role || roleForWeek(member, selectedWeeks[0], weeks) : member.role;
+    return { member, role, ...sources, total: sources.official + sources.appearances };
+  }).sort((a, b) => b.total - a.total || a.member.name.localeCompare(b.member.name));
+  return { rows, total: rows.reduce((sum, row) => sum + row.total, 0) };
+}
+
+function scoreBreakdownMarkup(rows, limit = null) {
+  const visible = limit ? rows.slice(0, limit) : rows;
+  return `<div class="league-score-list">${visible.map((row) => {
+    const rateCounts = new Map();
+    row.appearanceRates.forEach((rate) => rateCounts.set(rate, (rateCounts.get(rate) || 0) + 1));
+    const appearanceText = [...rateCounts].map(([rate, count]) => `${count} × +${rate}`).join(', ');
+    return `<div class="league-score-row"><div><strong>${escapeHtml(row.member.name)}</strong><small>${escapeHtml(row.role)}</small></div><div class="league-score-parts"><span>Judges <b>${row.official}</b></span>${row.appearanceCount ? `<span class="appearance-part">${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'} · ${escapeHtml(appearanceText)} <b>+${row.appearances}</b></span>` : ''}</div><strong class="league-score-total">${row.total}</strong></div>`;
+  }).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>${limit && rows.length > limit ? `<p class="league-more">+${rows.length - limit} more scoring cast member${rows.length - limit === 1 ? '' : 's'} on the Teams page</p>` : ''}`;
+}
+
+function renderOverviewTeamDetail() {
+  if (!standingsSnapshot) return;
+  const row = standingsSnapshot.teamRows?.find((item) => item.team.id === selectedOverviewTeamId);
+  if (!row) return;
+  const breakdown = teamScoreBreakdown(row.team.id);
+  const displayName = row.team.team_name || `${row.team.manager_name}'s Team`;
+  $('#overviewTeamDetail').innerHTML = `<section class="card overview-team-detail"><div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)} · ${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div>${scoreBreakdownMarkup(breakdown.rows, 5)}</section>`;
+}
+
+function renderPublicTeams() {
+  if (!standingsSnapshot) return;
+  const { teamRows, members, weeks, weekMemberPoints, teamForMemberInWeek } = standingsSnapshot;
+  const selected = teamRows?.find((row) => row.team.id === selectedPublicTeamId);
+  if (!selected) return $('#publicTeamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
+  if (selectedPublicWeekId !== 'all' && !weeks.some((week) => week.id === selectedPublicWeekId)) selectedPublicWeekId = 'all';
+  const displayName = selected.team.team_name || `${selected.team.manager_name}'s Team`;
+  const roster = members.filter((member) => member.fantasy_team_id === selected.team.id).sort((a, b) => a.name.localeCompare(b.name));
+  const available = members.filter((member) => !member.fantasy_team_id).sort((a, b) => a.name.localeCompare(b.name));
+  const breakdown = teamScoreBreakdown(selected.team.id, selectedPublicWeekId);
+  const weekHistory = weeks.map((week) => {
+    const total = [...(weekMemberPoints.get(week.id) || new Map())].reduce((sum, [memberId, entry]) => {
+      const member = members.find((item) => item.id === memberId);
+      return sum + (member && teamForMemberInWeek(member, week) === selected.team.id ? entry.official + entry.appearances : 0);
+    }, 0);
+    return `<div><span>Week ${week.number}</span><strong>${total}</strong></div>`;
+  }).join('');
+  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person"><img src="${escapeHtml(member.image_path || imagePathFor(member.name))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.role)}</small></div></article>`).join('');
+  $('#publicTeamResults').innerHTML = `<div class="team-switcher" aria-label="Choose a fantasy team">${teamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</span><small>${row.total} pts</small></button>`).join('')}</div><section class="card public-team-detail"><div class="league-detail-head"><div><p class="eyebrow">${escapeHtml(selected.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} current cast member${roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${selected.total}</strong><span>season points</span></div></div><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Points breakdown</h3></div><label>View<select id="publicTeamWeek"><option value="all">Season total</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === selectedPublicWeekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label></div>${scoreBreakdownMarkup(breakdown.rows)}</section><section><div class="public-section-head"><div><p class="eyebrow">Current lineup</p><h3>Team roster</h3></div></div><div class="league-cast-grid">${peopleMarkup(roster) || '<p class="sub">No cast members assigned.</p>'}</div></section></div></section><section class="available-cast"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h2>Available Cast</h2><p class="sub">Cast members in the league who are not currently assigned to a fantasy team.</p></div><span>${available.length} available</span></div><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="card empty">Every cast member is currently assigned.</div>'}</div></section>`;
+  document.querySelectorAll('[data-public-team]').forEach((button) => button.addEventListener('click', () => { selectedPublicTeamId = button.dataset.publicTeam; selectedPublicWeekId = 'all'; renderPublicTeams(); }));
+  $('#publicTeamWeek')?.addEventListener('change', (event) => { selectedPublicWeekId = event.target.value; renderPublicTeams(); });
 }
 
 function calculateLeaguePoints(data) {
@@ -432,34 +508,6 @@ function calculateLeaguePoints(data) {
     if (dance) add(member?.id, dance.week_id, 'appearances', appearanceValue(member, roleMap, weekById.get(dance.week_id), data.weeks, snapshotByWeekMember.get(`${dance.week_id}:${member?.id}`)));
   });
   return { teams: data.teams, members: data.members, weeks: data.weeks, memberPoints, weekMemberPoints };
-}
-
-function openStandingBreakdown(teamId) {
-  if (!standingsSnapshot) return;
-  const { teams, members, weeks, weekMemberPoints, teamForMemberInWeek, snapshotByWeekMember } = standingsSnapshot;
-  const team = teams.find((item) => item.id === teamId);
-  if (!team) return;
-  openModal(`<div id="standingBreakdown"></div>`);
-  const draw = (weekId = 'all') => {
-    const currentWeeks = weekId === 'all' ? weeks : weeks.filter((week) => week.id === weekId);
-    const roster = members.filter((member) => currentWeeks.some((week) => teamForMemberInWeek(member, week) === teamId));
-    const pointsFor = (member) => currentWeeks.reduce((total, week) => {
-      if (teamForMemberInWeek(member, week) !== teamId) return total;
-      const entry = weekMemberPoints.get(week.id)?.get(member.id);
-      return total + (entry?.official || 0) + (entry?.appearances || 0);
-    }, 0);
-    const rows = [...roster].map((member) => {
-      const sources = currentWeeks.reduce((result, week) => { if (teamForMemberInWeek(member, week) !== teamId) return result; const entry = weekMemberPoints.get(week.id)?.get(member.id); result.official += entry?.official || 0; result.appearances += entry?.appearances || 0; result.appearanceCount += entry?.appearanceCount || 0; result.appearanceRates.push(...(entry?.appearanceRates || [])); return result; }, { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] });
-      const snapshot = currentWeeks.length === 1 ? snapshotByWeekMember.get(`${currentWeeks[0].id}:${member.id}`) : null;
-      const status = currentWeeks.length === 1 ? snapshot?.cast_role || roleForWeek(member, currentWeeks[0], weeks) : member.role;
-      return { member, status, ...sources, total: pointsFor(member) };
-    }).sort((a, b) => b.total - a.total || a.member.name.localeCompare(b.member.name));
-    const total = rows.reduce((sum, row) => sum + row.total, 0);
-    const appearanceLabel = (row) => { if (!row.appearanceCount) return '—'; const rates = [...new Set(row.appearanceRates)]; const rateText = rates.length === 1 ? `+${rates[0]} each` : rates.map((rate) => `+${rate}`).join(' / '); return `${row.appearanceCount} dance${row.appearanceCount === 1 ? '' : 's'} · ${rateText}`; };
-    $('#standingBreakdown').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2><p class="sub">Where this team’s fantasy points came from.</p></div><div class="breakdown-total"><strong>${total}</strong><span>points</span></div></div><label class="breakdown-week">View<select id="standingWeek"> <option value="all">All weeks</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === weekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label><div class="breakdown-list">${rows.map((row) => `<article class="breakdown-item"><div class="breakdown-member"><b>${escapeHtml(row.member.name)}</b><span>${escapeHtml(row.status)}</span></div><div class="breakdown-points"><div><span>Dance scores</span><b>${row.official}</b></div>${row.appearanceCount ? `<div class="appearance-points"><span>${escapeHtml(appearanceLabel(row))}</span><b>+${row.appearances}</b></div>` : ''}</div><div class="breakdown-item-total"><strong>${row.total}</strong><span>total</span></div></article>`).join('') || '<p class="sub">No cast members assigned.</p>'}</div>`;
-    $('#standingWeek').addEventListener('change', (event) => draw(event.target.value));
-  };
-  draw();
 }
 
 async function loadScoreDesk() {
