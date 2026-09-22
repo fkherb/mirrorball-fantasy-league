@@ -196,10 +196,16 @@
 .team-switcher span { font-size: 12px; font-weight: 850; }
 .team-switcher small { margin-top: 4px; opacity: .72; font-size: 10px; }
 .public-team-detail { padding: 22px; }
-.team-history-strip { display: flex; gap: 7px; margin: 17px 0 20px; overflow-x: auto; }
-.team-history-strip > div { flex: 0 0 auto; min-width: 83px; padding: 8px 10px; border-radius: 8px; background: #f3edf1; }
+.my-team-title-row { display: flex; align-items: center; gap: 9px; }
+.my-team-title-row h1 { margin-bottom: 0; }
+.my-team-title-row button { margin: 0; padding: 6px 9px; font-size: 11px; }
+.team-summary-strip { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.team-history-strip { display: flex; gap: 7px; margin: 0; overflow-x: auto; }
+.team-history-strip > button { flex: 0 0 auto; min-width: 83px; margin: 0; padding: 8px 10px; border: 1px solid transparent; border-radius: 8px; background: #f3edf1; color: #302638; text-align: left; box-shadow: none; }
+.team-history-strip > button:hover { border-color: #cdbdca; }
+.team-history-strip > button.selected { border-color: #6e4a61; background: #39293c; color: #fff; }
 .team-history-strip span, .team-history-strip strong { display: block; }
-.team-history-strip span { color: #786e79; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.team-history-strip span { color: inherit; opacity: .7; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .team-history-strip strong { margin-top: 3px; font: 700 18px Georgia, serif; }
 .public-team-columns { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr); gap: 24px; padding-top: 18px; border-top: 1px solid #e8e0e7; }
 .team-profile-actions { display: flex; align-items: flex-start; gap: 12px; }
@@ -234,6 +240,9 @@
 .league-directory .team-roster { grid-template-columns: 1fr; }
 .roster-scroll-card { max-height: 690px; overflow: hidden; }
 .roster-scroll-card #rosterResults { max-height: 545px; overflow-y: auto; padding-right: 4px; }
+.roster-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.roster-toolbar .filter-tabs { margin: 0; }
+.roster-toolbar #newPlayer { flex: 0 0 auto; margin: 0; padding: 6px 10px; }
 .role-rates-section { margin-top: 30px !important; padding-top: 24px !important; }
 .role-rate-table { overflow: hidden; }
 .role-rate-heading, .role-rate-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; gap: 12px; padding: 9px 13px; }
@@ -242,6 +251,10 @@
 .role-rate-row + .role-rate-row { border-top: 1px solid #eee7ec; }
 .role-rate-row span { font-size: 12px; font-weight: 750; }
 .role-rate-row strong { color: #745b29; font-size: 13px; }
+.role-rate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; }
+.role-rate-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; padding: 11px 13px; }
+.role-rate-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 800; }
+.role-rate-item strong { flex: 0 0 auto; color: #745b29; font: 700 17px Georgia, serif; }
 .profile-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .check-row { display: flex; align-items: center; gap: 9px; margin-top: 14px; padding: 11px; border-radius: 9px; background: #f4eff2; color: #493f49; }
 .check-row input { width: auto; margin: 0; accent-color: #302638; }
@@ -466,6 +479,9 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .header-rules, .auth-button { padding: 7px 8px; }
   .rate-editor { grid-template-columns: 1fr; }
   .overview-team-detail, .public-team-detail { padding: 16px; }
+  .team-summary-strip { align-items: flex-end; }
+  .team-history-strip { min-width: 0; }
+  .team-history-strip > button { min-width: 76px; }
   .league-detail-head { align-items: center; }
   .league-detail-head h2 { font-size: 20px; }
   .league-detail-total strong { font-size: 27px; }

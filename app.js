@@ -555,11 +555,15 @@ function renderPublicTeams() {
   const { teamRows, members, weeks, weekMemberPoints, teamForMemberInWeek } = standingsSnapshot;
   const visibleTeamRows = managerTeamId ? teamRows.filter((row) => row.team.id === managerTeamId) : teamRows;
   const selected = visibleTeamRows?.find((row) => row.team.id === selectedPublicTeamId) || visibleTeamRows?.[0];
-  if (!selected) return $('#publicTeamResults').innerHTML = '<div class="card empty">This account is not connected to a fantasy team yet.</div>';
+  if (!selected) {
+    $('#editMyTeam').hidden = true;
+    return $('#publicTeamResults').innerHTML = '<div class="card empty">This account is not connected to a fantasy team yet.</div>';
+  }
   selectedPublicTeamId = selected.team.id;
   if (selectedPublicWeekId !== 'all' && !weeks.some((week) => week.id === selectedPublicWeekId)) selectedPublicWeekId = 'all';
   const displayName = selected.team.team_name || `${selected.team.manager_name}'s Team`;
   $('#myTeamTitle').textContent = selected.team.team_name || 'My Team';
+  $('#myTeamEyebrow').textContent = `${managerFirstName || selected.team.manager_name.split(' ')[0]}'s Manager View`;
   const roster = members.filter((member) => member.fantasy_team_id === selected.team.id).sort((a, b) => a.name.localeCompare(b.name));
   const available = members.filter((member) => !member.fantasy_team_id).sort((a, b) => a.name.localeCompare(b.name));
   const breakdown = teamScoreBreakdown(selected.team.id, selectedPublicWeekId);
@@ -568,15 +572,16 @@ function renderPublicTeams() {
       const member = members.find((item) => item.id === memberId);
       return sum + (member && teamForMemberInWeek(member, week) === selected.team.id ? entry.official + entry.appearances : 0);
     }, 0);
-    return `<div><span>Week ${week.number}</span><strong>${total}</strong></div>`;
+    return `<button class="${selectedPublicWeekId === week.id ? 'selected' : ''}" data-public-week="${week.id}" aria-pressed="${selectedPublicWeekId === week.id}"><span>Week ${week.number}</span><strong>${total}</strong></button>`;
   }).join('');
   const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person"><img src="${escapeHtml(member.image_path || imagePathFor(member.name))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></div></article>`).join('');
   const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
   const canEditThisTeam = Boolean(managerTeamId && selected.team.id === managerTeamId);
-  $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="league-detail-head"><div><p class="eyebrow">${escapeHtml(selected.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} current cast member${roster.length === 1 ? '' : 's'}</p></div><div class="team-profile-actions">${canEditThisTeam ? '<button id="editMyTeam" class="secondary">Edit</button>' : ''}<div class="league-detail-total"><strong>${selected.total}</strong><span>season points</span></div></div></div><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Team Roster</h3></div><label>View<select id="publicTeamWeek"><option value="all">Season total</option>${weeks.map((week) => `<option value="${week.id}" ${week.id === selectedPublicWeekId ? 'selected' : ''}>${escapeHtml(weekTitle(week))}</option>`).join('')}</select></label></div>${scoreBreakdownMarkup(breakdown.rows, null, true)}</section><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">Cast members not currently assigned to a fantasy team.</p><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="empty compact-empty">Every cast member is currently assigned.</div>'}</div></section></div></section>`;
+  $('#editMyTeam').hidden = !canEditThisTeam;
+  $('#editMyTeam').onclick = canEditThisTeam ? () => openMyTeamEditor(selected.team) : null;
+  $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="team-summary-strip"><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>${selectedPublicWeekId === 'all' ? 'season' : 'week'} points</span></div></div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Team Roster</h3></div></div>${scoreBreakdownMarkup(breakdown.rows, null, true)}</section><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">Cast members not currently assigned to a fantasy team.</p><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="empty compact-empty">Every cast member is currently assigned.</div>'}</div></section></div></section>`;
   document.querySelectorAll('[data-public-team]').forEach((button) => button.addEventListener('click', () => { selectedPublicTeamId = button.dataset.publicTeam; selectedPublicWeekId = 'all'; renderPublicTeams(); }));
-  $('#publicTeamWeek')?.addEventListener('change', (event) => { selectedPublicWeekId = event.target.value; renderPublicTeams(); });
-  $('#editMyTeam')?.addEventListener('click', () => openMyTeamEditor(selected.team));
+  document.querySelectorAll('[data-public-week]').forEach((button) => button.addEventListener('click', () => { selectedPublicWeekId = selectedPublicWeekId === button.dataset.publicWeek ? 'all' : button.dataset.publicWeek; renderPublicTeams(); }));
 }
 
 function openMyTeamEditor(team) {
@@ -983,7 +988,7 @@ async function loadRules() {
   }
   const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
   const rates = [...roleRows].sort((a, b) => (roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)) || a.name.localeCompare(b.name));
-  $('#roleRatesContent').innerHTML = `<div class="card role-rate-table"><div class="role-rate-heading"><span>Role</span><span>Per appearance</span></div>${rates.map((role) => `<div class="role-rate-row"><span>${escapeHtml(role.name === 'Judges + Hosts' ? 'Judge / Host' : displayRole(role.name))}${role.name === 'Surprise' ? ' *' : ''}</span><strong>${role.name === 'Surprise' ? 'Varies' : `+${Number(role.appearance_points) || 0}`}</strong></div>`).join('')}</div><p class="surprise-rate-note">* Surprise cast is added as seen on the show. Its custom rate is set on that cast member.</p>`;
+  $('#roleRatesContent').innerHTML = `<div class="role-rate-grid">${rates.map((role) => `<div class="card role-rate-item"><span>${escapeHtml(role.name === 'Judges + Hosts' ? 'Judge / Host' : displayRole(role.name))}${role.name === 'Surprise' ? ' *' : ''}</span><strong>${role.name === 'Surprise' ? 'Varies' : `+${Number(role.appearance_points) || 0}`}</strong></div>`).join('')}</div><p class="surprise-rate-note">* Surprise cast is added as seen on the show. Its custom rate is set on that cast member.</p>`;
   $('#editRules').hidden = !canEdit || !supportsDatabaseHardening;
   $('#editRules').onclick = () => openRulesEditor(rates);
 }
