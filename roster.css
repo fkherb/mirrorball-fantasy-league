@@ -130,16 +130,15 @@
 .breakdown-total span { margin-top: 3px; color: #786e79; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .breakdown-week { display: block; max-width: 260px; margin: 18px 0 12px; }
 .breakdown-list { display: grid; gap: 8px; }
-.breakdown-item { display: grid; grid-template-columns: minmax(118px, .8fr) minmax(0, 1.45fr) 48px; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid #e8e0e7; border-radius: 10px; background: #fff; }
+.breakdown-item { display: grid; grid-template-columns: minmax(118px, 1fr) minmax(134px, .9fr) 48px; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid #e8e0e7; border-radius: 10px; background: #fff; }
 .breakdown-member b, .breakdown-member span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .breakdown-member b { font-size: 13px; }
 .breakdown-member span { margin-top: 2px; color: #786e79; font-size: 11px; }
-.breakdown-sources { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
-.breakdown-source { display: grid; align-content: center; min-width: 56px; padding: 5px 7px; border-radius: 7px; background: #f5f0f3; color: #5e505d; }
-.breakdown-source small { color: #877c87; font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-.breakdown-source b { margin-top: 2px; font-size: 12px; line-height: 1.15; }
-.breakdown-source em { margin-top: 1px; color: #786e79; font-size: 10px; font-style: normal; }
-.breakdown-source.appearance-source { background: #f5eee3; color: #6c572f; }
+.breakdown-points { display: grid; gap: 4px; }
+.breakdown-points > div { display: flex; align-items: baseline; justify-content: space-between; gap: 7px; min-width: 0; padding: 5px 7px; border-radius: 7px; background: #f5f0f3; color: #5e505d; }
+.breakdown-points span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.breakdown-points b { flex: 0 0 auto; font-size: 12px; }
+.breakdown-points .appearance-points { background: #f5eee3; color: #6c572f; }
 .breakdown-item-total { align-self: stretch; display: grid; place-content: center end; min-width: 0; border-left: 1px solid #eee8ed; padding-left: 9px; text-align: right; }
 .breakdown-item-total strong { font: 700 21px/1 Georgia, serif; }
 .breakdown-item-total span { margin-top: 3px; color: #877c87; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -189,7 +188,7 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .dance-row .eyebrow { color: #927282; }
 .dance-row .dance-details span:first-child { background: #eee4d4; color: #70572c; }
 .standing-card.leader { background: linear-gradient(110deg, #fffdfa 0%, #fff 70%); }
-@media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: min(210px, 54vw); max-height: 36px; } .breakdown-item { grid-template-columns: minmax(100px, .8fr) minmax(0, 1.4fr) 44px; gap: 7px; padding: 9px; } }
-@media (max-width: 520px) { .full-cast-list, .team-detail-grid { grid-template-columns: 1fr; } .breakdown-item { grid-template-columns: minmax(96px, .75fr) minmax(0, 1.3fr) 40px; gap: 6px; padding: 8px; } .breakdown-source { padding: 4px 5px; } .breakdown-source b { font-size: 11px; } .breakdown-item-total { padding-left: 6px; } }
+@media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: min(210px, 54vw); max-height: 36px; } .breakdown-item { grid-template-columns: minmax(100px, 1fr) minmax(126px, .9fr) 44px; gap: 7px; padding: 9px; } }
+@media (max-width: 520px) { .full-cast-list, .team-detail-grid { grid-template-columns: 1fr; } .breakdown-item { grid-template-columns: minmax(96px, 1fr) minmax(118px, .9fr) 40px; gap: 6px; padding: 8px; } .breakdown-points > div { padding: 4px 5px; } .breakdown-points span { font-size: 10px; } .breakdown-points b { font-size: 11px; } .breakdown-item-total { padding-left: 6px; } }
 @media (max-width: 700px) { .score-week-head { align-items: flex-start; flex-wrap: wrap; } .week-summary { margin-left: 0; } .score-week-actions { margin-left: auto; } .dance-list { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } .team-edit-fields { grid-template-columns: 1fr; } .score-week-actions { width: 100%; margin-left: 0; } .standing-card { grid-template-columns: 38px minmax(0, 1fr); gap: 10px; } .standing-total { grid-column: 2; text-align: left; } }
