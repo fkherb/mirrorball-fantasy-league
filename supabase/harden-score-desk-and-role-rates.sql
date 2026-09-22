@@ -86,10 +86,10 @@ returns trigger language plpgsql as $$
 declare v_week_id uuid;
 begin
   if tg_table_name = 'dances' then
-    v_week_id := coalesce(new.week_id, old.week_id);
+    if tg_op = 'DELETE' then v_week_id := old.week_id; else v_week_id := new.week_id; end if;
   else
     select week_id into v_week_id from public.dances
-    where id = coalesce(new.dance_id, old.dance_id);
+    where id = case when tg_op = 'DELETE' then old.dance_id else new.dance_id end;
   end if;
   if exists (select 1 from public.weeks where id = v_week_id and is_complete) then
     raise exception 'This week is complete and its scoring is read-only.';
