@@ -186,7 +186,7 @@ async function openAddPlayer() {
 async function loadTeams() {
   const [{ data: teams, error: teamError }, { data: castMembers, error: castError }] = await Promise.all([
     db.from('fantasy_teams').select('*').order('manager_name'),
-    db.from('cast_members').select('id,name,role,fantasy_team_id').order('name'),
+    db.from('cast_members').select('id,name,role,image_path,image_position,fantasy_team_id').order('name'),
   ]);
   if (teamError || castError) {
     $('#teamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(teamError?.message || castError?.message)}</div>`;
@@ -200,14 +200,32 @@ async function loadTeams() {
   }
   $('#teamResults').innerHTML = teams.map((team) => {
     const roster = castMembers.filter((member) => member.fantasy_team_id === team.id);
-    return `<article class="card team-card" data-team-card-id="${team.id}"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : ''}</div>
+    const displayName = team.team_name || `${team.manager_name}'s Team`;
+    return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : ''}</div>
       <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p>
       ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(member.role)}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
       ${canEdit && availableCount ? `<div class="team-actions"><button data-team-id="${team.id}">Add Cast Members</button></div>` : ''}
     </article>`;
   }).join('');
-  document.querySelectorAll('[data-team-id]').forEach((button) => button.addEventListener('click', () => openAssignCastMember(button.dataset.teamId)));
-  document.querySelectorAll('[data-edit-team-id]').forEach((button) => button.addEventListener('click', () => editTeamCard(button.dataset.editTeamId)));
+  document.querySelectorAll('[data-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openAssignCastMember(button.dataset.teamId); }));
+  document.querySelectorAll('[data-edit-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); editTeamCard(button.dataset.editTeamId); }));
+  document.querySelectorAll('[data-team-detail]').forEach((card) => {
+    const open = () => { if (!card.classList.contains('editing')) openTeamDetail(card.dataset.teamDetail); };
+    card.addEventListener('click', open);
+    card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
+}
+
+async function openTeamDetail(teamId) {
+  const [{ data: team, error: teamError }, { data: roster, error: rosterError }] = await Promise.all([
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
+    db.from('cast_members').select('id,name,role,image_path,image_position').eq('fantasy_team_id', teamId).order('name'),
+  ]);
+  const error = teamError || rosterError;
+  if (error) return alert(`Couldn’t load this team: ${error.message}`);
+  const displayName = team.team_name || `${team.manager_name}'s Team`;
+  openModal(`<div class="team-detail-head"><div><p class="eyebrow">${escapeHtml(team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} cast member${roster.length === 1 ? '' : 's'} on the current roster</p></div></div>
+    ${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member"><img src="${member.image_path || imagePathFor(member.name)}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(member.role)}</span></div></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
 }
 
 async function editTeamCard(teamId) {
@@ -342,9 +360,12 @@ async function loadStandings() {
     $('#standingsContent').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
     return;
   }
+  const leaderTotal = teamRows[0].total;
+  const isFirstPlaceTie = teamRows.filter((row) => row.total === leaderTotal).length > 1;
   $('#standingsContent').innerHTML = `<div class="standings-grid">${teamRows.map((row, index) => {
     const contributors = [...row.roster].sort((a, b) => (memberPoints.get(b.id) || 0) - (memberPoints.get(a.id) || 0) || a.name.localeCompare(b.name));
-    return `<article class="card standing-card ${index === 0 ? 'leader' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)} score breakdown"><div class="standing-rank">${index + 1}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</h2><p class="standing-roster">${row.roster.length} cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${memberPoints.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div></article>`;
+    const tiedLeader = isFirstPlaceTie && row.total === leaderTotal;
+    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)} score breakdown"><div class="standing-rank">${tiedLeader ? 'T-1' : index + 1}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<p class="standing-roster">${row.roster.length} cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${memberPoints.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div></article>`;
   }).join('')}</div>`;
   document.querySelectorAll('[data-standing-team]').forEach((card) => {
     const open = () => openStandingBreakdown(card.dataset.standingTeam);
