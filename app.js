@@ -437,7 +437,7 @@ async function loadStandings() {
     const total = [...(teamMemberPoints.get(team.id)?.values() || [])].reduce((sum, points) => sum + points, 0);
     return { team, roster, total };
   }).sort((a, b) => b.total - a.total || (a.team.team_name || a.team.manager_name).localeCompare(b.team.team_name || b.team.manager_name));
-  const latestWeek = weeksResult.data.at(-1);
+  const latestWeek = [...weeksResult.data].reverse().find((week) => week.is_complete);
   $('#standingsSubtitle').textContent = latestWeek ? `Through ${weekTitle(latestWeek)} · current fantasy-team totals` : 'Current fantasy-team totals.';
   if (!teamRows.length) {
     $('#standingsContent').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
@@ -761,7 +761,8 @@ async function openWeekLedger(week) {
     const danceLabels = new Map(dancesResult.data.map((dance, index) => [dance.id, dance.kind === 'performance' ? dance.name || `Week ${week.number} Dance ${index + 1}` : (() => { const pair = partnershipsResult.data.find((item) => item.id === dance.partnership_id); const star = membersResult.data.find((member) => member.id === pair?.star_id); const pro = membersResult.data.find((member) => member.id === pair?.pro_id); return star && pro ? `${star.name} & ${pro.name}` : `Competitive Dance ${index + 1}`; })()]));
     const competitiveDances = dancesResult.data.filter((dance) => dance.kind === 'competitive');
     const selectedMember = membersResult.data.find((member) => member.id === selectedMemberId);
-    const memberAppearances = selectedMember ? appearancesResult.data.filter((appearance) => appearance.cast_member_id === selectedMember.id) : [];
+    const weekDanceIds = new Set(dancesResult.data.map((dance) => dance.id));
+    const memberAppearances = selectedMember ? appearancesResult.data.filter((appearance) => appearance.cast_member_id === selectedMember.id && weekDanceIds.has(appearance.dance_id)) : [];
     const usedDanceIds = new Set(memberAppearances.map((appearance) => appearance.dance_id));
     const availableDances = dancesResult.data.filter((dance) => !usedDanceIds.has(dance.id));
     const competitiveBody = `<section class="ledger-dances"><h3>Competitive dances</h3>${competitiveDances.map((dance) => `<div><span>${escapeHtml(danceLabels.get(dance.id))}</span>${canEdit ? `<button class="secondary" data-ledger-dance="${dance.id}">Edit scores</button>` : ''}</div>`).join('') || '<p class="sub">No competitive dances recorded.</p>'}</section>`;
