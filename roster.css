@@ -208,7 +208,7 @@
 .team-history-strip span, .team-history-strip strong { display: block; }
 .team-history-strip span { color: inherit; opacity: .7; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .team-history-strip strong { margin-top: 3px; font: 700 18px Georgia, serif; }
-.team-history-strip strong.air-date { margin-top: 5px; font: 800 10px/1.2 Arial, sans-serif; letter-spacing: .01em; white-space: nowrap; }
+.team-history-strip strong.air-date { white-space: nowrap; }
 .public-team-columns { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr); gap: 24px; padding-top: 18px; border-top: 1px solid #e8e0e7; }
 .team-profile-actions { display: flex; align-items: flex-start; gap: 12px; }
 .team-profile-actions > button { margin: 0; padding: 7px 10px; }
@@ -397,6 +397,12 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .appearance-editor-section + .appearance-editor-section { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e8e0e7; }
 .appearance-editor-section h3 { margin: 0 0 8px; }
 .ledger-mode-tabs { margin: 16px 0 14px; }
+.ledger-week-details { margin-top: 18px; padding: 15px; border: 1px solid #e8e0e7; border-radius: 11px; background: #faf7f9; }
+.ledger-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ledger-section-heading h3 { margin: 0; }
+.ledger-section-heading button { margin: 0; }
+.ledger-week-details .week-inline-fields { max-width: none; }
+.ledger-details-note { margin: 9px 0 0; color: #786e79; font-size: 10px; line-height: 1.4; }
 .ledger-performance { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(0, 1.2fr); gap: 14px; }
 .ledger-performance > input { grid-column: 1; margin: 0; }
 .ledger-cast-list { grid-column: 1; max-height: 420px; overflow-y: auto; border: 1px solid #e8e0e7; border-radius: 10px; background: #fcfafb; }

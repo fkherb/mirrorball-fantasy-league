@@ -89,6 +89,12 @@ dates in the same atomic save as week setup and dance ordering. The My Team
 page shows every completed week plus only the next scheduled week; an upcoming
 week displays its airing date instead of a misleading zero-point total.
 
+Then run `supabase/edit-completed-week-details.sql`. It lets the commissioner
+correct a completed week's title, theme, airing dates, guest-judge name, and
+elimination format from the Week Ledger. The database verifies that elimination
+settings still match the recorded result and prevents unsafe guest-judge
+additions or removals after scores have been finalized.
+
 ## Operational reminders
 
 - Scoring is the source of truth for dances, judges’ scores, and cast
