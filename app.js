@@ -348,6 +348,24 @@ function weekTitle(week) {
   return week.title || (week.theme ? `${week.theme} Week` : `Week ${week.number}`);
 }
 
+function formatAirDate(value) {
+  if (!value) return '';
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(parsed);
+}
+
+function weekAiringLabel(week, fallback = '') {
+  const dates = [formatAirDate(week.air_date), formatAirDate(week.second_air_date)].filter(Boolean);
+  return dates.join(' + ') || fallback;
+}
+
+function teamPageWeeks(weeks) {
+  const latestCompleted = [...weeks].reverse().find((week) => week.is_complete);
+  const maximumNumber = latestCompleted ? latestCompleted.number + 1 : weeks[0]?.number;
+  return maximumNumber == null ? [] : weeks.filter((week) => week.number <= maximumNumber);
+}
+
 function roleForWeek(member, week, weeks) {
   if (!member?.role?.startsWith('Eliminated')) return member?.role || '';
   const eliminatedWeek = weeks.find((item) => item.id === member.eliminated_week_id);
@@ -541,19 +559,21 @@ function renderPublicTeams() {
     return $('#publicTeamResults').innerHTML = '<div class="card empty">This account is not connected to a fantasy team yet.</div>';
   }
   selectedPublicTeamId = selected.team.id;
-  if (selectedPublicWeekId !== 'all' && !weeks.some((week) => week.id === selectedPublicWeekId)) selectedPublicWeekId = 'all';
+  const visibleWeeks = teamPageWeeks(weeks);
+  if (selectedPublicWeekId !== 'all' && !visibleWeeks.some((week) => week.id === selectedPublicWeekId)) selectedPublicWeekId = 'all';
   const displayName = selected.team.team_name || `${selected.team.manager_name}'s Team`;
   $('#myTeamTitle').textContent = selected.team.team_name || 'My Team';
   $('#myTeamEyebrow').textContent = `${managerFirstName || selected.team.manager_name.split(' ')[0]}'s Manager View`;
   const roster = members.filter((member) => member.fantasy_team_id === selected.team.id).sort((a, b) => a.name.localeCompare(b.name));
   const available = members.filter((member) => !member.fantasy_team_id).sort((a, b) => a.name.localeCompare(b.name));
   const breakdown = teamScoreBreakdown(selected.team.id, selectedPublicWeekId);
-  const weekHistory = weeks.map((week) => {
+  const weekHistory = visibleWeeks.map((week) => {
     const total = [...(weekMemberPoints.get(week.id) || new Map())].reduce((sum, [memberId, entry]) => {
       const member = members.find((item) => item.id === memberId);
       return sum + (member && teamForMemberInWeek(member, week) === selected.team.id ? entry.official + entry.appearances : 0);
     }, 0);
-    return `<button class="${selectedPublicWeekId === week.id ? 'selected' : ''}" data-public-week="${week.id}" aria-pressed="${selectedPublicWeekId === week.id}"><span>Week ${week.number}</span><strong>${total}</strong></button>`;
+    const summary = week.is_complete ? total : weekAiringLabel(week, 'Upcoming');
+    return `<button class="${selectedPublicWeekId === week.id ? 'selected' : ''}" data-public-week="${week.id}" aria-pressed="${selectedPublicWeekId === week.id}"><span>Week ${week.number}</span><strong class="${week.is_complete ? '' : 'air-date'}">${escapeHtml(summary)}</strong></button>`;
   }).join('');
   const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person"><img src="${escapeHtml(member.image_path || imagePathFor(member.name))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></div></article>`).join('');
   const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
@@ -668,16 +688,19 @@ async function loadScoreDesk() {
     supportsDatabaseHardening = supportsCompletion;
     loadRules();
   }
-  const weekStatus = week.is_complete ? 'Week complete' : week.is_finale ? 'No elimination · ready to complete' : `${week.double_elimination ? 'Double elimination' : 'Standard elimination'} · elimination not set`;
+  const airing = weekAiringLabel(week);
+  const completionStatus = week.is_complete ? 'Week complete' : week.is_finale ? 'No elimination · ready to complete' : `${week.double_elimination ? 'Double elimination' : 'Standard elimination'} · elimination not set`;
+  const weekStatus = [airing, completionStatus].filter(Boolean).join(' · ');
   const editable = canEdit && !week.is_complete;
   const weekEditing = editable && editingWeekId === week.id;
   if (!editable) editingWeekId = null;
-  const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label></div>`;
+  const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label>Air date <span class="optional">(optional)</span><input id="weekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label class="check-label"><input id="twoNightAiring" type="checkbox" ${week.second_air_date ? 'checked' : ''}> Two-night airing</label><label id="secondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="weekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label></div>`;
   $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canEdit ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
     ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
   $('#editWeek')?.addEventListener('click', () => { editingWeekId = week.id; loadScoreDesk(); });
   $('#cancelWeekEdit')?.addEventListener('click', () => { editingWeekId = null; loadScoreDesk(); });
+  $('#twoNightAiring')?.addEventListener('change', (event) => { $('#secondAirDateField').hidden = !event.target.checked; if (!event.target.checked) $('#weekSecondAirDate').value = ''; });
   $('#guestJudgeEnabled')?.addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
   $('#isFinale')?.addEventListener('change', (event) => { $('#doubleElimination').disabled = event.target.checked; if (event.target.checked) $('#doubleElimination').checked = false; });
   $('#saveWeek')?.addEventListener('click', () => saveInlineWeek(week, dances));
@@ -773,16 +796,21 @@ async function openNewWeek() {
   const { data: existing, error } = await db.from('weeks').select('number').order('number', { ascending: false }).limit(1);
   if (error) return alert(`Couldn’t prepare a new week: ${error.message}`);
   const number = (existing[0]?.number || 0) + 1;
-  openModal(`<h2>Add Week ${number}</h2><label>Theme <span class="optional">(optional)</span><input id="weekTheme" autocomplete="off"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" placeholder="Optional custom title" autocomplete="off"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox"> Guest judge</label><label id="guestJudgeField" hidden>Guest judge name<input id="guestJudgeName" autocomplete="off"></label><label class="check-label"><input id="doubleElimination" type="checkbox"> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox"> No elimination</label><div class="modal-actions"><button id="createWeek">Create Week ${number}</button></div>`);
+  openModal(`<h2>Add Week ${number}</h2><label>Theme <span class="optional">(optional)</span><input id="weekTheme" autocomplete="off"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" placeholder="Optional custom title" autocomplete="off"></label><label>Air date <span class="optional">(optional)</span><input id="weekAirDate" type="date"></label><label class="check-label"><input id="twoNightAiring" type="checkbox"> Two-night airing</label><label id="secondAirDateField" hidden>Second night date<input id="weekSecondAirDate" type="date"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox"> Guest judge</label><label id="guestJudgeField" hidden>Guest judge name<input id="guestJudgeName" autocomplete="off"></label><label class="check-label"><input id="doubleElimination" type="checkbox"> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox"> No elimination</label><div class="modal-actions"><button id="createWeek">Create Week ${number}</button></div>`);
+  $('#twoNightAiring').addEventListener('change', (event) => { $('#secondAirDateField').hidden = !event.target.checked; if (!event.target.checked) $('#weekSecondAirDate').value = ''; });
   $('#guestJudgeEnabled').addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
   $('#isFinale').addEventListener('change', (event) => { $('#doubleElimination').disabled = event.target.checked; if (event.target.checked) $('#doubleElimination').checked = false; });
   $('#createWeek').addEventListener('click', async () => {
     const theme = $('#weekTheme').value.trim();
     const title = $('#weekTitle').value.trim() || null;
+    const air_date = $('#weekAirDate').value || null;
+    const second_air_date = $('#twoNightAiring').checked ? $('#weekSecondAirDate').value || null : null;
     const guest_judge_name = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() || null : null;
+    if ($('#twoNightAiring').checked && (!air_date || !second_air_date)) return alert('Choose both airing dates for a two-night week.');
+    if (second_air_date && second_air_date < air_date) return alert('The second night cannot be before the first night.');
     if ($('#guestJudgeEnabled').checked && !guest_judge_name) return alert('Enter the guest judge’s name.');
     if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guest_judge_name?.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
-    const { data: week, error: createError } = await db.from('weeks').insert({ number, theme: theme || null, title, guest_judge_name, double_elimination: $('#doubleElimination').checked, is_finale: $('#isFinale').checked }).select().single();
+    const { data: week, error: createError } = await db.from('weeks').insert({ number, theme: theme || null, title, air_date, second_air_date, guest_judge_name, double_elimination: $('#doubleElimination').checked, is_finale: $('#isFinale').checked }).select().single();
     if (createError) return alert(`Couldn’t create Week ${number}: ${createError.message}`);
     selectedWeekId = week.id; $('#modal').close(); loadScoreDesk();
   });
@@ -793,20 +821,21 @@ const missingRpc = (error) => error?.code === 'PGRST202' || /could not find the 
 async function saveInlineWeek(week, dances) {
   const theme = $('#weekTheme').value.trim();
   const title = $('#weekTitle').value.trim() || null;
+  const airDate = $('#weekAirDate').value || null;
+  const secondAirDate = $('#twoNightAiring').checked ? $('#weekSecondAirDate').value || null : null;
   const guestJudge = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() : '';
+  if ($('#twoNightAiring').checked && (!airDate || !secondAirDate)) return alert('Choose both airing dates for a two-night week.');
+  if (secondAirDate && secondAirDate < airDate) return alert('The second night cannot be before the first night.');
   if ($('#guestJudgeEnabled').checked && !guestJudge) return alert('Enter the guest judge’s name.');
   if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guestJudge.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
   const isFinale = $('#isFinale').checked;
   const danceIds = [...document.querySelectorAll('#scoreDeskContent [data-reorder-id]')].map((row) => row.dataset.reorderId);
-  const orderChanged = danceIds.some((id, index) => id !== dances[index]?.id);
-  const payload = { p_week_id: week.id, p_theme: theme || null, p_title: title, p_guest_judge_name: guestJudge || null, p_double_elimination: !isFinale && $('#doubleElimination').checked, p_is_finale: isFinale, p_dance_ids: danceIds };
+  const payload = { p_week_id: week.id, p_theme: theme || null, p_title: title, p_guest_judge_name: guestJudge || null, p_double_elimination: !isFinale && $('#doubleElimination').checked, p_is_finale: isFinale, p_dance_ids: danceIds, p_air_date: airDate, p_second_air_date: secondAirDate };
   const saveButton = $('#saveWeek'); saveButton.disabled = true;
-  let { error } = await db.rpc('update_week_setup_and_order', payload);
-  if (missingRpc(error) && !orderChanged) {
-    ({ error } = await db.from('weeks').update({ theme: payload.p_theme, title, guest_judge_name: payload.p_guest_judge_name, double_elimination: payload.p_double_elimination, is_finale: isFinale }).eq('id', week.id));
-  } else if (missingRpc(error)) {
+  const { error } = await db.rpc('update_week_setup_dates_and_order', payload);
+  if (missingRpc(error)) {
     saveButton.disabled = false;
-    return alert('Run the new Score Desk SQL migration in Supabase before saving a new dance order.');
+    return alert('Run the week airing dates SQL migration in Supabase before saving week details.');
   }
   saveButton.disabled = false;
   if (error) return alert(`Couldn’t save Week ${week.number}: ${error.message}`);

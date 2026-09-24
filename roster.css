@@ -208,6 +208,7 @@
 .team-history-strip span, .team-history-strip strong { display: block; }
 .team-history-strip span { color: inherit; opacity: .7; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .team-history-strip strong { margin-top: 3px; font: 700 18px Georgia, serif; }
+.team-history-strip strong.air-date { margin-top: 5px; font: 800 10px/1.2 Arial, sans-serif; letter-spacing: .01em; white-space: nowrap; }
 .public-team-columns { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr); gap: 24px; padding-top: 18px; border-top: 1px solid #e8e0e7; }
 .team-profile-actions { display: flex; align-items: flex-start; gap: 12px; }
 .team-profile-actions > button { margin: 0; padding: 7px 10px; }

@@ -83,14 +83,20 @@ week's Ledger, and an optional week title remains truly blank. Run this SQL
 before publishing the matching frontend changes because the site deliberately
 no longer falls back to partial multi-request dance saves.
 
+Then run `supabase/add-week-airing-dates.sql`. It adds optional first- and
+second-night airing dates to each week, validates their order, and keeps those
+dates in the same atomic save as week setup and dance ordering. The My Team
+page shows every completed week plus only the next scheduled week; an upcoming
+week displays its airing date instead of a misleading zero-point total.
+
 ## Operational reminders
 
 - Scoring is the source of truth for dances, judges’ scores, and cast
   appearances.
 - Create a competitive dance ahead of the show with its couple, dance type,
   and song. Judge scores may stay blank until they are announced. Use Edit on
-  the week to update its details and drag dances into show order; Save changes
-  stores the week and order together.
+  the week to update its details and optional one- or two-night airing dates,
+  then drag dances into show order; Save changes stores everything together.
 - During live scoring, edit dances, scores, and appearances normally. Mark a
   week complete only after the show: that is when the eliminated couple(s) are
   chosen. Elimination appearance rates take effect in the following week.
