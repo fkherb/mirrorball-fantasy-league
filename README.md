@@ -75,6 +75,14 @@ converts the old Hough cast role into a Hough scoring-rate checkbox within the
 Judges + Hosts category. The separate Hough role rate remains the scoring rate
 used by anyone with that checkbox selected.
 
+Finally, run `supabase/perfect-current-workflows.sql`. It is the current
+hardening migration: commissioner permissions use the `league_members` role,
+partnership/team/rate/deletion edits become atomic, historically referenced
+cast cannot be deleted, a missing performance can be added from a completed
+week's Ledger, and an optional week title remains truly blank. Run this SQL
+before publishing the matching frontend changes because the site deliberately
+no longer falls back to partial multi-request dance saves.
+
 ## Operational reminders
 
 - Scoring is the source of truth for dances, judges’ scores, and cast
@@ -90,6 +98,8 @@ used by anyone with that checkbox selected.
   before applying the role changes.
 - Completion is a historical checkpoint, not an edit lock. Commissioners can
   correct completed-week dances, scores, and appearances in its Week Ledger.
+- The Week Ledger is a commissioner-only correction surface and is hidden from
+  public and manager views.
 - Appearance rates in Rules are league-wide: changing one recalculates every
   week. Surprise rates remain specific to each cast member in Cast Roster.
 - Export or back up the Supabase data before making large commissioner edits.

@@ -1,6 +1,7 @@
 import { db } from './supabase-client.js';
 const $ = (selector) => document.querySelector(selector);
 const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts', 'Surprise'];
+const assignableRoles = roles.filter((role) => !role.startsWith('Eliminated'));
 const imagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
 const isPairRole = (role) => role === 'Star' || role === 'Pro';
 const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(role);
@@ -94,25 +95,6 @@ function partnerOptions(role, players, partnerships, selectedId = '') {
     .join('');
 }
 
-async function replacePartnership(player, role, partnerId, partnerships, partnershipName = null) {
-  const current = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
-  const currentPartnerId = current && (current.star_id === player.id ? current.pro_id : current.star_id);
-  if (currentPartnerId === (partnerId || null)) {
-    if (!current || current.partnership_name === partnershipName) return null;
-    const { error } = await db.from('partnerships').update({ partnership_name: partnershipName }).eq('id', current.id);
-    return error;
-  }
-  const idsToClear = [player.id, partnerId].filter(Boolean);
-  for (const id of idsToClear) {
-    const { error } = await db.from('partnerships').delete().or(`star_id.eq.${id},pro_id.eq.${id}`);
-    if (error) return error;
-  }
-  if (!partnerId) return null;
-  const row = role === 'Star' ? { star_id: player.id, pro_id: partnerId, active: true, partnership_name: partnershipName } : { star_id: partnerId, pro_id: player.id, active: true, partnership_name: partnershipName };
-  const { error } = await db.from('partnerships').insert(row);
-  return error;
-}
-
 async function loadRoster() {
   const query = $('#rosterSearch').value.trim();
   let rosterData;
@@ -148,7 +130,7 @@ async function editPlayer(id) {
     const partner = partnerFor(player, partnerships, players);
     const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
     openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${player.image_path || imagePathFor(player.name)}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${player.name}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
-      <label>Role<select id="editRole">${roles.map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select></label>
+      <label>Role<select id="editRole" ${player.role.startsWith('Eliminated') ? 'disabled' : ''}>${(player.role.startsWith('Eliminated') ? [player.role] : assignableRoles).map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select>${player.role.startsWith('Eliminated') ? '<span class="range-note">Eliminated roles are managed by completing a week.</span>' : ''}</label>
       <div id="roleDetailField" ${player.role === 'Judges + Hosts' ? '' : 'hidden'}><label>Type<select id="editRoleDetail"><option ${player.role_detail === 'Judge' ? 'selected' : ''}>Judge</option><option ${player.role_detail === 'Host' ? 'selected' : ''}>Host</option><option ${!player.role_detail || player.role_detail === 'Judge + Host' ? 'selected' : ''}>Judge + Host</option></select></label><label class="check-row"><input id="editIsHough" type="checkbox" ${player.is_hough || player.role === 'Hough' ? 'checked' : ''}> Hough scoring rate</label></div>
       <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
       <label id="partnerField" ${isAnyPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(activePairRole(player.role), players, partnerships, partner?.id)}</select></label>
@@ -166,22 +148,23 @@ async function editPlayer(id) {
     $('#imagePosition').addEventListener('input', (event) => { $('#editPhotoPreview').style.objectPosition = `${event.target.value}% center`; });
     $('#savePlayer').addEventListener('click', async () => {
       const role = $('#editRole').value;
+      if (role === 'Surprise' && $('#editRate').value === '') return alert('Enter the Surprise points per appearance.');
       const partnerId = isAnyPairRole(role) ? $('#editPartner').value : '';
       const partnershipName = $('#editPartner').value ? $('#partnershipName').value.trim() || null : null;
-      const updates = { role, custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) || null : null, image_path: player.image_path || imagePathFor(player.name), image_position: Number($('#imagePosition').value) };
-      if (Object.prototype.hasOwnProperty.call(player, 'role_detail')) updates.role_detail = role === 'Judges + Hosts' ? $('#editRoleDetail').value : null;
-      if (Object.prototype.hasOwnProperty.call(player, 'is_hough')) updates.is_hough = role === 'Judges + Hosts' && $('#editIsHough').checked;
-      const { error: saveError } = await db.from('cast_members').update(updates).eq('id', id);
+      const { error: saveError } = await db.rpc('save_cast_member_atomic', {
+        p_cast_member_id: id, p_name: player.name, p_role: role,
+        p_image_path: player.image_path || imagePathFor(player.name), p_image_position: Number($('#imagePosition').value),
+        p_custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) : null,
+        p_role_detail: role === 'Judges + Hosts' ? $('#editRoleDetail').value : null,
+        p_is_hough: role === 'Judges + Hosts' && $('#editIsHough').checked,
+        p_partner_id: partnerId || null, p_partnership_name: partnershipName,
+      });
       if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
-      const pairingError = await replacePartnership(player, activePairRole(role), partnerId, partnerships, partnershipName);
-      if (pairingError) return alert(`The cast member saved, but the partnership could not be saved: ${pairingError.message}`);
       $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
     });
     $('#deletePlayer').addEventListener('click', async () => {
       if (!confirm(`Delete ${player.name}? This cannot be undone.`)) return;
-      const pairingError = await replacePartnership(player, player.role, '', partnerships);
-      if (pairingError) return alert(`Couldn’t remove the partnership: ${pairingError.message}`);
-      const { error: deleteError } = await db.from('cast_members').delete().eq('id', id);
+      const { error: deleteError } = await db.rpc('delete_cast_member_atomic', { p_cast_member_id: id });
       if (deleteError) return alert(`Couldn’t delete ${player.name}: ${deleteError.message}`);
       $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
     });
@@ -194,7 +177,7 @@ async function openAddPlayer() {
   const { players, partnerships } = pairingData;
   openModal(`<h2>Add Cast Member</h2><p class="sub">Their image path is set automatically from their name.</p>
     <label>Name<input id="newName" autocomplete="off" required></label>
-    <label>Role<select id="newRole">${roles.map((role) => `<option>${role}</option>`).join('')}</select></label>
+    <label>Role<select id="newRole">${assignableRoles.map((role) => `<option>${role}</option>`).join('')}</select></label>
     <div id="newRoleDetailField" hidden><label>Type<select id="newRoleDetail"><option>Judge</option><option>Host</option><option>Judge + Host</option></select></label><label class="check-row"><input id="newIsHough" type="checkbox"> Hough scoring rate</label></div>
     <label id="newSurpriseRate" hidden>Points per appearance<input id="newRate" type="number" min="0"></label>
     <label id="newPartnerField">Add partnership <span class="optional">(optional)</span><select id="newPartner"><option value="">No partner yet</option>${partnerOptions('Star', players, partnerships)}</select></label>
@@ -210,14 +193,16 @@ async function openAddPlayer() {
     const name = $('#newName').value.trim();
     if (!name) return alert('Enter a cast member name first.');
     const role = $('#newRole').value;
-    const newPlayer = { name, role, image_path: imagePathFor(name), custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) || null : null };
-    if (players.some((player) => Object.prototype.hasOwnProperty.call(player, 'role_detail'))) newPlayer.role_detail = role === 'Judges + Hosts' ? $('#newRoleDetail').value : null;
-    if (players.some((player) => Object.prototype.hasOwnProperty.call(player, 'is_hough'))) newPlayer.is_hough = role === 'Judges + Hosts' && $('#newIsHough').checked;
-    const { data: created, error } = await db.from('cast_members').insert(newPlayer).select().single();
-    if (error) return alert(`Couldn’t create ${name}: ${error.message}`);
+    if (role === 'Surprise' && $('#newRate').value === '') return alert('Enter the Surprise points per appearance.');
     const partnerId = isPairRole(role) ? $('#newPartner').value : '';
-    const pairingError = await replacePartnership(created, role, partnerId, partnerships);
-    if (pairingError) return alert(`${name} was created, but the partnership could not be saved: ${pairingError.message}`);
+    const { error } = await db.rpc('save_cast_member_atomic', {
+      p_cast_member_id: null, p_name: name, p_role: role, p_image_path: imagePathFor(name), p_image_position: 50,
+      p_custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) : null,
+      p_role_detail: role === 'Judges + Hosts' ? $('#newRoleDetail').value : null,
+      p_is_hough: role === 'Judges + Hosts' && $('#newIsHough').checked,
+      p_partner_id: partnerId || null, p_partnership_name: null,
+    });
+    if (error) return alert(`Couldn’t create ${name}: ${error.message}`);
     $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
   });
 }
@@ -246,7 +231,7 @@ async function loadTeams() {
     const managerName = managerNameFor(team, managerMap);
     const displayName = team.team_name || `${managerName}'s Team`;
     return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : ''}</div>
-      <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p>
+      <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p><p class="team-mobile-hint">Tap to view lineup</p>
       ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
       ${canEdit && availableCount ? `<div class="team-actions"><button data-team-id="${team.id}">Add Cast Members</button></div>` : ''}
     </article>`;
@@ -294,12 +279,8 @@ async function editTeamCard(teamId) {
     const firstName = $(`#teamManagerFirst-${teamId}`).value.trim();
     const lastName = $(`#teamManagerLast-${teamId}`).value.trim();
     if (manager && (!firstName || !lastName)) return alert('Enter both the first and last name.');
-    const { error: saveError } = await db.from('fantasy_teams').update({ team_name: team_name || null }).eq('id', teamId);
+    const { error: saveError } = await db.rpc('update_team_profile_atomic', { p_team_id: teamId, p_team_name: team_name || null, p_manager_user_id: manager?.user_id || null, p_first_name: manager ? firstName : null, p_last_name: manager ? lastName : null });
     if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
-    if (manager) {
-      const { error: managerError } = await db.from('league_members').update({ first_name: firstName, last_name: lastName }).eq('user_id', manager.user_id);
-      if (managerError) return alert(`The team name saved, but the manager name could not be updated: ${managerError.message}`);
-    }
     loadTeams(); loadStandings();
   });
   document.querySelectorAll('[data-remove-team-cast-id]').forEach((button) => button.addEventListener('click', async () => {
@@ -660,12 +641,14 @@ async function loadScoreDesk() {
   $('#weekTabs').innerHTML = weeks.map((week) => `<button class="${week.id === selectedWeekId ? 'selected' : ''}" data-score-week="${week.id}">Week ${week.number}</button>`).join('');
   document.querySelectorAll('[data-score-week]').forEach((button) => button.addEventListener('click', () => { selectedWeekId = button.dataset.scoreWeek; editingWeekId = null; loadScoreDesk(); }));
   const week = weeks.find((item) => item.id === selectedWeekId);
-  const [{ data: dances, error: danceError }, { data: judgeScores, error: judgeError }, { data: appearances, error: appearanceError }] = await Promise.all([
-    db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order'),
-    db.from('dance_judge_scores').select('dance_id,judge_name,score'),
-    db.from('dance_appearances').select('id,dance_id,cast_member_id'),
-  ]);
-  if (danceError || judgeError || appearanceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(danceError?.message || judgeError?.message || appearanceError?.message)}</div>`;
+  const { data: dances, error: danceError } = await db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order');
+  if (danceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(danceError.message)}</div>`;
+  const danceIds = dances.map((dance) => dance.id);
+  const [{ data: judgeScores, error: judgeError }, { data: appearances, error: appearanceError }] = danceIds.length ? await Promise.all([
+    db.from('dance_judge_scores').select('dance_id,judge_name,score').in('dance_id', danceIds),
+    db.from('dance_appearances').select('id,dance_id,cast_member_id').in('dance_id', danceIds),
+  ]) : [{ data: [], error: null }, { data: [], error: null }];
+  if (judgeError || appearanceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(judgeError?.message || appearanceError?.message)}</div>`;
   const pairData = await getPairingData().catch(() => ({ players: [], partnerships: [] }));
   const judgeOrder = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
   const scoresForDance = (danceId) => judgeScores.filter((score) => score.dance_id === danceId).sort((a, b) => judgeOrder.indexOf(a.judge_name) - judgeOrder.indexOf(b.judge_name));
@@ -689,8 +672,8 @@ async function loadScoreDesk() {
   const editable = canEdit && !week.is_complete;
   const weekEditing = editable && editingWeekId === week.id;
   if (!editable) editingWeekId = null;
-  const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Week ${week.number}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label></div>`;
-  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
+  const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label></div>`;
+  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canEdit ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
     ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
   $('#editWeek')?.addEventListener('click', () => { editingWeekId = week.id; loadScoreDesk(); });
@@ -723,17 +706,23 @@ function openDanceDetail(week, dance, index, pairData, scores, cast) {
 }
 
 async function openWeekLedger(week) {
-  const [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
+  if (!canEdit) return alert('Commissioner access is required to open the Week Ledger.');
+  const [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult] = await Promise.all([
     db.from('cast_members').select('*').order('name'),
     db.from('fantasy_teams').select('id,manager_name,team_name'),
     db.from('roles').select('name,appearance_points'),
     db.from('weeks').select('*').order('number'),
     db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
     db.from('dances').select('id,kind,partnership_id,name,sort_order,week_id').eq('week_id', week.id).order('sort_order'),
-    db.from('dance_judge_scores').select('dance_id,score'),
-    db.from('dance_appearances').select('id,dance_id,cast_member_id'),
   ]);
-  const error = [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult, scoresResult, appearancesResult].find((result) => result.error)?.error;
+  let error = [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult].find((result) => result.error)?.error;
+  if (error) return alert(`Couldn’t load the week ledger: ${error.message}`);
+  const danceIds = dancesResult.data.map((dance) => dance.id);
+  const [scoresResult, appearancesResult] = danceIds.length ? await Promise.all([
+    db.from('dance_judge_scores').select('dance_id,score').in('dance_id', danceIds),
+    db.from('dance_appearances').select('id,dance_id,cast_member_id').in('dance_id', danceIds),
+  ]) : [{ data: [], error: null }, { data: [], error: null }];
+  error = scoresResult.error || appearancesResult.error;
   if (error) return alert(`Couldn’t load the week ledger: ${error.message}`);
   let snapshots = [];
   if (Object.prototype.hasOwnProperty.call(week, 'is_complete')) {
@@ -766,7 +755,7 @@ async function openWeekLedger(week) {
     const usedDanceIds = new Set(memberAppearances.map((appearance) => appearance.dance_id));
     const availableDances = dancesResult.data.filter((dance) => !usedDanceIds.has(dance.id));
     const competitiveBody = `<section class="ledger-dances"><h3>Competitive dances</h3>${competitiveDances.map((dance) => `<div><span>${escapeHtml(danceLabels.get(dance.id))}</span>${canEdit ? `<button class="secondary" data-ledger-dance="${dance.id}">Edit scores</button>` : ''}</div>`).join('') || '<p class="sub">No competitive dances recorded.</p>'}</section>`;
-    const performanceBody = `<section class="ledger-performance"><input id="ledgerCastSearch" placeholder="Search cast member" autocomplete="off"><div class="ledger-cast-list">${[...rows].sort((a, b) => a.member.name.localeCompare(b.member.name)).map((row) => `<button class="ledger-cast-choice ${row.member.id === selectedMemberId ? 'selected' : ''}" data-ledger-member="${row.member.id}" data-ledger-name="${escapeHtml(row.member.name.toLowerCase())}"><span>${escapeHtml(row.member.name)}</span><small>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'}</small></button>`).join('')}</div>${selectedMember ? `<section class="ledger-member-editor"><h3>${escapeHtml(selectedMember.name)}</h3><p class="ledger-member-summary">${memberAppearances.length} recorded appearance${memberAppearances.length === 1 ? '' : 's'} this week</p><div class="ledger-action-block"><label>Remove from dance<select id="ledgerRemoveDance"><option value="">Select recorded dance</option>${memberAppearances.map((appearance) => `<option value="${appearance.id}">${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</option>`).join('')}</select></label><button class="secondary" id="removeLedgerAppearance">Remove appearance</button></div><div class="ledger-action-block"><label>Add to existing dance<select id="ledgerAddDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addLedgerAppearance">Add appearance</button></div>${canEdit ? '<div class="ledger-new-performance"><span>Missing a performance?</span><button class="secondary" id="addLedgerPerformance">Create performance dance</button></div>' : ''}</section>` : '<p class="sub ledger-prompt">Select a cast member to edit their recorded dance appearances.</p>'}</section>`;
+    const performanceBody = `<section class="ledger-performance"><input id="ledgerCastSearch" placeholder="Search cast member" autocomplete="off"><div class="ledger-cast-list">${[...rows].sort((a, b) => a.member.name.localeCompare(b.member.name)).map((row) => `<button class="ledger-cast-choice ${row.member.id === selectedMemberId ? 'selected' : ''}" data-ledger-member="${row.member.id}" data-ledger-name="${escapeHtml(row.member.name.toLowerCase())}"><span>${escapeHtml(row.member.name)}</span><small>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'}</small></button>`).join('')}</div>${selectedMember ? `<section class="ledger-member-editor"><p class="eyebrow">Selected cast member</p><h3>${escapeHtml(selectedMember.name)}</h3><p class="ledger-member-summary">${memberAppearances.length} recorded appearance${memberAppearances.length === 1 ? '' : 's'} this week</p><div class="ledger-action-block"><label>Remove from dance<select id="ledgerRemoveDance"><option value="">Select recorded dance</option>${memberAppearances.map((appearance) => `<option value="${appearance.id}">${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</option>`).join('')}</select></label><button class="secondary" id="removeLedgerAppearance">Remove appearance</button></div><div class="ledger-action-block"><label>Add to existing dance<select id="ledgerAddDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addLedgerAppearance">Add appearance</button></div>${canEdit ? '<div class="ledger-new-performance"><span>Missing a performance?</span><button class="secondary" id="addLedgerPerformance">Create performance dance</button></div>' : ''}</section>` : '<p class="sub ledger-prompt">Select a cast member to edit their recorded dance appearances.</p>'}</section>`;
     $('#weekLedgerBody').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">Week ${week.number} ledger</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">Correct completed-week scoring here. Role rates always come from the league-wide Rules tab.</p></div><div class="breakdown-total"><strong>${total}</strong><span>league points</span></div></div><div class="filter-tabs ledger-mode-tabs"><button class="${mode === 'competitive' ? 'selected' : ''}" data-ledger-mode="competitive">Competitive</button><button class="${mode === 'performance' ? 'selected' : ''}" data-ledger-mode="performance">Performance</button></div>${mode === 'competitive' ? competitiveBody : performanceBody}`;
     document.querySelectorAll('[data-ledger-mode]').forEach((button) => button.addEventListener('click', () => { mode = button.dataset.ledgerMode; draw(); }));
     document.querySelectorAll('[data-ledger-dance]').forEach((button) => { const dance = dancesResult.data.find((item) => item.id === button.dataset.ledgerDance); button.addEventListener('click', () => openEditDance(week, dance, dancesResult.data.indexOf(dance), true)); });
@@ -784,15 +773,12 @@ async function openNewWeek() {
   const { data: existing, error } = await db.from('weeks').select('number').order('number', { ascending: false }).limit(1);
   if (error) return alert(`Couldn’t prepare a new week: ${error.message}`);
   const number = (existing[0]?.number || 0) + 1;
-  openModal(`<h2>Add Week ${number}</h2><label>Theme <span class="optional">(optional)</span><input id="weekTheme" autocomplete="off"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" placeholder="${number === 1 ? 'Week 1' : `Week ${number}`}" autocomplete="off"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox"> Guest judge</label><label id="guestJudgeField" hidden>Guest judge name<input id="guestJudgeName" autocomplete="off"></label><label class="check-label"><input id="doubleElimination" type="checkbox"> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox"> No elimination</label><div class="modal-actions"><button id="createWeek">Create Week ${number}</button></div>`);
-  let titleTouched = false;
-  $('#weekTitle').addEventListener('input', () => { titleTouched = true; });
-  $('#weekTheme').addEventListener('input', (event) => { if (!titleTouched) $('#weekTitle').value = event.target.value.trim() ? `${event.target.value.trim()} Week` : `Week ${number}`; });
+  openModal(`<h2>Add Week ${number}</h2><label>Theme <span class="optional">(optional)</span><input id="weekTheme" autocomplete="off"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" placeholder="Optional custom title" autocomplete="off"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox"> Guest judge</label><label id="guestJudgeField" hidden>Guest judge name<input id="guestJudgeName" autocomplete="off"></label><label class="check-label"><input id="doubleElimination" type="checkbox"> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox"> No elimination</label><div class="modal-actions"><button id="createWeek">Create Week ${number}</button></div>`);
   $('#guestJudgeEnabled').addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
   $('#isFinale').addEventListener('change', (event) => { $('#doubleElimination').disabled = event.target.checked; if (event.target.checked) $('#doubleElimination').checked = false; });
   $('#createWeek').addEventListener('click', async () => {
     const theme = $('#weekTheme').value.trim();
-    const title = $('#weekTitle').value.trim() || (theme ? `${theme} Week` : `Week ${number}`);
+    const title = $('#weekTitle').value.trim() || null;
     const guest_judge_name = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() || null : null;
     if ($('#guestJudgeEnabled').checked && !guest_judge_name) return alert('Enter the guest judge’s name.');
     if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guest_judge_name?.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
@@ -806,7 +792,7 @@ const missingRpc = (error) => error?.code === 'PGRST202' || /could not find the 
 
 async function saveInlineWeek(week, dances) {
   const theme = $('#weekTheme').value.trim();
-  const title = $('#weekTitle').value.trim() || (theme ? `${theme} Week` : `Week ${week.number}`);
+  const title = $('#weekTitle').value.trim() || null;
   const guestJudge = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() : '';
   if ($('#guestJudgeEnabled').checked && !guestJudge) return alert('Enter the guest judge’s name.');
   if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guestJudge.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
@@ -875,7 +861,7 @@ async function openCompleteWeek(week) {
     const star = players.find((player) => player.id === pair.star_id);
     const pro = players.find((player) => player.id === pair.pro_id);
     return { ...pair, label: star && pro ? `${star.name} & ${pro.name}` : 'Unnamed couple' };
-  });
+  }).sort((a, b) => a.label.localeCompare(b.label));
   const requiredEliminations = week.is_finale ? 0 : week.double_elimination ? 2 : 1;
   openModal(`<h2>Mark ${escapeHtml(weekTitle(week))} Complete</h2><p class="sub">This captures the week’s roster and appearance rates, then applies any eliminations after its scoring. You can still correct dances and scores later.</p>${requiredEliminations ? `<label>Eliminated couple<select id="completeEliminationOne"><option value="">Select couple</option>${eligiblePairs.map((pair) => `<option value="${pair.id}">${escapeHtml(pair.label)}</option>`).join('')}</select></label>${requiredEliminations === 2 ? `<label>Second eliminated couple<select id="completeEliminationTwo"><option value="">Select couple</option>${eligiblePairs.map((pair) => `<option value="${pair.id}">${escapeHtml(pair.label)}</option>`).join('')}</select></label>` : ''}` : '<p class="sub">No elimination is recorded for this week.</p>'}<div class="modal-actions"><button id="confirmCompleteWeek">Mark complete</button></div>`);
   $('#confirmCompleteWeek').addEventListener('click', async () => {
@@ -900,7 +886,10 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
   const usedPairIds = new Set((scoredDances || []).map((dance) => dance.partnership_id).filter((id) => id !== existingDance?.partnership_id));
   const availablePairs = activePairs.filter((pairing) => !usedPairIds.has(pairing.id));
   const existingPair = partnerships.find((pairing) => pairing.id === existingDance?.partnership_id);
-  const selectablePairs = existingPair && !availablePairs.some((pairing) => pairing.id === existingPair.id) ? [...availablePairs, existingPair] : availablePairs;
+  const selectablePairs = (existingPair && !availablePairs.some((pairing) => pairing.id === existingPair.id) ? [...availablePairs, existingPair] : availablePairs).sort((a, b) => {
+    const label = (pairing) => { const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id); return `${star?.name || ''} & ${pro?.name || ''}`; };
+    return label(a).localeCompare(label(b));
+  });
   const castPicker = (excludedIds = []) => players.filter((player) => !excludedIds.includes(player.id)).map((player) => `<label class="cast-choice" data-dance-cast-name="${escapeHtml(player.name.toLowerCase())}" data-dance-cast-category="${castCategory(player)}" data-dance-bonus-category="${bonusCastCategory(player)}"><input type="checkbox" value="${player.id}" ${existingAppearanceIds.some((appearance) => (appearance.cast_member_id || appearance) === player.id) ? 'checked' : ''}><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(displayRole(player))}</small></span></label>`).join('');
   const drawForm = (kind) => {
     const judgeNames = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
@@ -939,30 +928,9 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
       p_cast_member_ids: selectedAppearanceIds, p_scores_only: scoresOnly,
     });
     if (!atomicSave.error) { $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings(); return; }
-    if (!missingRpc(atomicSave.error)) { saveButton.disabled = false; return alert(`Couldn’t save this dance: ${atomicSave.error.message}`); }
-    // Keep existing score entry usable until the commissioner runs the migration.
-    const danceOperation = existingDance ? db.from('dances').update({ kind, partnership_id, name, dance_type, song }).eq('id', existingDance.id).select().single() : db.from('dances').insert({ week_id: week.id, kind, partnership_id, name, dance_type, song, sort_order: danceCount + 1 }).select().single();
-    const { data: dance, error: danceError } = await danceOperation;
-    if (danceError) { saveButton.disabled = false; return alert(`Couldn’t save this dance: ${danceError.message}`); }
-    const scores = scoreInputs.map((input) => ({ dance_id: dance.id, judge_name: input.dataset.judge, score: Number(input.value) }));
-    const appearances = selectedAppearanceIds.map((cast_member_id) => ({ dance_id: dance.id, cast_member_id }));
-    if (scores.length) {
-      const scoreWrite = existingDance ? db.from('dance_judge_scores').upsert(scores, { onConflict: 'dance_id,judge_name' }) : db.from('dance_judge_scores').insert(scores);
-      const { error: scoreError } = await scoreWrite;
-      if (scoreError) { saveButton.disabled = false; return alert(`Dance saved, but judge scores could not be saved: ${scoreError.message}`); }
-    }
-    if (appearances.length) {
-      const appearanceWrite = existingDance ? db.from('dance_appearances').upsert(appearances, { onConflict: 'dance_id,cast_member_id' }) : db.from('dance_appearances').insert(appearances);
-      const { error: appearanceError } = await appearanceWrite;
-      if (appearanceError) { saveButton.disabled = false; return alert(`Dance saved, but appearances could not be saved: ${appearanceError.message}`); }
-    }
-    if (existingDance) {
-      const scoreIdsToRemove = existingScores.filter((oldScore) => !scores.some((score) => score.judge_name === oldScore.judge_name)).map((oldScore) => oldScore.id).filter(Boolean);
-      const appearanceIdsToRemove = existingAppearanceIds.filter((oldAppearance) => !appearances.some((appearance) => appearance.cast_member_id === oldAppearance.cast_member_id)).map((oldAppearance) => oldAppearance.id).filter(Boolean);
-      if (scoreIdsToRemove.length) { const { error: removeScoresError } = await db.from('dance_judge_scores').delete().in('id', scoreIdsToRemove); if (removeScoresError) { saveButton.disabled = false; return alert(`Dance saved, but old judge scores could not be removed: ${removeScoresError.message}`); } }
-      if (appearanceIdsToRemove.length) { const { error: removeAppearancesError } = await db.from('dance_appearances').delete().in('id', appearanceIdsToRemove); if (removeAppearancesError) { saveButton.disabled = false; return alert(`Dance saved, but old appearances could not be removed: ${removeAppearancesError.message}`); } }
-    }
-    $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings();
+    saveButton.disabled = false;
+    const migrationHint = missingRpc(atomicSave.error) ? ' Run the current workflow-hardening SQL migration first.' : '';
+    alert(`Couldn’t save this dance: ${atomicSave.error.message}${migrationHint}`);
   });
   $('#deleteDance')?.addEventListener('click', async () => {
     if (!confirm('Delete this dance and all of its recorded scores and appearances? This cannot be undone.')) return;
@@ -1004,8 +972,7 @@ function openRulesEditor(rates) {
   $('#saveRules').addEventListener('click', async () => {
     const edits = [...document.querySelectorAll('[data-role-rate]')].map((input) => ({ name: input.dataset.roleRate, appearance_points: Number(input.value) }));
     if (edits.some((edit) => !Number.isInteger(edit.appearance_points) || edit.appearance_points < 0 || edit.appearance_points > 99)) return alert('Every appearance rate must be a whole number from 0 to 99.');
-    const results = await Promise.all(edits.map((edit) => db.from('roles').update({ appearance_points: edit.appearance_points }).eq('name', edit.name)));
-    const error = results.find((result) => result.error)?.error;
+    const { error } = await db.rpc('update_role_rates_atomic', { p_rates: edits });
     if (error) return alert(`Couldn’t save rules: ${error.message}`);
     $('#modal').close(); loadRules(); loadStandings();
   });

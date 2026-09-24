@@ -35,6 +35,7 @@
 .team-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .team-edit-button { margin: 0; }
 .team-count { margin: 0 0 14px; color: #786e79; font-size: 12px; font-weight: 750; }
+.team-mobile-hint { display: none; }
 .team-roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
 .team-roster li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-width: 0; padding: 8px 9px; border: 1px solid #ece5eb; border-radius: 8px; background: #fcfafb; }
 .team-roster span, .team-roster small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -431,8 +432,13 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .sub { line-height: 1.4; }
   .week-tabs { margin-bottom: 12px; }
   .week-tabs button { padding: 10px 14px; }
-  .score-week-head { padding: 16px; gap: 12px; }
-  .week-summary { gap: 5px; }
+  .score-week-head:not(.week-editing) { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; padding: 16px; gap: 11px; }
+  .score-week-head:not(.week-editing) .week-heading { width: 100%; }
+  .score-week-head:not(.week-editing) .week-title-line { align-items: flex-start; justify-content: space-between; }
+  .score-week-head:not(.week-editing) .week-title-line h2 { min-width: 0; margin-right: auto; font-size: 22px; line-height: 1.08; overflow-wrap: normal; word-break: normal; }
+  .score-week-head:not(.week-editing) .week-summary { width: 100%; margin: 0; gap: 5px; }
+  .score-week-head:not(.week-editing) .score-week-actions { width: 100%; margin: 0; flex-wrap: wrap; }
+  .score-week-head:not(.week-editing) .score-week-actions button { flex: 1 1 auto; }
   .dance-list { gap: 10px; }
   .dance-row { padding: 14px; }
   .dance-card-top h3 { font-size: 15px; }
@@ -461,7 +467,13 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .week-ledger-total { grid-column: 3; grid-row: 1 / span 2; }
   .ledger-performance { grid-template-columns: 1fr; }
   .ledger-performance > input, .ledger-cast-list, .ledger-member-editor, .ledger-prompt { grid-column: 1; grid-row: auto; }
-  .ledger-cast-list { max-height: 250px; }
+  .ledger-cast-list { max-height: 220px; }
+  .ledger-member-editor { padding: 14px; box-shadow: 0 10px 24px #2b19300d; }
+  .ledger-member-editor h3 { margin-top: 0; font-size: 19px; }
+  .ledger-action-block { padding: 12px; }
+  .ledger-action-block button { width: 100%; }
+  .ledger-new-performance { align-items: stretch; flex-direction: column; }
+  .ledger-new-performance button { width: 100%; }
   .highlight-preview-grid { grid-template-columns: 1fr; }
   .highlight-preview-grid article { min-height: 112px; }
   .team-switcher { display: flex; overflow-x: auto; padding-bottom: 4px; }
@@ -470,6 +482,9 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .available-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .league-directory { grid-template-columns: 1fr; }
   .league-directory .team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .league-directory .team-card:not(.editing) .team-roster { display: none; }
+  .league-directory .team-card:not(.editing) .team-count { margin-bottom: 4px; }
+  .league-directory .team-card:not(.editing) .team-mobile-hint { display: block; margin: 0; color: #8a7d87; font-size: 10px; font-weight: 750; }
   .league-directory .commissioner-section + .commissioner-section { margin-top: 24px; }
   .roster-scroll-card { max-height: 580px; }
 }
