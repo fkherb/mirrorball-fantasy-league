@@ -12,7 +12,8 @@ browser is the interface; Supabase stores the shared league data.
   applied incrementally while building the league.
 
 The Supabase publishable key in `supabase-client.js` is expected to be public.
-Row-level security policies—not that key—restrict commissioner writes.
+Row-level security policies—not that key—separate public reads, league
+commissioner controls, and platform-owner show administration.
 
 ## Current pages
 
@@ -23,7 +24,12 @@ Row-level security policies—not that key—restrict commissioner writes.
 - **My Team** appears for signed-in users. Before an account is linked it keeps
   the temporary team switcher; once `league_members.fantasy_team_id` is set, it
   displays only that account’s team and adopts the team name as its heading.
-- **Scoring** contains the live and completed-week scoring workflow.
+- **Dances** is the public, interactive show archive. Dance details include the
+  full cast, historical fantasy-team assignments, individual point impact, and
+  the team that benefited most from that dance.
+- **Score Desk** lives at `/score-desk/` as a separate platform-owner workspace.
+  It is the only interface that creates or changes canonical weeks, dances,
+  judges' scores, cast appearances, and completed-week corrections.
 - **League** is the public league directory: every fantasy team, the searchable
   full cast roster, and role rates. Team, roster, and role-rate editing controls
   appear there only for the signed-in commissioner.
@@ -89,15 +95,22 @@ dates in the same atomic save as week setup and dance ordering. The My Team
 page shows every completed week plus only the next scheduled week; an upcoming
 week displays its airing date instead of a misleading zero-point total.
 
-Then run `supabase/edit-completed-week-details.sql`. It lets the commissioner
-correct a completed week's title, theme, airing dates, guest-judge name, and
-elimination format from the Week Ledger. The database verifies that elimination
-settings still match the recorded result and prevents unsafe guest-judge
-additions or removals after scores have been finalized.
+Then run `supabase/edit-completed-week-details.sql`. It adds corrections for a
+completed week's title, theme, airing dates, guest-judge name, and elimination
+format from the Week Ledger. The database verifies that elimination settings
+still match the recorded result and prevents unsafe guest-judge additions or
+removals after scores have been finalized. The following migration narrows this
+correction access from commissioners to the platform owner.
+
+Finally, run `supabase/separate-platform-score-desk.sql`. It creates the private
+platform-owner identity used by the separate Score Desk and moves database
+write access for canonical show facts away from the league-commissioner role.
+The migration seeds the current owner account from its existing Supabase Auth
+email; future commissioners cannot grant themselves this permission.
 
 ## Operational reminders
 
-- Scoring is the source of truth for dances, judges’ scores, and cast
+- Score Desk is the source of truth for dances, judges’ scores, and cast
   appearances.
 - Create a competitive dance ahead of the show with its couple, dance type,
   and song. Judge scores may stay blank until they are announced. Use Edit on

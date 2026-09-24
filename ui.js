@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const lastNameInput = document.querySelector('#accountLastName');
   const nameEditor = document.querySelector('#accountNameEditor');
   const myTeamNav = document.querySelector('#myTeamNav');
+  const scoreDeskLink = document.querySelector('#scoreDeskLink');
   let currentSession = null;
   let currentMember = null;
   let membershipReady = false;
@@ -30,11 +31,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentMember = null;
     membershipReady = false;
     let membershipError = null;
+    let isPlatformAdmin = false;
     if (session?.user) {
-      const { data, error } = await db.from('league_members').select('*').eq('user_id', session.user.id).maybeSingle();
-      membershipError = error;
-      membershipReady = !error;
-      currentMember = data || null;
+      const [membershipResult, platformResult] = await Promise.all([
+        db.from('league_members').select('*').eq('user_id', session.user.id).maybeSingle(),
+        db.rpc('is_platform_admin'),
+      ]);
+      membershipError = membershipResult.error;
+      membershipReady = !membershipResult.error;
+      currentMember = membershipResult.data || null;
+      isPlatformAdmin = platformResult.data === true;
     }
     const firstName = currentMember?.first_name || metadata.first_name || '';
     const lastName = currentMember?.last_name || metadata.last_name || '';
@@ -56,9 +62,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? currentMember.custom_team_nav_label
       : labelMode === 'team' && teamName ? teamName : 'My Team';
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
+    scoreDeskLink.hidden = !isPlatformAdmin;
     if (myTeamNav.hidden && document.querySelector('#teams').classList.contains('active')) openView('standings');
     menu.hidden = true;
-    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, firstName, lastName, displayName, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
+    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, firstName, lastName, displayName, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
   }
 
   const { data: { session } } = await db.auth.getSession();

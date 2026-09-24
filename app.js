@@ -1,14 +1,17 @@
 import { db } from './supabase-client.js';
 const $ = (selector) => document.querySelector(selector);
+const isScoreDeskSurface = document.body.dataset.surface === 'score-desk';
+const assetRoot = isScoreDeskSurface ? '../' : '';
 const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts', 'Surprise'];
 const assignableRoles = roles.filter((role) => !role.startsWith('Eliminated'));
-const imagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
+const imagePathFor = (name) => `${assetRoot}Images/${name.replace(/[.,'’]/g, '')}.jpg`;
 const isPairRole = (role) => role === 'Star' || role === 'Pro';
 const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(role);
 const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
 const activePairRole = (role) => role.includes('Star') ? 'Star' : role.includes('Pro') ? 'Pro' : role;
-const judgeScoreImage = (score) => `Images/Judges Scores/${score}.png?v=20260921-optimized`;
+const judgeScoreImage = (score) => `${assetRoot}Images/Judges Scores/${score}.png?v=20260921-optimized`;
 let canEdit = false;
+let canManageShow = false;
 let rosterFilter = 'all';
 let selectedWeekId = null;
 let editingWeekId = null;
@@ -96,6 +99,7 @@ function partnerOptions(role, players, partnerships, selectedId = '') {
 }
 
 async function loadRoster() {
+  if (!$('#rosterResults')) return;
   const query = $('#rosterSearch').value.trim();
   let rosterData;
   try { rosterData = await getPairingData(); } catch (error) { return showRosterMessage(`Couldn’t load the cast: ${error.message}`, true); }
@@ -208,6 +212,7 @@ async function openAddPlayer() {
 }
 
 async function loadTeams() {
+  if (!$('#commissionerTeamResults')) return;
   const [{ data: teams, error: teamError }, { data: castMembers, error: castError }, managerMap] = await Promise.all([
     db.from('fantasy_teams').select('*').order('manager_name'),
     db.from('cast_members').select('*').order('name'),
@@ -382,6 +387,7 @@ function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
 }
 
 async function loadStandings() {
+  if (!$('#standingsContent')) return;
   const [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').order('manager_name'),
     db.from('cast_members').select('*').order('name'),
@@ -669,7 +675,12 @@ async function loadScoreDesk() {
     db.from('dance_appearances').select('id,dance_id,cast_member_id').in('dance_id', danceIds),
   ]) : [{ data: [], error: null }, { data: [], error: null }];
   if (judgeError || appearanceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(judgeError?.message || appearanceError?.message)}</div>`;
-  const pairData = await getPairingData().catch(() => ({ players: [], partnerships: [] }));
+  const [pairData, roleResult, snapshotResult] = await Promise.all([
+    getPairingData().catch(() => ({ players: [], partnerships: [], weeks: [], teams: [] })),
+    db.from('roles').select('name,appearance_points'),
+    week.is_complete ? db.from('weekly_roster_snapshots').select('*').eq('week_id', week.id) : Promise.resolve({ data: [], error: null }),
+  ]);
+  const danceDetailContext = { roles: roleResult.data || [], snapshots: snapshotResult.data || [] };
   const judgeOrder = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
   const scoresForDance = (danceId) => judgeScores.filter((score) => score.dance_id === danceId).sort((a, b) => judgeOrder.indexOf(a.judge_name) - judgeOrder.indexOf(b.judge_name));
   const labelForDance = (dance, index) => {
@@ -686,16 +697,16 @@ async function loadScoreDesk() {
   const supportsCompletion = Object.prototype.hasOwnProperty.call(week, 'is_complete');
   if (supportsCompletion !== supportsDatabaseHardening) {
     supportsDatabaseHardening = supportsCompletion;
-    loadRules();
+    if (!isScoreDeskSurface) loadRules();
   }
   const airing = weekAiringLabel(week);
   const completionStatus = week.is_complete ? 'Week complete' : week.is_finale ? 'No elimination · ready to complete' : `${week.double_elimination ? 'Double elimination' : 'Standard elimination'} · elimination not set`;
   const weekStatus = [airing, completionStatus].filter(Boolean).join(' · ');
-  const editable = canEdit && !week.is_complete;
+  const editable = canManageShow && !week.is_complete;
   const weekEditing = editable && editingWeekId === week.id;
   if (!editable) editingWeekId = null;
   const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label>Air date <span class="optional">(optional)</span><input id="weekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label class="check-label"><input id="twoNightAiring" type="checkbox" ${week.second_air_date ? 'checked' : ''}> Two-night airing</label><label id="secondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="weekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label></div>`;
-  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canEdit ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
+  $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canManageShow ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
     ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
   $('#editWeek')?.addEventListener('click', () => { editingWeekId = week.id; loadScoreDesk(); });
@@ -713,23 +724,48 @@ async function loadScoreDesk() {
   });
   document.querySelectorAll('[data-dance-detail]').forEach((tile) => {
     const dance = dances.find((item) => item.id === tile.dataset.danceDetail);
-    const open = () => openDanceDetail(week, dance, dances.indexOf(dance), pairData, scoresForDance(dance.id), dancers(dance.id));
+    const open = () => openDanceDetail(week, dance, dances.indexOf(dance), pairData, scoresForDance(dance.id), dancers(dance.id), danceDetailContext);
     tile.addEventListener('click', open);
     tile.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
   });
 }
 
-function openDanceDetail(week, dance, index, pairData, scores, cast) {
+function openDanceDetail(week, dance, index, pairData, scores, cast, context = {}) {
   const title = dance.kind === 'competitive' ? (() => { const pairing = pairData.partnerships.find((item) => item.id === dance.partnership_id); const star = pairData.players.find((player) => player.id === pairing?.star_id); const pro = pairData.players.find((player) => player.id === pairing?.pro_id); return star && pro ? `${star.name} & ${pro.name}` : `Competitive Dance ${index + 1}`; })() : dance.name || `Week ${week.number} Dance ${index + 1}`;
   const pairing = pairData.partnerships.find((item) => item.id === dance.partnership_id);
   const star = pairData.players.find((player) => player.id === pairing?.star_id);
   const pro = pairData.players.find((player) => player.id === pairing?.pro_id);
   const roleAtWeek = (member) => roleForWeek(member, week, pairData.weeks || [week]);
-  openModal(`<div class="dance-detail-head"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${escapeHtml(title)}</h2>${dance.kind === 'competitive' ? `<p class="sub">${escapeHtml(dance.dance_type || 'Dance type not set')}${dance.song ? ` · ${escapeHtml(dance.song)}` : ''}</p>` : ''}</div>${dance.kind === 'competitive' ? `<section class="detail-section"><h3>Judges’ scores</h3><div class="detail-judges">${scores.map((score) => `<div><img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}"><span>${escapeHtml(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section><section class="detail-section"><h3>Competing couple</h3><div class="full-cast-list">${[star, pro].filter(Boolean).map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole({ ...member, role: roleAtWeek(member) }))}</span></div>`).join('')}</div></section>` : ''}<section class="detail-section"><h3>${dance.kind === 'competitive' ? 'Additional cast' : 'Cast'}</h3>${cast.length ? `<div class="full-cast-list">${cast.map((member) => `<div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole({ ...member, role: roleAtWeek(member) }))}</span></div>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>`);
+  const roleMap = new Map((context.roles || []).map((role) => [role.name, role]));
+  const snapshotMap = new Map((context.snapshots || []).map((snapshot) => [snapshot.cast_member_id, snapshot]));
+  const teamMap = new Map((pairData.teams || []).map((team) => [team.id, team]));
+  const scoreTotal = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
+  const contributions = new Map();
+  const addContribution = (member, points) => { if (member) contributions.set(member.id, (contributions.get(member.id) || 0) + points); };
+  if (dance.kind === 'competitive') { addContribution(star, scoreTotal); addContribution(pro, scoreTotal); }
+  cast.forEach((member) => addContribution(member, appearanceValue(member, roleMap, week, pairData.weeks || [week], snapshotMap.get(member.id))));
+  const allCast = [...new Map([star, pro, ...cast].filter(Boolean).map((member) => [member.id, member])).values()];
+  const detailRows = allCast.map((member) => {
+    const snapshot = snapshotMap.get(member.id);
+    const teamId = snapshot?.fantasy_team_id ?? member.fantasy_team_id;
+    const team = teamMap.get(teamId);
+    const teamName = snapshot?.team_name || team?.team_name || (snapshot?.manager_name ? `${snapshot.manager_name}'s Team` : team?.manager_name ? `${team.manager_name}'s Team` : 'Available cast');
+    const role = snapshot?.cast_role || roleAtWeek(member);
+    return { member, role, teamId, teamName, points: contributions.get(member.id) || 0 };
+  });
+  const teamTotals = new Map();
+  detailRows.forEach((row) => { if (row.teamId) teamTotals.set(row.teamName, (teamTotals.get(row.teamName) || 0) + row.points); });
+  const teamLeaders = [...teamTotals].sort((a, b) => b[1] - a[1]);
+  const topTeamScore = teamLeaders[0]?.[1] || 0;
+  const topTeams = topTeamScore > 0 ? teamLeaders.filter(([, points]) => points === topTeamScore).map(([name]) => name) : [];
+  const topCastScore = Math.max(0, ...detailRows.map((row) => row.points));
+  const topCast = detailRows.filter((row) => row.points === topCastScore && topCastScore > 0).map((row) => row.member.name);
+  const impact = detailRows.length ? `<section class="detail-section dance-fantasy-impact"><h3>Fantasy impact</h3><div class="dance-impact-summary"><article><span>Top team${topTeams.length === 1 ? '' : 's'}</span><strong>${escapeHtml(topTeams.join(' & ') || 'No points recorded')}</strong><small>${topTeamScore} point${topTeamScore === 1 ? '' : 's'} from this dance</small></article><article><span>Top cast</span><strong>${escapeHtml(topCast.join(' & ') || 'No points recorded')}</strong><small>${topCastScore} point${topCastScore === 1 ? '' : 's'} from this dance</small></article></div><div class="dance-impact-list">${detailRows.sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name)).map((row) => `<div><span><b>${escapeHtml(row.member.name)}</b><small>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${escapeHtml(row.teamName)}</small></span><strong>${row.points ? `+${row.points}` : '—'}</strong></div>`).join('')}</div></section>` : '';
+  openModal(`<div class="dance-detail-head"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${escapeHtml(title)}</h2>${dance.kind === 'competitive' ? `<p class="sub">${escapeHtml(dance.dance_type || 'Dance type not set')}${dance.song ? ` · ${escapeHtml(dance.song)}` : ''}</p>` : ''}</div>${dance.kind === 'competitive' ? `<section class="detail-section"><h3>Judges’ scores</h3><div class="detail-judges">${scores.map((score) => `<div><img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}"><span>${escapeHtml(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section>` : ''}<section class="detail-section"><h3>Full cast</h3>${detailRows.length ? `<div class="full-cast-list">${detailRows.map((row) => `<div><b>${escapeHtml(row.member.name)}</b><span>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${escapeHtml(row.teamName)}</span></div>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>${impact}`);
 }
 
 async function openWeekLedger(week) {
-  if (!canEdit) return alert('Commissioner access is required to open the Week Ledger.');
+  if (!canManageShow) return alert('Platform-owner access is required to open the Week Ledger.');
   const [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult] = await Promise.all([
     db.from('cast_members').select('*').order('name'),
     db.from('fantasy_teams').select('id,manager_name,team_name'),
@@ -777,22 +813,26 @@ async function openWeekLedger(week) {
     const memberAppearances = selectedMember ? appearancesResult.data.filter((appearance) => appearance.cast_member_id === selectedMember.id && weekDanceIds.has(appearance.dance_id)) : [];
     const usedDanceIds = new Set(memberAppearances.map((appearance) => appearance.dance_id));
     const availableDances = dancesResult.data.filter((dance) => !usedDanceIds.has(dance.id));
-    const competitiveBody = `<section class="ledger-dances"><h3>Competitive dances</h3>${competitiveDances.map((dance) => `<div><span>${escapeHtml(danceLabels.get(dance.id))}</span>${canEdit ? `<button class="secondary" data-ledger-dance="${dance.id}">Edit scores</button>` : ''}</div>`).join('') || '<p class="sub">No competitive dances recorded.</p>'}</section>`;
-    const performanceBody = `<section class="ledger-performance"><input id="ledgerCastSearch" placeholder="Search cast member" autocomplete="off"><div class="ledger-cast-list">${[...rows].sort((a, b) => a.member.name.localeCompare(b.member.name)).map((row) => `<button class="ledger-cast-choice ${row.member.id === selectedMemberId ? 'selected' : ''}" data-ledger-member="${row.member.id}" data-ledger-name="${escapeHtml(row.member.name.toLowerCase())}"><span>${escapeHtml(row.member.name)}</span><small>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'}</small></button>`).join('')}</div>${selectedMember ? `<section class="ledger-member-editor"><p class="eyebrow">Selected cast member</p><h3>${escapeHtml(selectedMember.name)}</h3><p class="ledger-member-summary">${memberAppearances.length} recorded appearance${memberAppearances.length === 1 ? '' : 's'} this week</p><div class="ledger-action-block"><label>Remove from dance<select id="ledgerRemoveDance"><option value="">Select recorded dance</option>${memberAppearances.map((appearance) => `<option value="${appearance.id}">${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</option>`).join('')}</select></label><button class="secondary" id="removeLedgerAppearance">Remove appearance</button></div><div class="ledger-action-block"><label>Add to existing dance<select id="ledgerAddDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addLedgerAppearance">Add appearance</button></div>${canEdit ? '<div class="ledger-new-performance"><span>Missing a performance?</span><button class="secondary" id="addLedgerPerformance">Create performance dance</button></div>' : ''}</section>` : '<p class="sub ledger-prompt">Select a cast member to edit their recorded dance appearances.</p>'}</section>`;
-    const weekDetails = `<section class="ledger-week-details"><div class="ledger-section-heading"><div><p class="eyebrow">Week details</p><h3>Show information</h3></div><button id="saveLedgerWeekDetails">Save details</button></div><div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="ledgerWeekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="ledgerWeekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label>Air date <span class="optional">(optional)</span><input id="ledgerWeekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label class="check-label"><input id="ledgerTwoNightAiring" type="checkbox" ${week.second_air_date ? 'checked' : ''}> Two-night airing</label><label id="ledgerSecondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="ledgerWeekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label><label class="check-label"><input id="ledgerGuestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="ledgerGuestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="ledgerGuestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="ledgerDoubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="ledgerNoElimination" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label></div><p class="ledger-details-note">Changing the elimination format must still match the elimination already recorded for this completed week.</p></section>`;
+    const competitiveBody = `<section class="ledger-dances"><h3>Competitive dances</h3>${competitiveDances.map((dance) => `<div><span>${escapeHtml(danceLabels.get(dance.id))}</span>${canManageShow ? `<button class="secondary" data-ledger-dance="${dance.id}">Edit scores</button>` : ''}</div>`).join('') || '<p class="sub">No competitive dances recorded.</p>'}</section>`;
+    const performanceBody = `<section class="ledger-performance"><input id="ledgerCastSearch" placeholder="Search cast member" autocomplete="off"><div class="ledger-cast-list">${[...rows].sort((a, b) => a.member.name.localeCompare(b.member.name)).map((row) => `<button class="ledger-cast-choice ${row.member.id === selectedMemberId ? 'selected' : ''}" data-ledger-member="${row.member.id}" data-ledger-name="${escapeHtml(row.member.name.toLowerCase())}"><span>${escapeHtml(row.member.name)}</span><small>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${row.appearanceCount} appearance${row.appearanceCount === 1 ? '' : 's'}</small></button>`).join('')}</div>${selectedMember ? `<section class="ledger-member-editor"><p class="eyebrow">Selected cast member</p><h3>${escapeHtml(selectedMember.name)}</h3><p class="ledger-member-summary">${memberAppearances.length} recorded appearance${memberAppearances.length === 1 ? '' : 's'} this week</p><div class="ledger-action-block"><label>Remove from dance<select id="ledgerRemoveDance"><option value="">Select recorded dance</option>${memberAppearances.map((appearance) => `<option value="${appearance.id}">${escapeHtml(danceLabels.get(appearance.dance_id) || 'Dance')}</option>`).join('')}</select></label><button class="secondary" id="removeLedgerAppearance">Remove appearance</button></div><div class="ledger-action-block"><label>Add to existing dance<select id="ledgerAddDance"><option value="">Select dance</option>${availableDances.map((dance) => `<option value="${dance.id}">${escapeHtml(danceLabels.get(dance.id) || 'Dance')}</option>`).join('')}</select></label><button id="addLedgerAppearance">Add appearance</button></div>${canManageShow ? '<div class="ledger-new-performance"><span>Missing a performance?</span><button class="secondary" id="addLedgerPerformance">Create performance dance</button></div>' : ''}</section>` : '<p class="sub ledger-prompt">Select a cast member to edit their recorded dance appearances.</p>'}</section>`;
+    const eliminationFormat = week.is_finale ? 'No elimination' : week.double_elimination ? 'Double elimination' : 'Standard elimination';
+    const weekDetails = `<section class="ledger-week-details"><div class="ledger-section-heading"><div><p class="eyebrow">Week details</p><h3>Show information</h3></div><button id="editLedgerWeekDetails" class="secondary">Edit details</button></div><div id="ledgerWeekSummary" class="ledger-detail-summary"><span><small>Title</small><b>${escapeHtml(week.title || 'No custom title')}</b></span><span><small>Theme</small><b>${escapeHtml(week.theme || 'No theme')}</b></span><span><small>Airing</small><b>${escapeHtml(weekAiringLabel(week, 'Date TBA'))}</b></span><span><small>Format</small><b>${escapeHtml(eliminationFormat)}</b></span><span><small>Guest judge</small><b>${escapeHtml(week.guest_judge_name || 'None')}</b></span></div><div id="ledgerWeekEditor" hidden><div class="ledger-field-group"><p class="eyebrow">Episode</p><div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="ledgerWeekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="ledgerWeekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label></div></div><div class="ledger-field-group"><p class="eyebrow">Schedule</p><div class="week-inline-fields"><label>Airing<select id="ledgerAiringFormat"><option value="one" ${week.second_air_date ? '' : 'selected'}>One night</option><option value="two" ${week.second_air_date ? 'selected' : ''}>Two nights</option></select></label><label>First night date <span class="optional">(optional)</span><input id="ledgerWeekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label id="ledgerSecondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="ledgerWeekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label></div></div><div class="ledger-field-group"><p class="eyebrow">Episode format</p><div class="week-inline-fields"><label>Elimination<select id="ledgerEliminationFormat"><option value="standard" ${!week.double_elimination && !week.is_finale ? 'selected' : ''}>Standard elimination</option><option value="double" ${week.double_elimination ? 'selected' : ''}>Double elimination</option><option value="none" ${week.is_finale ? 'selected' : ''}>No elimination</option></select></label><label class="check-label"><input id="ledgerGuestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="ledgerGuestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="ledgerGuestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label></div></div><p class="ledger-details-note">The elimination format must still match the result already recorded for this completed week.</p><div class="ledger-detail-actions"><button id="cancelLedgerWeekDetails" class="secondary">Cancel</button><button id="saveLedgerWeekDetails">Save details</button></div></div></section>`;
     $('#weekLedgerBody').innerHTML = `<div class="breakdown-head"><div><p class="eyebrow">Week ${week.number} ledger</p><h2>${escapeHtml(weekTitle(week))}</h2><p class="sub">Correct completed-week scoring and show details here. Role rates always come from the league-wide Rules tab.</p></div><div class="breakdown-total"><strong>${total}</strong><span>league points</span></div></div>${weekDetails}<div class="filter-tabs ledger-mode-tabs"><button class="${mode === 'competitive' ? 'selected' : ''}" data-ledger-mode="competitive">Competitive</button><button class="${mode === 'performance' ? 'selected' : ''}" data-ledger-mode="performance">Performance</button></div>${mode === 'competitive' ? competitiveBody : performanceBody}`;
-    $('#ledgerTwoNightAiring').addEventListener('change', (event) => { $('#ledgerSecondAirDateField').hidden = !event.target.checked; if (!event.target.checked) $('#ledgerWeekSecondAirDate').value = ''; });
+    $('#editLedgerWeekDetails').addEventListener('click', () => { $('#ledgerWeekSummary').hidden = true; $('#ledgerWeekEditor').hidden = false; $('#editLedgerWeekDetails').hidden = true; });
+    $('#cancelLedgerWeekDetails').addEventListener('click', draw);
+    $('#ledgerAiringFormat').addEventListener('change', (event) => { const twoNights = event.target.value === 'two'; $('#ledgerSecondAirDateField').hidden = !twoNights; if (!twoNights) $('#ledgerWeekSecondAirDate').value = ''; });
     $('#ledgerGuestJudgeEnabled').addEventListener('change', (event) => { $('#ledgerGuestJudgeField').hidden = !event.target.checked; if (!event.target.checked) $('#ledgerGuestJudgeName').value = ''; });
-    $('#ledgerNoElimination').addEventListener('change', (event) => { $('#ledgerDoubleElimination').disabled = event.target.checked; if (event.target.checked) $('#ledgerDoubleElimination').checked = false; });
     $('#saveLedgerWeekDetails').addEventListener('click', async () => {
       const theme = $('#ledgerWeekTheme').value.trim() || null;
       const title = $('#ledgerWeekTitle').value.trim() || null;
       const airDate = $('#ledgerWeekAirDate').value || null;
-      const secondAirDate = $('#ledgerTwoNightAiring').checked ? $('#ledgerWeekSecondAirDate').value || null : null;
+      const twoNights = $('#ledgerAiringFormat').value === 'two';
+      const secondAirDate = twoNights ? $('#ledgerWeekSecondAirDate').value || null : null;
       const guestJudge = $('#ledgerGuestJudgeEnabled').checked ? $('#ledgerGuestJudgeName').value.trim() || null : null;
-      const noElimination = $('#ledgerNoElimination').checked;
-      const doubleElimination = !noElimination && $('#ledgerDoubleElimination').checked;
-      if ($('#ledgerTwoNightAiring').checked && (!airDate || !secondAirDate)) return alert('Choose both airing dates for a two-night week.');
+      const selectedElimination = $('#ledgerEliminationFormat').value;
+      const noElimination = selectedElimination === 'none';
+      const doubleElimination = selectedElimination === 'double';
+      if (twoNights && (!airDate || !secondAirDate)) return alert('Choose both airing dates for a two-night week.');
       if (secondAirDate && secondAirDate < airDate) return alert('The second night cannot be before the first night.');
       if ($('#ledgerGuestJudgeEnabled').checked && !guestJudge) return alert('Enter the guest judge’s name.');
       if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guestJudge?.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
@@ -1007,6 +1047,7 @@ async function openEditDance(week, dance, index, scoresOnly = false) {
 }
 
 async function loadRules() {
+  if (!$('#roleRatesContent')) return;
   const { data: roleRows, error } = await db.from('roles').select('name,appearance_points');
   if (error) {
     $('#roleRatesContent').innerHTML = `<div class="card empty error">Couldn’t load role rates: ${escapeHtml(error.message)}</div>`;
@@ -1035,36 +1076,49 @@ function openRulesEditor(rates) {
   });
 }
 
-$('#rosterSearch').addEventListener('input', loadRoster);
-document.querySelectorAll('[data-roster-filter]').forEach((button) => button.addEventListener('click', () => {
-  rosterFilter = button.dataset.rosterFilter;
-  document.querySelectorAll('[data-roster-filter]').forEach((item) => item.classList.toggle('selected', item === button));
-  loadRoster();
-}));
-$('#newPlayer').addEventListener('click', openAddPlayer);
-$('#newTeam').addEventListener('click', openNewTeam);
-$('#newWeek').addEventListener('click', openNewWeek);
-$('#rulesButton').addEventListener('click', openRulesSummary);
-window.addEventListener('mirrorball-auth-change', async (event) => {
-  canEdit = event.detail.isCommissioner;
-  managerTeamId = event.detail.fantasyTeamId;
-  managerFirstName = event.detail.firstName || '';
-  managerLastName = event.detail.lastName || '';
-  managerTeamName = event.detail.teamName || '';
-  managerNavLabelMode = event.detail.teamNavLabelMode || 'default';
-  managerCustomNavLabel = event.detail.customTeamNavLabel || '';
-  if (managerTeamId) selectedPublicTeamId = managerTeamId;
-  $('#newPlayer').hidden = !canEdit;
-  $('#newTeam').hidden = !canEdit;
-  $('#newWeek').hidden = !canEdit;
+if (isScoreDeskSurface) {
+  $('#newWeek').addEventListener('click', openNewWeek);
+  window.addEventListener('mirrorball-auth-change', (event) => {
+    canManageShow = event.detail.isPlatformAdmin === true;
+    $('#newWeek').hidden = !canManageShow;
+    if (!canManageShow) {
+      $('#weekTabs').innerHTML = '';
+      $('#scoreDeskContent').innerHTML = '';
+      return;
+    }
+    loadScoreDesk();
+  });
+} else {
+  $('#rosterSearch').addEventListener('input', loadRoster);
+  document.querySelectorAll('[data-roster-filter]').forEach((button) => button.addEventListener('click', () => {
+    rosterFilter = button.dataset.rosterFilter;
+    document.querySelectorAll('[data-roster-filter]').forEach((item) => item.classList.toggle('selected', item === button));
+    loadRoster();
+  }));
+  $('#newPlayer').addEventListener('click', openAddPlayer);
+  $('#newTeam').addEventListener('click', openNewTeam);
+  $('#rulesButton').addEventListener('click', openRulesSummary);
+  window.addEventListener('mirrorball-auth-change', async (event) => {
+    canEdit = event.detail.isCommissioner;
+    canManageShow = false;
+    managerTeamId = event.detail.fantasyTeamId;
+    managerFirstName = event.detail.firstName || '';
+    managerLastName = event.detail.lastName || '';
+    managerTeamName = event.detail.teamName || '';
+    managerNavLabelMode = event.detail.teamNavLabelMode || 'default';
+    managerCustomNavLabel = event.detail.customTeamNavLabel || '';
+    if (managerTeamId) selectedPublicTeamId = managerTeamId;
+    $('#newPlayer').hidden = !canEdit;
+    $('#newTeam').hidden = !canEdit;
+    loadStandings();
+    loadRoster();
+    loadTeams();
+    loadScoreDesk();
+    loadRules();
+  });
   loadStandings();
   loadRoster();
   loadTeams();
   loadScoreDesk();
   loadRules();
-});
-loadStandings();
-loadRoster();
-loadTeams();
-loadScoreDesk();
-loadRules();
+}

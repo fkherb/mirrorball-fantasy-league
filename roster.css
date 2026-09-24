@@ -23,6 +23,8 @@
 .account-menu label { display: block; margin: 0 0 8px; }
 .account-menu input { margin-top: 4px; padding: 8px; }
 .account-menu button { width: 100%; margin-top: 6px; }
+.account-menu-link { display: block; margin: 0 0 9px; padding: 8px 9px; border-radius: 7px; background: #302638; color: #fff; font-size: 11px; font-weight: 800; text-align: center; text-decoration: none; }
+.account-menu-link[hidden] { display: none; }
 .account-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .account-menu [hidden] { display: none; }
 .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
@@ -307,6 +309,24 @@
 .dance-detail-head .sub { margin: 0; }
 .detail-section { margin-top: 20px; }
 .detail-section h3 { margin: 0 0 9px; font-size: 13px; }
+.dance-impact-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dance-impact-summary article { min-width: 0; padding: 11px; border-radius: 9px; background: #f6f0f4; }
+.dance-impact-summary span, .dance-impact-summary strong, .dance-impact-summary small { display: block; }
+.dance-impact-summary span { color: #8b7885; font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.dance-impact-summary strong { margin: 6px 0 3px; overflow-wrap: anywhere; font: 600 15px/1.2 Georgia, serif; }
+.dance-impact-summary small { color: #786e79; font-size: 10px; }
+.dance-impact-list { margin-top: 9px; border: 1px solid #e8e0e7; border-radius: 9px; overflow: hidden; }
+.dance-impact-list > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-top: 1px solid #eee7ec; }
+.dance-impact-list > div:first-child { border-top: 0; }
+.dance-impact-list span, .dance-impact-list b, .dance-impact-list small { display: block; }
+.dance-impact-list small { margin-top: 2px; color: #786e79; font-size: 10px; }
+.dance-impact-list > div > strong { flex: 0 0 auto; color: #745b29; font: 700 17px Georgia, serif; }
+.header-back-link { padding: 7px 9px; border: 1px solid #ffffff38; border-radius: 7px; color: #fff; font-size: 12px; font-weight: 800; text-decoration: none; }
+.score-desk-main { max-width: 1180px; margin: 0 auto; }
+.admin-gate { max-width: 480px; margin: 40px auto; padding: 24px; }
+.admin-gate h1 { margin-bottom: 7px; }
+.admin-gate label { display: block; margin-top: 10px; }
+.admin-gate button { margin-top: 12px; }
 .detail-judges { display: flex; flex-wrap: wrap; gap: 10px; }
 .detail-judges > div { display: grid; justify-items: center; gap: 3px; min-width: 58px; padding: 7px; border: 1px solid #ece5eb; border-radius: 9px; background: #fcfafb; }
 .detail-judges img { width: 36px; height: 48px; object-fit: contain; }
@@ -403,6 +423,16 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .ledger-section-heading button { margin: 0; }
 .ledger-week-details .week-inline-fields { max-width: none; }
 .ledger-details-note { margin: 9px 0 0; color: #786e79; font-size: 10px; line-height: 1.4; }
+.ledger-detail-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
+.ledger-detail-summary > span { min-width: 0; padding: 9px 10px; border-radius: 8px; background: #fff; border: 1px solid #ebe3e9; }
+.ledger-detail-summary small, .ledger-detail-summary b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-detail-summary small { color: #8b7d88; font-size: 8px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.ledger-detail-summary b { margin-top: 4px; font-size: 11px; }
+.ledger-field-group { margin-top: 14px; padding-top: 13px; border-top: 1px solid #e8e0e7; }
+.ledger-field-group:first-child { margin-top: 12px; }
+.ledger-field-group .week-inline-fields { margin-top: 7px; }
+.ledger-detail-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 13px; }
+.ledger-detail-actions button { margin: 0; }
 .ledger-performance { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(0, 1.2fr); gap: 14px; }
 .ledger-performance > input { grid-column: 1; margin: 0; }
 .ledger-cast-list { grid-column: 1; max-height: 420px; overflow-y: auto; border: 1px solid #e8e0e7; border-radius: 10px; background: #fcfafb; }
@@ -426,6 +456,7 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 @media (max-width: 700px) { main { padding: 24px 15px; } header { height: 62px; padding: 0 15px; } .brand img { width: auto; height: 36px; max-width: min(210px, 54vw); } .breakdown-item { grid-template-columns: minmax(100px, 1fr) minmax(126px, .9fr) 44px; gap: 7px; padding: 9px; } }
 @media (max-width: 520px) { .full-cast-list, .team-detail-grid { grid-template-columns: 1fr; } .breakdown-item { grid-template-columns: minmax(96px, 1fr) minmax(118px, .9fr) 40px; gap: 6px; padding: 8px; } .breakdown-points > div { padding: 4px 5px; } .breakdown-points span { font-size: 10px; } .breakdown-points b { font-size: 11px; } .breakdown-item-total { padding-left: 6px; } }
 @media (max-width: 700px) { .score-week-head { align-items: flex-start; flex-wrap: wrap; } .week-summary { margin-left: 0; } .score-week-actions { margin-left: auto; } .dance-list { grid-template-columns: 1fr; } .week-inline-fields { grid-template-columns: 1fr; } .week-edit-actions { width: 100%; justify-content: flex-end; } }
+@media (max-width: 700px) { .ledger-detail-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ledger-section-heading { align-items: flex-start; } }
 @media (max-width: 520px) { .team-grid { grid-template-columns: 1fr; } .team-roster { grid-template-columns: 1fr; } .team-edit-fields { grid-template-columns: 1fr; } .score-week-actions { width: 100%; margin-left: 0; } .standing-card { grid-template-columns: 38px minmax(0, 1fr); gap: 10px; } .standing-total { grid-column: 2; text-align: left; } }
 
 /* Phone polish: preserve the ballroom feel while reducing scrolling and cramped controls. */
@@ -515,6 +546,7 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .league-score-total { grid-column: 2; grid-row: 1 / span 2; align-self: stretch; display: grid; align-items: center; }
   .league-score-row.with-photo .league-score-total { grid-column: 3; }
   .league-cast-grid, .available-grid { grid-template-columns: 1fr; }
+  .dance-impact-summary { grid-template-columns: 1fr; }
   .public-section-head { align-items: flex-start; }
   .public-section-head label { min-width: 125px; }
   .league-at-a-glance { padding: 14px 6px; }
