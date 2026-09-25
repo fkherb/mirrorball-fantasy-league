@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const nameEditor = document.querySelector('#accountNameEditor');
   const myTeamNav = document.querySelector('#myTeamNav');
   const scoreDeskLink = document.querySelector('#scoreDeskLink');
+  const castRosterLink = document.querySelector('#castRosterLink');
   let currentSession = null;
   let currentMember = null;
   let membershipReady = false;
@@ -63,6 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       : labelMode === 'team' && teamName ? teamName : 'My Team';
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
     scoreDeskLink.hidden = !isPlatformAdmin;
+    castRosterLink.hidden = !isPlatformAdmin;
     if (myTeamNav.hidden && document.querySelector('#teams').classList.contains('active')) openView('standings');
     menu.hidden = true;
     window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, firstName, lastName, displayName, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));

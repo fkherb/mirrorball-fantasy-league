@@ -30,9 +30,12 @@ commissioner controls, and platform-owner show administration.
 - **Score Desk** lives at `/score-desk/` as a separate platform-owner workspace.
   It is the only interface that creates or changes canonical weeks, dances,
   judges' scores, cast appearances, and completed-week corrections.
+- **Cast Roster Admin** lives at `/cast-roster/` and is likewise restricted to
+  the platform owner. It owns canonical cast roles, partnerships, portraits,
+  biographies, career highlights, and past-win information.
 - **League** is the public league directory: every fantasy team, the searchable
-  full cast roster, and role rates. Team, roster, and role-rate editing controls
-  appear there only for the signed-in commissioner.
+  cast roster, and role rates. Commissioners manage league names, fantasy
+  teams, assignments, and role rates without changing canonical cast facts.
 - **Rules** is a compact header popup rather than a full navigation page.
 - Signed-in users have first and last names. The header uses only their first
   name instead of exposing the account email; their full name remains the
@@ -108,6 +111,13 @@ write access for canonical show facts away from the league-commissioner role.
 The migration seeds the current owner account from its existing Supabase Auth
 email; future commissioners cannot grant themselves this permission.
 
+Then run `supabase/separate-cast-source-and-league-settings.sql`. It moves
+canonical cast editing behind the platform-owner account, gives commissioners
+narrow team-assignment functions, adds public cast-profile fields and a
+commissioner-editable league name, and adds a distinct season-finale marker.
+The existing `is_finale` field continues to mean “no elimination”; the new
+marker hides Add Week only when the last scheduled week is the season finale.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast
@@ -121,10 +131,10 @@ email; future commissioners cannot grant themselves this permission.
   chosen. Elimination appearance rates take effect in the following week.
 - Completion snapshots every cast member’s fantasy-team assignment and role
   before applying the role changes.
-- Completion is a historical checkpoint, not an edit lock. Commissioners can
-  correct completed-week dances, scores, and appearances in its Week Ledger.
-- The Week Ledger is a commissioner-only correction surface and is hidden from
-  public and manager views.
+- Completion is a historical checkpoint, not an edit lock. The platform owner
+  can correct completed-week dances, scores, and appearances in its Week Ledger.
+- The Week Ledger is a platform-owner correction surface and is hidden from
+  public, manager, and commissioner views.
 - Appearance rates in Rules are league-wide: changing one recalculates every
   week. Surprise rates remain specific to each cast member in Cast Roster.
 - Export or back up the Supabase data before making large commissioner edits.
