@@ -303,10 +303,10 @@ async function loadTeams() {
     const roster = castMembers.filter((member) => member.fantasy_team_id === team.id);
     const managerName = managerNameFor(team, managerMap);
     const displayName = team.team_name || defaultTeamName(managerName);
-    const rosterPreview = roster.slice(0, 6);
+    const rosterPreview = roster;
     return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>
       <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p><p class="team-mobile-hint">Tap to view lineup</p>
-      ${roster.length ? `<ul class="team-roster">${rosterPreview.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}${roster.length > rosterPreview.length ? `<li class="team-roster-more"><span>+${roster.length - rosterPreview.length} more</span><small>Open team</small></li>` : ''}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
+      ${roster.length ? `<ul class="team-roster">${rosterPreview.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
       ${canEdit && availableCount ? `<div class="team-actions"><button data-team-id="${team.id}">Add Cast Members</button></div>` : ''}
     </article>`;
   }).join('');
@@ -692,7 +692,7 @@ function renderPublicTeams() {
   const canEditThisTeam = Boolean(managerTeamId && selected.team.id === managerTeamId);
   $('#editMyTeam').hidden = !canEditThisTeam;
   $('#editMyTeam').onclick = canEditThisTeam ? () => openMyTeamEditor(selected.team) : null;
-  $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="team-summary-strip"><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>${selectedPublicWeekId === 'all' ? 'season' : 'week'} points</span></div></div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Team Roster</h3></div></div>${scoreBreakdownMarkup(breakdown.rows, null, true, selectedPublicWeekId === 'all')}</section><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">Cast members not currently assigned to a fantasy team.</p><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="empty compact-empty">Every cast member is currently assigned.</div>'}</div></section></div></section>`;
+  $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="team-summary-strip"><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>${selectedPublicWeekId === 'all' ? 'season' : 'week'} points</span></div></div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Team Roster</h3></div></div>${scoreBreakdownMarkup(breakdown.rows, null, true, selectedPublicWeekId === 'all')}</section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">Cast members not currently assigned to a fantasy team.</p><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="empty compact-empty">Every cast member is currently assigned.</div>'}</div></section><section id="tradeCenter" class="trade-center card"><div class="trade-center-loading">Loading trades…</div></section></div></div></section>`;
   document.querySelectorAll('[data-public-team]').forEach((button) => button.addEventListener('click', () => { selectedPublicTeamId = button.dataset.publicTeam; selectedPublicWeekId = 'all'; renderPublicTeams(); }));
   document.querySelectorAll('[data-public-week]').forEach((button) => button.addEventListener('click', () => { selectedPublicWeekId = selectedPublicWeekId === button.dataset.publicWeek ? 'all' : button.dataset.publicWeek; renderPublicTeams(); }));
   bindScoreCastDetails($('#publicTeamResults'));
@@ -700,6 +700,109 @@ function renderPublicTeams() {
     const open = () => openCastDetail(tile.dataset.availableCastDetail);
     tile.addEventListener('click', open);
     tile.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
+  loadTrades();
+}
+
+function tradeContext(trade) {
+  const { members, teamRows } = standingsSnapshot;
+  const teamById = new Map(teamRows.map((row) => [row.team.id, row.team]));
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const initiatorTeam = teamById.get(trade.initiator_team_id);
+  const counterpartyTeam = teamById.get(trade.counterparty_team_id);
+  return {
+    initiatorTeam,
+    counterpartyTeam,
+    initiatorMember: memberById.get(trade.initiator_cast_member_id),
+    counterpartyMember: memberById.get(trade.counterparty_cast_member_id),
+    initiatorTeamName: initiatorTeam?.team_name || defaultTeamName(initiatorTeam?.manager_name),
+    counterpartyTeamName: counterpartyTeam?.team_name || defaultTeamName(counterpartyTeam?.manager_name),
+  };
+}
+
+async function loadTrades() {
+  const container = $('#tradeCenter');
+  if (!container) return;
+  if (!managerTeamId) {
+    container.innerHTML = '<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub">Connect a manager account to a fantasy team to trade.</p>';
+    return;
+  }
+  const { data: trades, error } = await db.from('trade_offers').select('*').order('updated_at', { ascending: false });
+  if (error) {
+    const setupMissing = error.code === '42P01' || /trade_offers/i.test(error.message || '');
+    container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub ${setupMissing ? '' : 'error'}">${setupMissing ? 'Trading will appear after its database setup is installed.' : `Couldn’t load trades: ${escapeHtml(error.message)}`}</p>`;
+    return;
+  }
+  const tradeCards = (trades || []).map((trade) => {
+    const context = tradeContext(trade);
+    const isInitiator = trade.initiator_team_id === managerTeamId;
+    const mine = isInitiator ? context.initiatorMember : context.counterpartyMember;
+    const theirs = isInitiator ? context.counterpartyMember : context.initiatorMember;
+    const otherTeamName = isInitiator ? context.counterpartyTeamName : context.initiatorTeamName;
+    const awaitingMe = trade.awaiting_team_id === managerTeamId;
+    const mayCounter = awaitingMe && trade.status === 'pending' && trade.counterparty_team_id === managerTeamId;
+    return `<article class="trade-offer ${awaitingMe ? 'needs-action' : ''}"><div class="trade-offer-top"><span>${trade.status === 'countered' ? 'Counter offer' : 'Trade offer'}</span><small>${awaitingMe ? 'Your response' : `Waiting for ${escapeHtml(otherTeamName)}`}</small></div><div class="trade-swap"><div><img src="${escapeHtml(displayImagePath(mine))}" style="object-position:${mine?.image_position ?? 50}% center" alt=""><span><small>You send</small><b>${escapeHtml(mine?.name || 'Unavailable')}</b></span></div><i aria-hidden="true">⇄</i><div><img src="${escapeHtml(displayImagePath(theirs))}" style="object-position:${theirs?.image_position ?? 50}% center" alt=""><span><small>You receive</small><b>${escapeHtml(theirs?.name || 'Unavailable')}</b></span></div></div>${awaitingMe ? `<div class="trade-actions"><button data-accept-trade="${trade.id}">Accept</button>${mayCounter ? `<button class="secondary" data-counter-trade="${trade.id}">Counter</button>` : ''}<button class="secondary trade-deny" data-deny-trade="${trade.id}">Deny</button></div>` : ''}</article>`;
+  }).join('');
+  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary">Propose trade</button></div><p class="sub">Swap one cast member with another manager.</p><div class="trade-list">${tradeCards || '<div class="trade-empty">No active trade offers.</div>'}</div>`;
+  $('#newTrade')?.addEventListener('click', openNewTrade);
+  document.querySelectorAll('[data-accept-trade]').forEach((button) => button.addEventListener('click', async () => {
+    if (!confirm('Accept this trade and swap the two cast members now?')) return;
+    button.disabled = true;
+    const { error: acceptError } = await db.rpc('accept_trade', { p_trade_id: button.dataset.acceptTrade });
+    if (acceptError) { button.disabled = false; return alert(`Couldn’t accept this trade: ${acceptError.message}`); }
+    loadStandings();
+  }));
+  document.querySelectorAll('[data-counter-trade]').forEach((button) => button.addEventListener('click', () => openCounterTrade(trades.find((trade) => trade.id === button.dataset.counterTrade))));
+  document.querySelectorAll('[data-deny-trade]').forEach((button) => button.addEventListener('click', async () => {
+    if (!confirm('Deny and delete this trade offer?')) return;
+    button.disabled = true;
+    const { error: denyError } = await db.rpc('deny_trade', { p_trade_id: button.dataset.denyTrade });
+    if (denyError) { button.disabled = false; return alert(`Couldn’t deny this trade: ${denyError.message}`); }
+    loadTrades();
+  }));
+}
+
+function openNewTrade() {
+  const { members, teamRows } = standingsSnapshot;
+  const teamById = new Map(teamRows.map((row) => [row.team.id, row.team]));
+  const myRoster = members.filter((member) => member.fantasy_team_id === managerTeamId).sort((a, b) => a.name.localeCompare(b.name));
+  const otherRoster = members.filter((member) => member.fantasy_team_id && member.fantasy_team_id !== managerTeamId).sort((a, b) => {
+    const aTeam = teamById.get(a.fantasy_team_id); const bTeam = teamById.get(b.fantasy_team_id);
+    return (aTeam?.manager_name || '').localeCompare(bTeam?.manager_name || '') || a.name.localeCompare(b.name);
+  });
+  if (!myRoster.length || !otherRoster.length) return alert('Both teams need an assigned cast member before proposing a trade.');
+  const mineOptions = myRoster.map((member) => `<option value="${member.id}">${escapeHtml(member.name)} · ${escapeHtml(displayRole(member))}</option>`).join('');
+  const theirOptions = otherRoster.map((member) => { const team = teamById.get(member.fantasy_team_id); return `<option value="${member.id}">${escapeHtml(team?.team_name || defaultTeamName(team?.manager_name))} — ${escapeHtml(member.name)}</option>`; }).join('');
+  openModal(`<p class="eyebrow">New trade</p><h2>Propose a Trade</h2><p class="sub">Choose one cast member to send and the specific cast member you want back.</p><div class="trade-form"><label>You send<select id="tradeMine">${mineOptions}</select></label><div class="trade-form-arrow" aria-hidden="true">⇄</div><label>You request<select id="tradeTheirs">${theirOptions}</select></label></div><div class="modal-actions"><button id="sendTrade">Send offer</button></div>`);
+  $('#sendTrade').addEventListener('click', async () => {
+    const button = $('#sendTrade'); button.disabled = true;
+    const { error } = await db.rpc('request_trade', { p_my_cast_member_id: $('#tradeMine').value, p_requested_cast_member_id: $('#tradeTheirs').value });
+    if (error) { button.disabled = false; return alert(`Couldn’t send this trade: ${error.message}`); }
+    $('#modal').close(); loadTrades();
+  });
+}
+
+function openCounterTrade(trade) {
+  if (!trade || !standingsSnapshot) return;
+  const { members } = standingsSnapshot;
+  const context = tradeContext(trade);
+  const initiatorAlternatives = members.filter((member) => member.fantasy_team_id === trade.initiator_team_id && member.id !== trade.initiator_cast_member_id).sort((a, b) => a.name.localeCompare(b.name));
+  const counterpartyAlternatives = members.filter((member) => member.fantasy_team_id === trade.counterparty_team_id && member.id !== trade.counterparty_cast_member_id).sort((a, b) => a.name.localeCompare(b.name));
+  if (!initiatorAlternatives.length && !counterpartyAlternatives.length) return alert('There are no other cast members available for a counter offer.');
+  const requestOptions = initiatorAlternatives.map((member) => `<option value="${member.id}">${escapeHtml(member.name)}</option>`).join('');
+  const offerOptions = counterpartyAlternatives.map((member) => `<option value="${member.id}">${escapeHtml(member.name)}</option>`).join('');
+  const startingMode = initiatorAlternatives.length ? 'request' : 'offer';
+  openModal(`<p class="eyebrow">Trade response</p><h2>Counter Offer</h2><p class="sub">Change one side of the trade. You can request someone different or offer someone different, but not both.</p><div class="counter-current"><span>Current offer</span><b>${escapeHtml(context.counterpartyMember?.name)} for ${escapeHtml(context.initiatorMember?.name)}</b></div><div class="counter-options"><label class="counter-choice ${initiatorAlternatives.length ? '' : 'disabled'}"><input type="radio" name="counterMode" value="request" ${startingMode === 'request' ? 'checked' : ''} ${initiatorAlternatives.length ? '' : 'disabled'}><span><b>Request someone different</b><small>Keep your offer and ask for another member of ${escapeHtml(context.initiatorTeamName)}.</small></span></label><label id="counterRequestField" ${startingMode === 'request' ? '' : 'hidden'}>New requested cast member<select id="counterRequest">${requestOptions}</select></label><label class="counter-choice ${counterpartyAlternatives.length ? '' : 'disabled'}"><input type="radio" name="counterMode" value="offer" ${startingMode === 'offer' ? 'checked' : ''} ${counterpartyAlternatives.length ? '' : 'disabled'}><span><b>Offer someone different</b><small>Keep the original request and change who you send.</small></span></label><label id="counterOfferField" ${startingMode === 'offer' ? '' : 'hidden'}>New offered cast member<select id="counterOffer">${offerOptions}</select></label></div><div class="modal-actions"><button id="sendCounterTrade">Send counter</button></div>`);
+  const syncCounterMode = () => { const mode = document.querySelector('input[name="counterMode"]:checked')?.value; $('#counterRequestField').hidden = mode !== 'request'; $('#counterOfferField').hidden = mode !== 'offer'; };
+  document.querySelectorAll('input[name="counterMode"]').forEach((input) => input.addEventListener('change', syncCounterMode));
+  $('#sendCounterTrade').addEventListener('click', async () => {
+    const mode = document.querySelector('input[name="counterMode"]:checked')?.value;
+    const initiatorId = mode === 'request' ? $('#counterRequest').value : trade.initiator_cast_member_id;
+    const counterpartyId = mode === 'offer' ? $('#counterOffer').value : trade.counterparty_cast_member_id;
+    const button = $('#sendCounterTrade'); button.disabled = true;
+    const { error } = await db.rpc('counter_trade', { p_trade_id: trade.id, p_initiator_cast_member_id: initiatorId, p_counterparty_cast_member_id: counterpartyId });
+    if (error) { button.disabled = false; return alert(`Couldn’t send this counter offer: ${error.message}`); }
+    $('#modal').close(); loadTrades();
   });
 }
 

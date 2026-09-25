@@ -127,6 +127,12 @@ Run `supabase/fix-league-name-permissions.sql` on installations that already
 applied the league-settings migration. It fixes the commissioner league-name
 save path while keeping direct writes to `league_settings` blocked.
 
+Run `supabase/add-manager-trading.sql` to enable private one-for-one trade
+offers between linked manager accounts. Managers can accept, deny, or make one
+counter that changes exactly one side of the offer. Accepting a trade swaps
+both current team assignments atomically; completed-week snapshots remain
+unchanged, and the new assignments are captured when the next week completes.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast
@@ -144,6 +150,9 @@ save path while keeping direct writes to `league_settings` blocked.
   can correct completed-week dances, scores, and appearances in its Week Ledger.
 - The Week Ledger is a platform-owner correction surface and is hidden from
   public, manager, and commissioner views.
+- Trades are available only to signed-in accounts linked to fantasy teams.
+  Open offers are private to the two involved managers, and accepting an offer
+  invalidates any other pending offer involving either traded cast member.
 - Appearance rates in Rules are league-wide: changing one recalculates every
   week. Surprise rates remain specific to each cast member in Cast Roster.
 - Export or back up the Supabase data before making large commissioner edits.
