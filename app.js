@@ -9,12 +9,19 @@ const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DW
 const assignableRoles = roles.filter((role) => !role.startsWith('Eliminated'));
 const storedImagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
 const imagePathFor = (name) => `${assetRoot}${storedImagePathFor(name)}`;
+const imageFallback = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" rx="12" fill="#eee8ed"/><circle cx="40" cy="29" r="14" fill="#c9bdc6"/><path d="M15 76c2-18 12-28 25-28s23 10 25 28" fill="#c9bdc6"/></svg>')}`;
 const displayImagePath = (member) => {
   const storedPath = member?.image_path;
   if (!storedPath) return imagePathFor(member?.name || '');
   if (/^(?:https?:|data:|\/|\.\.\/)/i.test(storedPath)) return storedPath;
   return `${assetRoot}${storedPath.replace(/^\.\//, '')}`;
 };
+document.addEventListener('error', (event) => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || image.dataset.fallbackApplied) return;
+  image.dataset.fallbackApplied = 'true';
+  image.src = imageFallback;
+}, true);
 const isPairRole = (role) => role === 'Star' || role === 'Pro';
 const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(role);
 const canHaveMirrorballWins = (role, isHough = false) => ['Pro', 'Eliminated Pro'].includes(role) || (role === 'Judges + Hosts' && isHough);
@@ -665,6 +672,7 @@ function renderPublicTeams() {
   $('#myTeamEyebrow').textContent = `${managerFirstName || selected.team.manager_name.split(' ')[0]}'s Manager View`;
   const roster = members.filter((member) => member.fantasy_team_id === selected.team.id).sort((a, b) => a.name.localeCompare(b.name));
   const available = members.filter((member) => !member.fantasy_team_id).sort((a, b) => a.name.localeCompare(b.name));
+  const canEditThisTeam = Boolean(managerTeamId && selected.team.id === managerTeamId);
   const breakdown = teamScoreBreakdown(selected.team.id, selectedPublicWeekId);
   const weekHistory = visibleWeeks.map((week) => {
     const total = [...(weekMemberPoints.get(week.id) || new Map())].reduce((sum, [memberId, entry]) => {
@@ -674,21 +682,51 @@ function renderPublicTeams() {
     const summary = week.is_complete ? total : weekAiringLabel(week, 'TBA');
     return `<button class="${selectedPublicWeekId === week.id ? 'selected' : ''}" data-public-week="${week.id}" aria-pressed="${selectedPublicWeekId === week.id}"><span>Week ${week.number}</span><strong class="${week.is_complete ? '' : 'air-date'}">${escapeHtml(summary)}</strong></button>`;
   }).join('');
-  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person" data-available-cast-detail="${member.id}" tabindex="0" role="button"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></div></article>`).join('');
+  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person available-cast-person"><button type="button" class="available-profile-button" data-available-cast-detail="${member.id}" aria-label="View ${escapeHtml(member.name)} profile"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><span><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></span></button>${canEditThisTeam ? `<button type="button" class="claim-cast-button" data-claim-cast="${member.id}">Claim this cast member</button>` : ''}</article>`).join('');
   const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || defaultTeamName(row.team.manager_name))}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
-  const canEditThisTeam = Boolean(managerTeamId && selected.team.id === managerTeamId);
   $('#editMyTeam').hidden = !canEditThisTeam;
   $('#editMyTeam').onclick = canEditThisTeam ? () => openMyTeamEditor(selected.team) : null;
   $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="team-summary-strip"><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>${selectedPublicWeekId === 'all' ? 'season' : 'week'} points</span></div></div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Team Roster</h3></div></div>${scoreBreakdownMarkup(breakdown.rows, null, true, selectedPublicWeekId === 'all')}</section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">Cast members not currently assigned to a fantasy team.</p><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="empty compact-empty">Every cast member is currently assigned.</div>'}</div></section><section id="tradeCenter" class="trade-center card"><div class="trade-center-loading">Loading trades…</div></section></div></div></section>`;
   document.querySelectorAll('[data-public-team]').forEach((button) => button.addEventListener('click', () => { selectedPublicTeamId = button.dataset.publicTeam; selectedPublicWeekId = 'all'; renderPublicTeams(); }));
   document.querySelectorAll('[data-public-week]').forEach((button) => button.addEventListener('click', () => { selectedPublicWeekId = selectedPublicWeekId === button.dataset.publicWeek ? 'all' : button.dataset.publicWeek; renderPublicTeams(); }));
   bindScoreCastDetails($('#publicTeamResults'));
+  document.querySelectorAll('[data-claim-cast]').forEach((button) => button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openClaimCastMember(button.dataset.claimCast);
+  }));
   document.querySelectorAll('[data-available-cast-detail]').forEach((tile) => {
-    const open = () => openCastDetail(tile.dataset.availableCastDetail);
-    tile.addEventListener('click', open);
-    tile.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+    tile.addEventListener('click', () => openCastDetail(tile.dataset.availableCastDetail));
   });
   loadTrades();
+}
+
+function openClaimCastMember(incomingId) {
+  const incoming = standingsSnapshot?.members.find((member) => member.id === incomingId && !member.fantasy_team_id);
+  const team = standingsSnapshot?.teamRows.find((row) => row.team.id === managerTeamId)?.team;
+  const roster = standingsSnapshot?.members.filter((member) => member.fantasy_team_id === managerTeamId).sort((a, b) => a.name.localeCompare(b.name)) || [];
+  if (!incoming || !team || !roster.length) return alert('This cast member is no longer available for a roster swap.');
+  const teamName = team.team_name || defaultTeamName(team.manager_name);
+  openModal(`<p class="eyebrow">Free-agent claim</p><h2>Claim ${escapeHtml(incoming.name)}</h2><p class="sub">Choose one member of ${escapeHtml(teamName)} to release. The swap happens immediately and keeps every roster the same size.</p><div class="claim-cast-hero"><img src="${escapeHtml(displayImagePath(incoming))}" style="object-position:${incoming.image_position ?? 50}% center" alt=""><div><small>You receive</small><strong>${escapeHtml(incoming.name)}</strong><span>${escapeHtml(displayRole(incoming))}</span></div></div><p class="eyebrow claim-release-heading">Choose who to release</p><div class="trade-picker-grid claim-release-grid">${roster.map((member) => tradeMemberChoice(member, false, `data-claim-release="${member.id}"`)).join('')}</div><button id="confirmCastClaim" disabled>Claim this cast member</button>`);
+  let outgoingId = null;
+  document.querySelectorAll('[data-claim-release]').forEach((button) => button.addEventListener('click', () => {
+    outgoingId = button.dataset.claimRelease;
+    document.querySelectorAll('[data-claim-release]').forEach((choice) => choice.classList.toggle('selected', choice === button));
+    $('#confirmCastClaim').disabled = false;
+  }));
+  $('#confirmCastClaim').addEventListener('click', async () => {
+    if (!outgoingId) return;
+    const claimButton = $('#confirmCastClaim');
+    claimButton.disabled = true;
+    claimButton.textContent = 'Claiming…';
+    const { error } = await db.rpc('swap_available_cast_member_into_team', { p_team_id: managerTeamId, p_incoming_cast_member_id: incoming.id, p_outgoing_cast_member_id: outgoingId });
+    if (error) {
+      claimButton.disabled = false;
+      claimButton.textContent = 'Claim this cast member';
+      return alert(`Couldn’t claim ${incoming.name}: ${error.message}`);
+    }
+    $('#modal').close();
+    loadStandings();
+  });
 }
 
 function tradeContext(trade) {
@@ -922,7 +960,9 @@ function openMyTeamEditor(team) {
     if (authError) return alert(`The league profile saved, but your sign-in profile could not be updated: ${authError.message}`);
     managerFirstName = firstName; managerLastName = lastName; managerTeamName = teamName; managerNavLabelMode = navMode; managerCustomNavLabel = customLabel || '';
     $('#auth').textContent = firstName;
-    $('#myTeamNav').textContent = navMode === 'custom' ? customLabel : navMode === 'team' ? teamName : 'My Team';
+    const teamNavLabel = navMode === 'custom' ? customLabel : navMode === 'team' ? teamName : 'My Team';
+    $('#myTeamNav .nav-label').textContent = teamNavLabel;
+    $('#myTeamNav').setAttribute('aria-label', teamNavLabel);
     $('#modal').close(); loadTeams(); loadStandings();
   });
 }

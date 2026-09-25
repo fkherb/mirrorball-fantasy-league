@@ -4,21 +4,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
   const views = [...document.querySelectorAll('.view')];
   const navToggle = document.querySelector('#navToggle');
-  const storedNavState = localStorage.getItem('mirrorball-nav-state');
-  const defaultNavCollapsed = window.matchMedia('(min-width: 751px) and (max-width: 1100px)').matches;
+  const navStateKey = 'mirrorball-nav-state-v2';
+  const storedNavState = localStorage.getItem(navStateKey);
+  const defaultNavCollapsed = window.matchMedia('(max-width: 1100px)').matches;
   const setNavCollapsed = (collapsed) => {
     document.body.classList.toggle('nav-collapsed', collapsed);
     if (!navToggle) return;
+    const mobile = window.matchMedia('(max-width: 750px)').matches;
     navToggle.setAttribute('aria-expanded', String(!collapsed));
     navToggle.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
-    navToggle.querySelector('span').textContent = collapsed ? '›' : '‹';
-    navToggle.querySelector('b').textContent = collapsed ? 'Expand' : 'Collapse';
+    navToggle.querySelector('.nav-toggle-icon').textContent = mobile ? (collapsed ? '☰' : '×') : (collapsed ? '›' : '‹');
+    navToggle.querySelector('.nav-toggle-label').textContent = mobile ? (collapsed ? 'Menu' : 'Close') : (collapsed ? 'Expand' : 'Collapse');
   };
   setNavCollapsed(storedNavState ? storedNavState === 'collapsed' : defaultNavCollapsed);
   navToggle?.addEventListener('click', () => {
     const collapsed = !document.body.classList.contains('nav-collapsed');
     setNavCollapsed(collapsed);
-    localStorage.setItem('mirrorball-nav-state', collapsed ? 'collapsed' : 'expanded');
+    localStorage.setItem(navStateKey, collapsed ? 'collapsed' : 'expanded');
   });
   const rememberedViews = new Set(['standings', 'teams', 'score', 'league']);
   const storedView = localStorage.getItem('mirrorball-active-view');
@@ -87,9 +89,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     lastNameInput.value = lastName;
     nameEditor.hidden = Boolean(firstName && lastName);
     const labelMode = currentMember?.team_nav_label_mode || 'default';
-    myTeamNav.textContent = labelMode === 'custom' && currentMember?.custom_team_nav_label
+    const teamNavLabel = labelMode === 'custom' && currentMember?.custom_team_nav_label
       ? currentMember.custom_team_nav_label
       : labelMode === 'team' && teamName ? teamName : 'My Team';
+    myTeamNav.querySelector('.nav-label').textContent = teamNavLabel;
+    myTeamNav.setAttribute('aria-label', teamNavLabel);
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
     scoreDeskLink.hidden = !isPlatformAdmin;
     castRosterLink.hidden = !isPlatformAdmin;
