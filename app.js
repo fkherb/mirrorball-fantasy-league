@@ -7,7 +7,14 @@ const isOwnerSurface = isScoreDeskSurface || isCastRosterSurface;
 const assetRoot = isOwnerSurface ? '../' : '';
 const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts', 'Surprise'];
 const assignableRoles = roles.filter((role) => !role.startsWith('Eliminated'));
-const imagePathFor = (name) => `${assetRoot}Images/${name.replace(/[.,'’]/g, '')}.jpg`;
+const storedImagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
+const imagePathFor = (name) => `${assetRoot}${storedImagePathFor(name)}`;
+const displayImagePath = (member) => {
+  const storedPath = member?.image_path;
+  if (!storedPath) return imagePathFor(member?.name || '');
+  if (/^(?:https?:|data:|\/|\.\.\/)/i.test(storedPath)) return storedPath;
+  return `${assetRoot}${storedPath.replace(/^\.\//, '')}`;
+};
 const isPairRole = (role) => role === 'Star' || role === 'Pro';
 const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(role);
 const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
@@ -112,7 +119,7 @@ async function loadRoster() {
   const players = allPlayers.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()) && (rosterFilter === 'all' || castCategory(player) === rosterFilter));
   if (!players.length) return showRosterMessage(canManageCast ? 'No cast members yet. Add the first one here.' : 'No cast members match this view.');
   $('#rosterResults').innerHTML = players.map((player) => `
-    <div class="row cast-roster-row" data-cast-detail="${player.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(player.name)} profile"><img class="player-photo" style="object-position:${player.image_position ?? 50}% center" src="${player.image_path || imagePathFor(player.name)}" alt="">
+    <div class="row cast-roster-row" data-cast-detail="${player.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(player.name)} profile"><img class="player-photo" style="object-position:${player.image_position ?? 50}% center" src="${escapeHtml(displayImagePath(player))}" alt="">
       <span><b>${player.name}</b><small>${rosterDetail(player, partnerships, allPlayers, weeks, teams)}</small></span>
       ${canManageCast ? `<button data-player-id="${player.id}">Edit</button>` : ''}
     </div>`).join('');
@@ -147,7 +154,7 @@ async function openCastDetail(castMemberId) {
   const details = member.profile_details && typeof member.profile_details === 'object'
     ? Object.entries(member.profile_details).filter(([, value]) => value).map(([label, value]) => `<div><small>${escapeHtml(label.replaceAll('_', ' '))}</small><strong>${escapeHtml(value)}</strong></div>`).join('')
     : '';
-  openModal(`<div class="cast-profile-hero"><img src="${escapeHtml(member.image_path || imagePathFor(member.name))}" style="object-position:${member.image_position ?? 50}% center" alt="${escapeHtml(member.name)}"><div><p class="eyebrow">${escapeHtml(displayRole(member))}</p><h2>${escapeHtml(member.name)}</h2><p class="sub">${partner ? `Partnered with ${escapeHtml(partner.name)}` : 'Current season cast'}</p>${team ? `<span class="cast-team-pill">${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</span>` : '<span class="cast-team-pill">Available cast</span>'}</div></div>
+  openModal(`<div class="cast-profile-hero"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt="${escapeHtml(member.name)}"><div><p class="eyebrow">${escapeHtml(displayRole(member))}</p><h2>${escapeHtml(member.name)}</h2><p class="sub">${partner ? `Partnered with ${escapeHtml(partner.name)}` : 'Current season cast'}</p>${team ? `<span class="cast-team-pill">${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</span>` : '<span class="cast-team-pill">Available cast</span>'}</div></div>
     <div class="cast-profile-stats"><div><strong>${fantasyPoints}</strong><span>Fantasy points</span></div>${isPairRole(roleForWeek(member, pairingData.weeks?.[0], pairingData.weeks || [])) ? `<div><strong>${Number(scoreEntry.official || 0)}</strong><span>Judges total</span></div>` : ''}<div><strong>${Number(scoreEntry.appearanceCount || 0)}</strong><span>Appearances</span></div><div><strong>${Number(member.mirrorball_wins || 0)}</strong><span>Past wins</span></div></div>
     <section class="cast-profile-copy"><h3>About ${escapeHtml(member.name.split(' ')[0])}</h3><p>${escapeHtml(member.bio || 'Biography details have not been added yet.')}</p>${member.career_highlights ? `<h3>Career highlights</h3><p>${escapeHtml(member.career_highlights)}</p>` : ''}</section>${details ? `<div class="cast-profile-details">${details}</div>` : ''}`);
 }
@@ -171,7 +178,7 @@ async function editPlayer(id) {
     const player = players.find((item) => item.id === id);
     const partner = partnerFor(player, partnerships, players);
     const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
-    openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${player.image_path || imagePathFor(player.name)}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${player.name}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
+    openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${escapeHtml(displayImagePath(player))}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${player.name}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
       <label>Role<select id="editRole" ${player.role.startsWith('Eliminated') ? 'disabled' : ''}>${(player.role.startsWith('Eliminated') ? [player.role] : assignableRoles).map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select>${player.role.startsWith('Eliminated') ? '<span class="range-note">Eliminated roles are managed by completing a week.</span>' : ''}</label>
       <div id="roleDetailField" ${player.role === 'Judges + Hosts' ? '' : 'hidden'}><label>Type<select id="editRoleDetail"><option ${player.role_detail === 'Judge' ? 'selected' : ''}>Judge</option><option ${player.role_detail === 'Host' ? 'selected' : ''}>Host</option><option ${!player.role_detail || player.role_detail === 'Judge + Host' ? 'selected' : ''}>Judge + Host</option></select></label><label class="check-row"><input id="editIsHough" type="checkbox" ${player.is_hough || player.role === 'Hough' ? 'checked' : ''}> Hough scoring rate</label></div>
       <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
@@ -198,7 +205,7 @@ async function editPlayer(id) {
       const partnershipName = $('#editPartner').value ? $('#partnershipName').value.trim() || null : null;
       const { error: saveError } = await db.rpc('save_cast_member_profile_atomic', {
         p_cast_member_id: id, p_name: player.name, p_role: role,
-        p_image_path: player.image_path || imagePathFor(player.name), p_image_position: Number($('#imagePosition').value),
+        p_image_path: player.image_path || storedImagePathFor(player.name), p_image_position: Number($('#imagePosition').value),
         p_custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) : null,
         p_role_detail: role === 'Judges + Hosts' ? $('#editRoleDetail').value : null,
         p_is_hough: role === 'Judges + Hosts' && $('#editIsHough').checked,
@@ -246,7 +253,7 @@ async function openAddPlayer() {
     if (role === 'Surprise' && $('#newRate').value === '') return alert('Enter the Surprise points per appearance.');
     const partnerId = isPairRole(role) ? $('#newPartner').value : '';
     const { error } = await db.rpc('save_cast_member_profile_atomic', {
-      p_cast_member_id: null, p_name: name, p_role: role, p_image_path: imagePathFor(name), p_image_position: 50,
+      p_cast_member_id: null, p_name: name, p_role: role, p_image_path: storedImagePathFor(name), p_image_position: 50,
       p_custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) : null,
       p_role_detail: role === 'Judges + Hosts' ? $('#newRoleDetail').value : null,
       p_is_hough: role === 'Judges + Hosts' && $('#newIsHough').checked,
@@ -312,7 +319,7 @@ async function openTeamDetail(teamId) {
   const managerName = managerNameFor(team, managerMap);
   const displayName = team.team_name || `${managerName}'s Team`;
   openModal(`<div class="team-detail-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} cast member${roster.length === 1 ? '' : 's'} on the current roster</p></div></div>
-    ${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member" data-team-cast-detail="${member.id}" tabindex="0" role="button"><img src="${member.image_path || imagePathFor(member.name)}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
+    ${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member" data-team-cast-detail="${member.id}" tabindex="0" role="button"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
   document.querySelectorAll('[data-team-cast-detail]').forEach((tile) => {
     const open = () => openCastDetail(tile.dataset.teamCastDetail);
     tile.addEventListener('click', open);
@@ -574,7 +581,7 @@ function teamScoreBreakdown(teamId, weekId = 'all') {
 
 function scoreBreakdownMarkup(rows, limit = null, withImages = false) {
   const visible = limit ? rows.slice(0, limit) : rows;
-  return `<div class="league-score-list">${visible.map((row) => { const hasJudgeScores = row.role === 'Star' || row.role === 'Pro'; return `<div class="league-score-row ${withImages ? 'with-photo' : ''}" data-score-cast-detail="${row.member.id}" tabindex="0" role="button">${withImages ? `<img class="score-member-photo" src="${escapeHtml(row.member.image_path || imagePathFor(row.member.name))}" style="object-position:${row.member.image_position ?? 50}% center" alt="">` : ''}<div class="league-score-member"><strong>${escapeHtml(row.member.name)}</strong><span class="role-rate-pill">${escapeHtml(displayRole({ ...row.member, role: row.role }))} <b>+${row.appearanceRate}</b></span></div><div class="league-score-parts">${hasJudgeScores ? `<span>Judges Total <b>${row.official}</b></span>` : ''}<span class="appearance-part">Appearances <b>${row.appearances}</b></span></div><strong class="league-score-total">${row.total}</strong></div>`; }).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>`;
+  return `<div class="league-score-list">${visible.map((row) => { const hasJudgeScores = row.role === 'Star' || row.role === 'Pro'; return `<div class="league-score-row ${withImages ? 'with-photo' : ''}" data-score-cast-detail="${row.member.id}" tabindex="0" role="button">${withImages ? `<img class="score-member-photo" src="${escapeHtml(displayImagePath(row.member))}" style="object-position:${row.member.image_position ?? 50}% center" alt="">` : ''}<div class="league-score-member"><strong>${escapeHtml(row.member.name)}</strong><span class="role-rate-pill">${escapeHtml(displayRole({ ...row.member, role: row.role }))} <b>+${row.appearanceRate}</b></span></div><div class="league-score-parts">${hasJudgeScores ? `<span>Judges Total <b>${row.official}</b></span>` : ''}<span class="appearance-part">Appearances <b>${row.appearances}</b></span></div><strong class="league-score-total">${row.total}</strong></div>`; }).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>`;
 }
 
 function bindScoreCastDetails(container = document) {
@@ -663,7 +670,7 @@ function renderPublicTeams() {
     const summary = week.is_complete ? total : weekAiringLabel(week, 'TBA');
     return `<button class="${selectedPublicWeekId === week.id ? 'selected' : ''}" data-public-week="${week.id}" aria-pressed="${selectedPublicWeekId === week.id}"><span>Week ${week.number}</span><strong class="${week.is_complete ? '' : 'air-date'}">${escapeHtml(summary)}</strong></button>`;
   }).join('');
-  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person" data-available-cast-detail="${member.id}" tabindex="0" role="button"><img src="${escapeHtml(member.image_path || imagePathFor(member.name))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></div></article>`).join('');
+  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person" data-available-cast-detail="${member.id}" tabindex="0" role="button"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></div></article>`).join('');
   const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
   const canEditThisTeam = Boolean(managerTeamId && selected.team.id === managerTeamId);
   $('#editMyTeam').hidden = !canEditThisTeam;
