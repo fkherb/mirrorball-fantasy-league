@@ -1,8 +1,25 @@
 import { db } from './supabase-client.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const buttons = [...document.querySelectorAll('nav button')];
+  const buttons = [...document.querySelectorAll('nav button[data-view]')];
   const views = [...document.querySelectorAll('.view')];
+  const navToggle = document.querySelector('#navToggle');
+  const storedNavState = localStorage.getItem('mirrorball-nav-state');
+  const defaultNavCollapsed = window.matchMedia('(min-width: 751px) and (max-width: 1100px)').matches;
+  const setNavCollapsed = (collapsed) => {
+    document.body.classList.toggle('nav-collapsed', collapsed);
+    if (!navToggle) return;
+    navToggle.setAttribute('aria-expanded', String(!collapsed));
+    navToggle.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
+    navToggle.querySelector('span').textContent = collapsed ? '›' : '‹';
+    navToggle.querySelector('b').textContent = collapsed ? 'Expand' : 'Collapse';
+  };
+  setNavCollapsed(storedNavState ? storedNavState === 'collapsed' : defaultNavCollapsed);
+  navToggle?.addEventListener('click', () => {
+    const collapsed = !document.body.classList.contains('nav-collapsed');
+    setNavCollapsed(collapsed);
+    localStorage.setItem('mirrorball-nav-state', collapsed ? 'collapsed' : 'expanded');
+  });
   const rememberedViews = new Set(['standings', 'teams', 'score', 'league']);
   const storedView = localStorage.getItem('mirrorball-active-view');
   let requestedView = rememberedViews.has(location.hash.slice(1))

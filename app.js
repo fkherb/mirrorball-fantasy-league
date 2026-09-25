@@ -46,7 +46,8 @@ function displayRole(memberOrRole) {
   const member = typeof memberOrRole === 'string' ? { role: memberOrRole } : memberOrRole || {};
   if (member.role === 'Eliminated Pro') return 'Elim Pro';
   if (member.role === 'Eliminated Star') return 'Elim Star';
-  if (member.role === 'Judges + Hosts') return `${member.role_detail || 'Judge + Host'}${member.is_hough ? ' · Hough' : ''}`;
+  if (member.role === 'DWTS Next Pro') return 'Next Pro';
+  if (member.role === 'Judges + Hosts') return member.role_detail || 'Judge + Host';
   return member.role || '';
 }
 
@@ -307,9 +308,9 @@ async function loadTeams() {
     const displayName = team.team_name || defaultTeamName(managerName);
     const rosterPreview = roster;
     return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>
-      <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p><p class="team-mobile-hint">Tap to view lineup</p>
+      <p class="team-mobile-hint">Tap to view lineup</p>
       ${roster.length ? `<ul class="team-roster">${rosterPreview.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
-      ${canEdit && availableCount ? `<div class="team-actions"><button data-team-id="${team.id}">Add Cast Members</button></div>` : ''}
+      ${canEdit && availableCount && roster.length ? `<div class="team-actions"><button data-team-id="${team.id}">Swap Cast Member</button></div>` : ''}
     </article>`;
   }).join('');
   document.querySelectorAll('[data-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openAssignCastMember(button.dataset.teamId); }));
@@ -334,7 +335,7 @@ async function openTeamDetail(teamId) {
   if (error) return alert(`Couldn’t load this team: ${error.message}`);
   const managerName = managerNameFor(team, managerMap);
   const displayName = team.team_name || defaultTeamName(managerName);
-  openModal(`<div class="team-detail-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} cast member${roster.length === 1 ? '' : 's'} on the current roster</p></div></div>
+  openModal(`<div class="team-detail-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Current roster</p></div></div>
     ${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member" data-team-cast-detail="${member.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(member.name)} profile"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div><i aria-hidden="true">›</i></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
   document.querySelectorAll('[data-team-cast-detail]').forEach((tile) => {
     const open = () => openCastDetail(tile.dataset.teamCastDetail, teamId);
@@ -355,8 +356,7 @@ async function editTeamCard(teamId) {
   if (!card) return;
   card.classList.add('editing');
   card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>First name<input id="teamManagerFirst-${teamId}" value="${escapeHtml(manager?.first_name || team.manager_name.split(' ')[0] || '')}" ${manager ? '' : 'disabled'}></label><label>Last name<input id="teamManagerLast-${teamId}" value="${escapeHtml(manager?.last_name || team.manager_name.split(' ').slice(1).join(' '))}" ${manager ? '' : 'disabled'}></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div></div>
-    <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p>
-    ${!manager ? '<p class="sub compact-note">Connect an account to this team before editing its manager name.</p>' : ''}${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small><button class="remove-member" data-remove-team-cast-id="${member.id}">Remove</button></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
+    ${!manager ? '<p class="sub compact-note">Connect an account to this team before editing its manager name.</p>' : ''}${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
   document.querySelector(`[data-cancel-team-id="${teamId}"]`).addEventListener('click', loadTeams);
   document.querySelector(`[data-save-team-id="${teamId}"]`).addEventListener('click', async () => {
     const team_name = $(`#teamName-${teamId}`).value.trim();
@@ -367,13 +367,6 @@ async function editTeamCard(teamId) {
     if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
     loadTeams(); loadStandings();
   });
-  document.querySelectorAll('[data-remove-team-cast-id]').forEach((button) => button.addEventListener('click', async () => {
-    const member = roster.find((item) => item.id === button.dataset.removeTeamCastId);
-    if (!confirm(`Remove ${member.name} from this fantasy team?`)) return;
-    const { error: removeError } = await db.rpc('remove_cast_member_from_team', { p_cast_member_id: member.id, p_team_id: teamId });
-    if (removeError) return alert(`Couldn’t remove ${member.name}: ${removeError.message}`);
-    editTeamCard(teamId); loadStandings();
-  }));
 }
 
 function openNewTeam() {
@@ -397,33 +390,22 @@ async function openAssignCastMember(teamId) {
   const error = castError || teamError;
   if (error) return alert(`Couldn’t open available cast: ${error.message}`);
   const available = castMembers.filter((member) => !member.fantasy_team_id);
+  const roster = castMembers.filter((member) => member.fantasy_team_id === teamId);
   const managerName = managerNameFor(team, managerMap);
   const displayName = team.team_name || (managerName === 'Unassigned' ? 'this team' : defaultTeamName(managerName));
-  openModal(`<h2>Add Cast Members</h2><p class="sub">Select one or more currently available cast members for ${escapeHtml(displayName)}.</p>
-    ${available.length ? `<input id="castPickerSearch" placeholder="Search available cast" autocomplete="off"><div class="filter-tabs" id="pickerTabs"><button class="selected" data-picker-filter="all">All</button><button data-picker-filter="pros">Pros</button><button data-picker-filter="stars">Stars</button><button data-picker-filter="bonus">Bonus</button></div><div id="castPicker" class="cast-picker">${available.map((player) => `<label class="cast-choice" data-cast-name="${escapeHtml(player.name.toLowerCase())}" data-cast-category="${castCategory(player)}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(displayRole(player))}</small></span></label>`).join('')}</div><button id="assignCastMember">Add 0 cast members</button>` : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
-  const updateSelection = () => {
-    const count = document.querySelectorAll('#castPicker input:checked').length;
-    $('#assignCastMember').textContent = `Add ${count} cast member${count === 1 ? '' : 's'}`;
+  const choice = (player, group) => `<label class="cast-choice swap-cast-choice"><input type="radio" name="${group}" value="${player.id}"><img src="${escapeHtml(displayImagePath(player))}" style="object-position:${player.image_position ?? 50}% center" alt=""><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(displayRole(player))}</small></span></label>`;
+  openModal(`<h2>Swap Cast Member</h2><p class="sub">Add an available cast member to ${escapeHtml(displayName)} by releasing one current roster member.</p>
+    ${available.length && roster.length ? `<div class="roster-swap-picker"><section><p class="eyebrow">Add to team</p><div class="cast-picker">${available.map((player) => choice(player, 'incomingCast')).join('')}</div></section><div class="roster-swap-arrow" aria-hidden="true">⇄</div><section><p class="eyebrow">Release from team</p><div class="cast-picker">${roster.map((player) => choice(player, 'outgoingCast')).join('')}</div></section></div><button id="swapCastMember" disabled>Swap cast members</button>` : '<p class="sub">A swap requires both an available cast member and a current roster member.</p>'}`);
+  const updateSwapButton = () => {
+    $('#swapCastMember').disabled = !document.querySelector('input[name="incomingCast"]:checked') || !document.querySelector('input[name="outgoingCast"]:checked');
   };
-  let pickerFilter = 'all';
-  const filterPicker = () => {
-    const term = $('#castPickerSearch').value.trim().toLowerCase();
-    document.querySelectorAll('.cast-choice').forEach((choice) => {
-      choice.hidden = !choice.dataset.castName.includes(term) || (pickerFilter !== 'all' && choice.dataset.castCategory !== pickerFilter);
-    });
-  };
-  $('#castPickerSearch')?.addEventListener('input', filterPicker);
-  document.querySelectorAll('[data-picker-filter]').forEach((button) => button.addEventListener('click', () => {
-    pickerFilter = button.dataset.pickerFilter;
-    document.querySelectorAll('[data-picker-filter]').forEach((item) => item.classList.toggle('selected', item === button));
-    filterPicker();
-  }));
-  document.querySelectorAll('#castPicker input').forEach((checkbox) => checkbox.addEventListener('change', updateSelection));
-  $('#assignCastMember')?.addEventListener('click', async () => {
-    const playerIds = [...document.querySelectorAll('#castPicker input:checked')].map((checkbox) => checkbox.value);
-    if (!playerIds.length) return alert('Choose at least one cast member first.');
-    const { error: assignError } = await db.rpc('assign_cast_members_to_team', { p_team_id: teamId, p_cast_member_ids: playerIds });
-    if (assignError) return alert(`Couldn’t add those cast members: ${assignError.message}`);
+  document.querySelectorAll('input[name="incomingCast"], input[name="outgoingCast"]').forEach((input) => input.addEventListener('change', updateSwapButton));
+  $('#swapCastMember')?.addEventListener('click', async () => {
+    const incomingId = document.querySelector('input[name="incomingCast"]:checked')?.value;
+    const outgoingId = document.querySelector('input[name="outgoingCast"]:checked')?.value;
+    if (!incomingId || !outgoingId) return alert('Choose one cast member to add and one to release.');
+    const { error: assignError } = await db.rpc('swap_available_cast_member_into_team', { p_team_id: teamId, p_incoming_cast_member_id: incomingId, p_outgoing_cast_member_id: outgoingId });
+    if (assignError) return alert(`Couldn’t swap those cast members: ${assignError.message}`);
     $('#modal').close(); loadTeams(); loadStandings();
   });
 }
@@ -556,7 +538,7 @@ async function loadStandings() {
     const tiedLeader = isFirstPlaceTie && row.total === leaderTotal;
     const rank = teamRows.findIndex((item) => item.total === row.total) + 1;
     const displayName = row.team.team_name || defaultTeamName(row.team.manager_name);
-    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''} ${row.team.id === selectedOverviewTeamId ? 'selected' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<p class="standing-roster">${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div><span class="card-chevron standing-chevron" aria-hidden="true">›</span></article>`;
+    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''} ${row.team.id === selectedOverviewTeamId ? 'selected' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div><span class="card-chevron standing-chevron" aria-hidden="true">›</span></article>`;
   }).join('')}</div>`;
   document.querySelectorAll('[data-standing-team]').forEach((card) => {
     const open = () => {
@@ -612,7 +594,7 @@ function bindScoreCastDetails(container = document) {
 function overviewTeamDetailMarkup(row) {
   const breakdown = teamScoreBreakdown(row.team.id);
   const displayName = row.team.team_name || defaultTeamName(row.team.manager_name);
-  return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)} · ${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div><p class="top-cast-label">Top Five Cast Members</p>${scoreBreakdownMarkup(breakdown.rows, 5, false, true)}`;
+  return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div><p class="top-cast-label">Top Five Cast Members</p>${scoreBreakdownMarkup(breakdown.rows, 5, false, true)}`;
 }
 
 function renderOverviewTeamDetail() {
@@ -653,14 +635,17 @@ function renderLeagueHighlights() {
   const castMVPs = bestCastScore > 0 ? castRows.filter((item) => item.total === bestCastScore) : [];
   const mostAppearances = Math.max(0, ...castRows.map((item) => item.appearances));
   const appearanceLeaders = castRows.filter((item) => item.appearances === mostAppearances && mostAppearances > 0);
-  const names = (items, getName) => items.map(getName).join(' & ');
-  const teamNames = winningTeams.length ? names(winningTeams, ({ team }) => team.team_name || defaultTeamName(team.manager_name)) : 'No team points recorded';
-  const mvpNames = castMVPs.length ? names(castMVPs, ({ member }) => member.name) : 'No cast points recorded';
-  const mvpTitle = castMVPs.length > 3 ? `${castMVPs.length}-way tie` : mvpNames;
-  const mvpTieSummary = castMVPs.length > 3 ? `${castMVPs.slice(0, 2).map(({ member }) => member.name).join(' & ')} +${castMVPs.length - 2} more` : '';
-  const appearanceNames = appearanceLeaders.length ? names(appearanceLeaders, ({ member }) => member.name) : 'No appearances recorded';
+  const compactNames = (items, getName) => {
+    if (!items.length) return '';
+    const visible = items.slice(0, 3).map((item) => `<span>${escapeHtml(getName(item))}</span>`).join('');
+    const remaining = items.length - 3;
+    return `<div class="highlight-name-list">${visible}${remaining > 0 ? `<span class="highlight-more">+${remaining} more tied</span>` : ''}</div>`;
+  };
+  const teamNames = compactNames(winningTeams, ({ team }) => team.team_name || defaultTeamName(team.manager_name));
+  const mvpNames = compactNames(castMVPs, ({ member }) => member.name);
+  const appearanceNames = compactNames(appearanceLeaders, ({ member }) => member.name);
   $('#highlightWeek').textContent = weekTitle(week);
-  $('#leagueHighlightCards').innerHTML = `<article class="card"><small>Team of the week</small><strong>${escapeHtml(teamNames)}</strong><p>${bestTeamScore ? `<b>${bestTeamScore} points</b>${winningTeams.length > 1 ? ' · tied for the week lead' : ' · highest fantasy-team total'}` : 'No fantasy-team points were recorded.'}</p></article><article class="card"><small>Cast MVP</small><strong>${escapeHtml(mvpTitle)}</strong><p>${bestCastScore ? `${mvpTieSummary ? `${escapeHtml(mvpTieSummary)} · ` : ''}<b>${bestCastScore} points</b>${castMVPs.length > 1 ? ' each' : ' · top cast contribution'}` : 'No cast points were recorded.'}</p></article><article class="card"><small>Appearance leader</small><strong>${escapeHtml(appearanceNames)}</strong><p>${mostAppearances ? `<b>${mostAppearances} dance${mostAppearances === 1 ? '' : 's'}</b> · most recorded appearances` : 'No cast appearances were recorded.'}</p></article>`;
+  $('#leagueHighlightCards').innerHTML = `<article class="card"><small>Team of the week</small>${bestTeamScore ? `<strong class="highlight-value">${bestTeamScore}</strong><p>fantasy points${winningTeams.length > 1 ? ' each' : ''}</p>${teamNames}` : '<p>No fantasy-team points were recorded.</p>'}</article><article class="card"><small>Top cast score</small>${bestCastScore ? `<strong class="highlight-value">${bestCastScore}</strong><p>points${castMVPs.length > 1 ? ' each' : ''}</p>${mvpNames}` : '<p>No cast points were recorded.</p>'}</article><article class="card"><small>Most appearances</small>${mostAppearances ? `<strong class="highlight-value">${mostAppearances}</strong><p>dance${mostAppearances === 1 ? '' : 's'}${appearanceLeaders.length > 1 ? ' each' : ''}</p>${appearanceNames}` : '<p>No appearances were recorded.</p>'}</article>`;
 }
 
 function renderPublicTeams() {

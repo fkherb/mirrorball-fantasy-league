@@ -144,6 +144,16 @@ the original offer before replacing it with a counteroffer and lets the sender
 of either an offer or counteroffer cancel while the other manager is deciding.
 Cancelled offers are retained in the private history for both teams.
 
+Finally, run `supabase/optimize-current-query-indexes.sql`. It adds indexes for
+week ordering, cast appearances, current team rosters, historical snapshots,
+and trade conflict/history lookups. It does not change data, permissions, or
+scoring behavior.
+
+Then run `supabase/enforce-one-for-one-roster-swaps.sql`. It replaces separate
+commissioner add/remove controls with one atomic free-agent swap, keeping every
+established fantasy-team roster the same size and protecting cast members in
+active trade offers.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast
