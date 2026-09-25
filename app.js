@@ -304,7 +304,6 @@ async function loadTeams() {
   $('#leagueTeamCount').textContent = teams.length;
   $('#leagueCastCount').textContent = castMembers.length;
   $('#leagueAvailableCount').textContent = availableCount;
-  $('#newTeam').hidden = !canEdit || !availableCount;
   if (!teams.length) {
     $('#commissionerTeamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
     return;
@@ -317,10 +316,8 @@ async function loadTeams() {
     return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>
       <p class="team-mobile-hint">Tap to view lineup</p>
       ${roster.length ? `<ul class="team-roster">${rosterPreview.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
-      ${canEdit && availableCount && roster.length ? `<div class="team-actions"><button data-team-id="${team.id}">Swap Cast Member</button></div>` : ''}
     </article>`;
   }).join('');
-  document.querySelectorAll('[data-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openAssignCastMember(button.dataset.teamId); }));
   document.querySelectorAll('[data-edit-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); editTeamCard(button.dataset.editTeamId); }));
   document.querySelectorAll('[data-team-detail]').forEach((card) => {
     const open = () => { if (!card.classList.contains('editing')) openTeamDetail(card.dataset.teamDetail); };
@@ -373,47 +370,6 @@ async function editTeamCard(teamId) {
     const { error: saveError } = await db.rpc('update_team_profile_atomic', { p_team_id: teamId, p_team_name: team_name || null, p_manager_user_id: manager?.user_id || null, p_first_name: manager ? firstName : null, p_last_name: manager ? lastName : null });
     if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
     loadTeams(); loadStandings();
-  });
-}
-
-function openNewTeam() {
-  openModal(`<h2>Add Fantasy Team</h2><p class="sub">A manager name will appear after an account is linked to this team.</p>
-    <label>Team name <span class="optional">(optional)</span><input id="newTeamName" autocomplete="off"></label>
-    <button id="createTeam">Create fantasy team</button>`);
-  $('#createTeam').addEventListener('click', async () => {
-    const teamName = $('#newTeamName').value.trim();
-    const { error } = await db.from('fantasy_teams').insert({ manager_name: 'Unassigned', team_name: teamName || null });
-    if (error) return alert(`Couldn’t create this team: ${error.message}`);
-    $('#modal').close(); loadTeams(); loadStandings();
-  });
-}
-
-async function openAssignCastMember(teamId) {
-  const [{ data: castMembers, error: castError }, { data: team, error: teamError }, managerMap] = await Promise.all([
-    db.from('cast_members').select('*').order('name'),
-    db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
-    getTeamManagerMap(),
-  ]);
-  const error = castError || teamError;
-  if (error) return alert(`Couldn’t open available cast: ${error.message}`);
-  const available = castMembers.filter((member) => !member.fantasy_team_id);
-  const roster = castMembers.filter((member) => member.fantasy_team_id === teamId);
-  const managerName = managerNameFor(team, managerMap);
-  const displayName = team.team_name || (managerName === 'Unassigned' ? 'this team' : defaultTeamName(managerName));
-  const choice = (player, group) => `<label class="cast-choice swap-cast-choice"><input type="radio" name="${group}" value="${player.id}"><img src="${escapeHtml(displayImagePath(player))}" style="object-position:${player.image_position ?? 50}% center" alt=""><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(displayRole(player))}</small></span></label>`;
-  openModal(`<h2>Swap Cast Member</h2><p class="sub">Add an available cast member to ${escapeHtml(displayName)} by releasing one current roster member.</p>
-    ${available.length && roster.length ? `<div class="roster-swap-picker"><section><p class="eyebrow">Add to team</p><div class="cast-picker">${available.map((player) => choice(player, 'incomingCast')).join('')}</div></section><div class="roster-swap-arrow" aria-hidden="true">⇄</div><section><p class="eyebrow">Release from team</p><div class="cast-picker">${roster.map((player) => choice(player, 'outgoingCast')).join('')}</div></section></div><button id="swapCastMember" disabled>Swap cast members</button>` : '<p class="sub">A swap requires both an available cast member and a current roster member.</p>'}`);
-  const updateSwapButton = () => {
-    $('#swapCastMember').disabled = !document.querySelector('input[name="incomingCast"]:checked') || !document.querySelector('input[name="outgoingCast"]:checked');
-  };
-  document.querySelectorAll('input[name="incomingCast"], input[name="outgoingCast"]').forEach((input) => input.addEventListener('change', updateSwapButton));
-  $('#swapCastMember')?.addEventListener('click', async () => {
-    const incomingId = document.querySelector('input[name="incomingCast"]:checked')?.value;
-    const outgoingId = document.querySelector('input[name="outgoingCast"]:checked')?.value;
-    if (!incomingId || !outgoingId) return alert('Choose one cast member to add and one to release.');
-    const { error: assignError } = await db.rpc('swap_available_cast_member_into_team', { p_team_id: teamId, p_incoming_cast_member_id: incomingId, p_outgoing_cast_member_id: outgoingId });
-    if (assignError) return alert(`Couldn’t swap those cast members: ${assignError.message}`);
-    $('#modal').close(); loadTeams(); loadStandings();
   });
 }
 
@@ -551,8 +507,8 @@ async function loadStandings() {
     const open = () => {
       selectedOverviewTeamId = card.dataset.standingTeam;
       document.querySelectorAll('[data-standing-team]').forEach((item) => item.classList.toggle('selected', item === card));
-      if (window.matchMedia('(max-width: 700px)').matches) openOverviewTeamDetail();
-      else renderOverviewTeamDetail();
+      if (overviewUsesSplitLayout()) renderOverviewTeamDetail();
+      else openOverviewTeamDetail();
     };
     card.addEventListener('click', open);
     card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
@@ -604,8 +560,16 @@ function overviewTeamDetailMarkup(row) {
   return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div><p class="top-cast-label">Top Five Cast Members</p>${scoreBreakdownMarkup(breakdown.rows, 5, false, true)}`;
 }
 
+function overviewUsesSplitLayout() {
+  return ($('#standings')?.classList.contains('active') && $('.overview-layout')?.getBoundingClientRect().width >= 1030);
+}
+
 function renderOverviewTeamDetail() {
   if (!standingsSnapshot) return;
+  if (!overviewUsesSplitLayout()) {
+    $('#overviewTeamDetail').innerHTML = '';
+    return;
+  }
   const row = standingsSnapshot.teamRows?.find((item) => item.team.id === selectedOverviewTeamId);
   if (!row) return;
   $('#overviewTeamDetail').innerHTML = `<section class="card overview-team-detail">${overviewTeamDetailMarkup(row)}</section>`;
@@ -682,7 +646,7 @@ function renderPublicTeams() {
     const summary = week.is_complete ? total : weekAiringLabel(week, 'TBA');
     return `<button class="${selectedPublicWeekId === week.id ? 'selected' : ''}" data-public-week="${week.id}" aria-pressed="${selectedPublicWeekId === week.id}"><span>Week ${week.number}</span><strong class="${week.is_complete ? '' : 'air-date'}">${escapeHtml(summary)}</strong></button>`;
   }).join('');
-  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person available-cast-person"><button type="button" class="available-profile-button" data-available-cast-detail="${member.id}" aria-label="View ${escapeHtml(member.name)} profile"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><span><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></span></button>${canEditThisTeam ? `<button type="button" class="claim-cast-button" data-claim-cast="${member.id}">Claim this cast member</button>` : ''}</article>`).join('');
+  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person available-cast-person"><button type="button" class="available-profile-button" data-available-cast-detail="${member.id}" aria-label="View ${escapeHtml(member.name)} profile"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><span><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></span></button>${canEditThisTeam ? `<button type="button" class="claim-cast-button" data-claim-cast="${member.id}">Claim</button>` : ''}</article>`).join('');
   const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || defaultTeamName(row.team.manager_name))}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
   $('#editMyTeam').hidden = !canEditThisTeam;
   $('#editMyTeam').onclick = canEditThisTeam ? () => openMyTeamEditor(selected.team) : null;
@@ -706,7 +670,7 @@ function openClaimCastMember(incomingId) {
   const roster = standingsSnapshot?.members.filter((member) => member.fantasy_team_id === managerTeamId).sort((a, b) => a.name.localeCompare(b.name)) || [];
   if (!incoming || !team || !roster.length) return alert('This cast member is no longer available for a roster swap.');
   const teamName = team.team_name || defaultTeamName(team.manager_name);
-  openModal(`<p class="eyebrow">Free-agent claim</p><h2>Claim ${escapeHtml(incoming.name)}</h2><p class="sub">Choose one member of ${escapeHtml(teamName)} to release. The swap happens immediately and keeps every roster the same size.</p><div class="claim-cast-hero"><img src="${escapeHtml(displayImagePath(incoming))}" style="object-position:${incoming.image_position ?? 50}% center" alt=""><div><small>You receive</small><strong>${escapeHtml(incoming.name)}</strong><span>${escapeHtml(displayRole(incoming))}</span></div></div><p class="eyebrow claim-release-heading">Choose who to release</p><div class="trade-picker-grid claim-release-grid">${roster.map((member) => tradeMemberChoice(member, false, `data-claim-release="${member.id}"`)).join('')}</div><button id="confirmCastClaim" disabled>Claim this cast member</button>`);
+  openModal(`<p class="eyebrow">Free-agent claim</p><h2>Claim ${escapeHtml(incoming.name)}</h2><p class="sub">Choose one member of ${escapeHtml(teamName)} to release. The swap happens immediately and keeps every roster the same size.</p><div class="claim-cast-hero"><img src="${escapeHtml(displayImagePath(incoming))}" style="object-position:${incoming.image_position ?? 50}% center" alt=""><div><small>You receive</small><strong>${escapeHtml(incoming.name)}</strong><span>${escapeHtml(displayRole(incoming))}</span></div></div><p class="eyebrow claim-release-heading">Choose who to release</p><div class="trade-picker-grid claim-release-grid">${roster.map((member) => tradeMemberChoice(member, false, `data-claim-release="${member.id}"`)).join('')}</div><button id="confirmCastClaim" disabled>Claim</button>`);
   let outgoingId = null;
   document.querySelectorAll('[data-claim-release]').forEach((button) => button.addEventListener('click', () => {
     outgoingId = button.dataset.claimRelease;
@@ -721,7 +685,7 @@ function openClaimCastMember(incomingId) {
     const { error } = await db.rpc('swap_available_cast_member_into_team', { p_team_id: managerTeamId, p_incoming_cast_member_id: incoming.id, p_outgoing_cast_member_id: outgoingId });
     if (error) {
       claimButton.disabled = false;
-      claimButton.textContent = 'Claim this cast member';
+      claimButton.textContent = 'Claim';
       return alert(`Couldn’t claim ${incoming.name}: ${error.message}`);
     }
     $('#modal').close();
@@ -1470,8 +1434,11 @@ if (isScoreDeskSurface) {
     document.querySelectorAll('[data-roster-filter]').forEach((item) => item.classList.toggle('selected', item === button));
     loadRoster();
   }));
-  $('#newTeam').addEventListener('click', openNewTeam);
   $('#rulesButton').addEventListener('click', openRulesSummary);
+  const overviewLayout = $('.overview-layout');
+  if (overviewLayout && 'ResizeObserver' in window) {
+    new ResizeObserver(() => renderOverviewTeamDetail()).observe(overviewLayout);
+  }
   window.addEventListener('mirrorball-auth-change', async (event) => {
     canEdit = event.detail.isCommissioner;
     canManageShow = false;
@@ -1483,7 +1450,6 @@ if (isScoreDeskSurface) {
     managerNavLabelMode = event.detail.teamNavLabelMode || 'default';
     managerCustomNavLabel = event.detail.customTeamNavLabel || '';
     if (managerTeamId) selectedPublicTeamId = managerTeamId;
-    $('#newTeam').hidden = !canEdit;
     loadLeagueSettings();
     loadStandings();
     loadRoster();

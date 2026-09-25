@@ -390,6 +390,7 @@ dialog:has(.trade-builder), dialog:has(.counter-swap-card) { width: min(720px, 9
 .rules-summary-list p { margin: 4px 0 0; color: #786e79; font-size: 11px; line-height: 1.45; }
 .rules-summary-note { margin: 14px 0 0; padding: 11px; border-radius: 8px; background: #f3edf1; color: #655a65; font-size: 11px; line-height: 1.45; }
 .overview-mobile-detail { padding-top: 8px; }
+#overviewTeamDetail:empty { display: none; }
 @container (min-width: 1030px) {
   .overview-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(340px, .8fr); align-items: start; gap: 14px; }
   #overviewTeamDetail { position: sticky; top: 18px; }
@@ -474,7 +475,7 @@ nav { background: #fffdfefa; border-right-color: #e6dde4; box-shadow: 4px 0 18px
 nav button { margin: 2px 0; padding: 10px 11px; color: #665967; transition: background .15s ease, color .15s ease; }
 nav button:hover { background: #f4edf2; color: #302638; }
 nav button.active, nav button.active:hover { background: linear-gradient(105deg, #34253a, #4a3046); color: #fff; box-shadow: 0 5px 12px #2b19301c; }
-.layout { transition: grid-template-columns .18s ease; }
+.layout { grid-template-columns: 178px minmax(0, 1fr); transition: grid-template-columns .18s ease; }
 nav { min-width: 0; transition: padding .18s ease; }
 nav button[data-view] { display: flex; align-items: center; gap: 10px; min-height: 40px; overflow: hidden; }
 nav button[hidden] { display: none !important; }
@@ -484,11 +485,18 @@ nav .nav-toggle { display: flex; align-items: center; justify-content: flex-end;
 nav .nav-toggle:hover { background: #f4edf2; color: #302638; }
 .nav-toggle-icon { font: 700 18px/1 Georgia, serif; }
 .nav-toggle-label { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
-body.nav-collapsed .layout { grid-template-columns: 64px minmax(0, 1fr); }
+body.nav-collapsed .layout { grid-template-columns: 58px minmax(0, 1fr); }
 body.nav-collapsed nav { padding-inline: 8px; }
 body.nav-collapsed nav .nav-toggle { justify-content: center; padding-inline: 4px; }
 body.nav-collapsed .nav-toggle-label, body.nav-collapsed .nav-label { display: none; }
 body.nav-collapsed nav button[data-view] { justify-content: center; padding-inline: 8px; }
+@media (min-width: 751px) {
+  nav { position: relative; padding: 16px 9px; }
+  nav .nav-toggle { position: absolute; z-index: 3; top: 22px; right: -13px; width: 26px; height: 26px; min-height: 0; justify-content: center; margin: 0; padding: 0; border-radius: 8px; box-shadow: 0 4px 12px #271a2c1c; }
+  nav .nav-toggle-label { display: none; }
+  body.nav-collapsed nav { padding-inline: 6px; }
+  body.nav-collapsed nav .nav-toggle { justify-content: center; padding: 0; }
+}
 main { max-width: 1240px; padding: 34px 36px; container-type: inline-size; }
 h1 { font-size: 34px; letter-spacing: -.025em; }
 .card { border-color: #e6dde4; box-shadow: 0 10px 25px #2b19300d; }
@@ -759,6 +767,16 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .nested-role-rates .role-rate-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
+@media (min-width: 1101px) {
+  .public-team-columns { align-items: stretch; }
+  .team-side-column { height: 100%; min-height: 0; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); align-content: stretch; }
+  .available-cast-panel, .trade-center { min-height: 0; overflow: hidden; }
+  .available-cast-panel { display: flex; flex-direction: column; }
+  .available-cast-panel .league-cast-grid { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; }
+  .trade-center { display: flex; flex-direction: column; }
+  .trade-list, .trade-history-list { min-height: 0; overflow-y: auto; }
+}
+
 @media (max-width: 750px) {
   main { padding-bottom: calc(46px + env(safe-area-inset-bottom)); }
   dialog { margin-top: max(12px, env(safe-area-inset-top)); margin-bottom: max(12px, env(safe-area-inset-bottom)); }
@@ -809,7 +827,10 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .roster-scroll-card #rosterResults { max-height: 395px; }
   .nested-role-rates .role-rate-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .public-team-columns { grid-template-columns: 1fr; }
-  .team-side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .team-side-column { height: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; }
+  .available-cast-panel, .trade-center { overflow: visible; }
+  .available-cast-panel .league-cast-grid { max-height: 330px; overflow-y: auto; }
+  .trade-list, .trade-history-list { max-height: 330px; overflow-y: auto; }
 }
 
 @media (min-width: 751px) and (max-width: 850px) {
