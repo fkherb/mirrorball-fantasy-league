@@ -58,6 +58,11 @@ function managerNameFor(team, managerMap) {
   return managerMap?.get(team.id)?.name || team.manager_name;
 }
 
+function defaultTeamName(managerName) {
+  const firstName = String(managerName || '').trim().split(/\s+/)[0];
+  return `${firstName || 'Manager'}'s Team`;
+}
+
 function castCategory(player) {
   if (player.role === 'Pro' || player.role === 'Eliminated Pro') return 'pros';
   if (player.role === 'Star' || player.role === 'Eliminated Star') return 'stars';
@@ -155,7 +160,7 @@ async function openCastDetail(castMemberId, returnTeamId = null) {
   const details = member.profile_details && typeof member.profile_details === 'object'
     ? Object.entries(member.profile_details).filter(([, value]) => value).map(([label, value]) => `<div><small>${escapeHtml(label.replaceAll('_', ' '))}</small><strong>${escapeHtml(value)}</strong></div>`).join('')
     : '';
-  openModal(`${returnTeamId ? '<button class="profile-back-button secondary" id="profileBackToTeam" type="button">← Back to team</button>' : ''}<div class="cast-profile-hero"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt="${escapeHtml(member.name)}"><div><p class="eyebrow">${escapeHtml(displayRole(member))}</p><h2>${escapeHtml(member.name)}</h2><p class="sub">${partner ? `Partnered with ${escapeHtml(partner.name)}` : 'Current season cast'}</p>${team ? `<span class="cast-team-pill">${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</span>` : '<span class="cast-team-pill">Available cast</span>'}</div></div>
+  openModal(`${returnTeamId ? '<button class="profile-back-button secondary" id="profileBackToTeam" type="button">← Back to team</button>' : ''}<div class="cast-profile-hero"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt="${escapeHtml(member.name)}"><div><p class="eyebrow">${escapeHtml(displayRole(member))}</p><h2>${escapeHtml(member.name)}</h2><p class="sub">${partner ? `Partnered with ${escapeHtml(partner.name)}` : 'Current season cast'}</p>${team ? `<span class="cast-team-pill">${escapeHtml(team.team_name || defaultTeamName(team.manager_name))}</span>` : '<span class="cast-team-pill">Available cast</span>'}</div></div>
     <div class="cast-profile-stats"><div><strong>${fantasyPoints}</strong><span>Fantasy points</span></div>${isAnyPairRole(member.role) ? `<div><strong>${Number(scoreEntry.official || 0)}</strong><span>Judges total</span></div>` : ''}<div><strong>${Number(scoreEntry.appearanceCount || 0)}</strong><span>Appearances</span></div>${canHaveMirrorballWins(member.role, member.is_hough) ? `<div><strong>${Number(member.mirrorball_wins || 0)}</strong><span>Past wins</span></div>` : ''}</div>
     <section class="cast-profile-copy"><h3>About ${escapeHtml(member.name.split(' ')[0])}</h3><p>${escapeHtml(member.bio || 'Biography details have not been added yet.')}</p>${member.career_highlights ? `<h3>Career highlights</h3><p>${escapeHtml(member.career_highlights)}</p>` : ''}</section>${details ? `<div class="cast-profile-details">${details}</div>` : ''}`);
   $('#profileBackToTeam')?.addEventListener('click', () => openTeamDetail(returnTeamId));
@@ -166,7 +171,7 @@ function rosterDetail(player, partnerships, players, weeks, teams) {
   const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
   const base = player.role === 'Surprise' && player.custom_appearance_points ? `Surprise · +${player.custom_appearance_points}` : displayRole(player);
   const fantasyTeam = teams.find((team) => team.id === player.fantasy_team_id);
-  const teamText = fantasyTeam ? ` · ${fantasyTeam.team_name || `${fantasyTeam.manager_name}'s Team`}` : '';
+  const teamText = fantasyTeam ? ` · ${fantasyTeam.team_name || defaultTeamName(fantasyTeam.manager_name)}` : '';
   if (!isAnyPairRole(player.role)) return `${base}${teamText}`;
   const partnerText = partner ? `${partner.name}${teamText}` : '<strong class="missing">No partner assigned</strong>';
   if (!player.role.startsWith('Eliminated')) return `${base} · ${partnerText}`;
@@ -297,7 +302,7 @@ async function loadTeams() {
   $('#commissionerTeamResults').innerHTML = teams.map((team) => {
     const roster = castMembers.filter((member) => member.fantasy_team_id === team.id);
     const managerName = managerNameFor(team, managerMap);
-    const displayName = team.team_name || `${managerName}'s Team`;
+    const displayName = team.team_name || defaultTeamName(managerName);
     const rosterPreview = roster.slice(0, 6);
     return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>
       <p class="team-count">${roster.length} cast member${roster.length === 1 ? '' : 's'}</p><p class="team-mobile-hint">Tap to view lineup</p>
@@ -326,7 +331,7 @@ async function openTeamDetail(teamId) {
   const error = teamError || rosterError;
   if (error) return alert(`Couldn’t load this team: ${error.message}`);
   const managerName = managerNameFor(team, managerMap);
-  const displayName = team.team_name || `${managerName}'s Team`;
+  const displayName = team.team_name || defaultTeamName(managerName);
   openModal(`<div class="team-detail-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">${roster.length} cast member${roster.length === 1 ? '' : 's'} on the current roster</p></div></div>
     ${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member" data-team-cast-detail="${member.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(member.name)} profile"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div><i aria-hidden="true">›</i></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
   document.querySelectorAll('[data-team-cast-detail]').forEach((tile) => {
@@ -391,7 +396,7 @@ async function openAssignCastMember(teamId) {
   if (error) return alert(`Couldn’t open available cast: ${error.message}`);
   const available = castMembers.filter((member) => !member.fantasy_team_id);
   const managerName = managerNameFor(team, managerMap);
-  const displayName = team.team_name || (managerName === 'Unassigned' ? 'this team' : `${managerName}'s Team`);
+  const displayName = team.team_name || (managerName === 'Unassigned' ? 'this team' : defaultTeamName(managerName));
   openModal(`<h2>Add Cast Members</h2><p class="sub">Select one or more currently available cast members for ${escapeHtml(displayName)}.</p>
     ${available.length ? `<input id="castPickerSearch" placeholder="Search available cast" autocomplete="off"><div class="filter-tabs" id="pickerTabs"><button class="selected" data-picker-filter="all">All</button><button data-picker-filter="pros">Pros</button><button data-picker-filter="stars">Stars</button><button data-picker-filter="bonus">Bonus</button></div><div id="castPicker" class="cast-picker">${available.map((player) => `<label class="cast-choice" data-cast-name="${escapeHtml(player.name.toLowerCase())}" data-cast-category="${castCategory(player)}"><input type="checkbox" value="${player.id}"><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(displayRole(player))}</small></span></label>`).join('')}</div><button id="assignCastMember">Add 0 cast members</button>` : '<p class="sub">Every cast member is already assigned to a fantasy team.</p>'}`);
   const updateSelection = () => {
@@ -548,7 +553,8 @@ async function loadStandings() {
     const contributors = members.filter((member) => (teamMemberPoints.get(row.team.id)?.get(member.id) || 0) > 0 || member.fantasy_team_id === row.team.id).sort((a, b) => (teamMemberPoints.get(row.team.id)?.get(b.id) || 0) - (teamMemberPoints.get(row.team.id)?.get(a.id) || 0) || a.name.localeCompare(b.name));
     const tiedLeader = isFirstPlaceTie && row.total === leaderTotal;
     const rank = teamRows.findIndex((item) => item.total === row.total) + 1;
-    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''} ${row.team.id === selectedOverviewTeamId ? 'selected' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<p class="standing-roster">${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div><span class="card-chevron standing-chevron" aria-hidden="true">›</span></article>`;
+    const displayName = row.team.team_name || defaultTeamName(row.team.manager_name);
+    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''} ${row.team.id === selectedOverviewTeamId ? 'selected' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<p class="standing-roster">${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p><div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div><span class="card-chevron standing-chevron" aria-hidden="true">›</span></article>`;
   }).join('')}</div>`;
   document.querySelectorAll('[data-standing-team]').forEach((card) => {
     const open = () => {
@@ -603,7 +609,7 @@ function bindScoreCastDetails(container = document) {
 
 function overviewTeamDetailMarkup(row) {
   const breakdown = teamScoreBreakdown(row.team.id);
-  const displayName = row.team.team_name || `${row.team.manager_name}'s Team`;
+  const displayName = row.team.team_name || defaultTeamName(row.team.manager_name);
   return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)} · ${row.roster.length} current cast member${row.roster.length === 1 ? '' : 's'}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div><p class="top-cast-label">Top Five Cast Members</p>${scoreBreakdownMarkup(breakdown.rows, 5, false, true)}`;
 }
 
@@ -646,11 +652,13 @@ function renderLeagueHighlights() {
   const mostAppearances = Math.max(0, ...castRows.map((item) => item.appearances));
   const appearanceLeaders = castRows.filter((item) => item.appearances === mostAppearances && mostAppearances > 0);
   const names = (items, getName) => items.map(getName).join(' & ');
-  const teamNames = winningTeams.length ? names(winningTeams, ({ team }) => team.team_name || `${team.manager_name}'s Team`) : 'No team points recorded';
+  const teamNames = winningTeams.length ? names(winningTeams, ({ team }) => team.team_name || defaultTeamName(team.manager_name)) : 'No team points recorded';
   const mvpNames = castMVPs.length ? names(castMVPs, ({ member }) => member.name) : 'No cast points recorded';
+  const mvpTitle = castMVPs.length > 3 ? `${castMVPs.length}-way tie` : mvpNames;
+  const mvpTieSummary = castMVPs.length > 3 ? `${castMVPs.slice(0, 2).map(({ member }) => member.name).join(' & ')} +${castMVPs.length - 2} more` : '';
   const appearanceNames = appearanceLeaders.length ? names(appearanceLeaders, ({ member }) => member.name) : 'No appearances recorded';
   $('#highlightWeek').textContent = weekTitle(week);
-  $('#leagueHighlightCards').innerHTML = `<article class="card"><small>Team of the week</small><strong>${escapeHtml(teamNames)}</strong><p>${bestTeamScore ? `<b>${bestTeamScore} points</b>${winningTeams.length > 1 ? ' · tied for the week lead' : ' · highest fantasy-team total'}` : 'No fantasy-team points were recorded.'}</p></article><article class="card"><small>Cast MVP</small><strong>${escapeHtml(mvpNames)}</strong><p>${bestCastScore ? `<b>${bestCastScore} points</b>${castMVPs.length > 1 ? ' · tied as top cast scorer' : ' · top cast contribution'}` : 'No cast points were recorded.'}</p></article><article class="card"><small>Appearance leader</small><strong>${escapeHtml(appearanceNames)}</strong><p>${mostAppearances ? `<b>${mostAppearances} dance${mostAppearances === 1 ? '' : 's'}</b> · most recorded appearances` : 'No cast appearances were recorded.'}</p></article>`;
+  $('#leagueHighlightCards').innerHTML = `<article class="card"><small>Team of the week</small><strong>${escapeHtml(teamNames)}</strong><p>${bestTeamScore ? `<b>${bestTeamScore} points</b>${winningTeams.length > 1 ? ' · tied for the week lead' : ' · highest fantasy-team total'}` : 'No fantasy-team points were recorded.'}</p></article><article class="card"><small>Cast MVP</small><strong>${escapeHtml(mvpTitle)}</strong><p>${bestCastScore ? `${mvpTieSummary ? `${escapeHtml(mvpTieSummary)} · ` : ''}<b>${bestCastScore} points</b>${castMVPs.length > 1 ? ' each' : ' · top cast contribution'}` : 'No cast points were recorded.'}</p></article><article class="card"><small>Appearance leader</small><strong>${escapeHtml(appearanceNames)}</strong><p>${mostAppearances ? `<b>${mostAppearances} dance${mostAppearances === 1 ? '' : 's'}</b> · most recorded appearances` : 'No cast appearances were recorded.'}</p></article>`;
 }
 
 function renderPublicTeams() {
@@ -665,7 +673,7 @@ function renderPublicTeams() {
   selectedPublicTeamId = selected.team.id;
   const visibleWeeks = teamPageWeeks(weeks);
   if (selectedPublicWeekId !== 'all' && !visibleWeeks.some((week) => week.id === selectedPublicWeekId)) selectedPublicWeekId = 'all';
-  const displayName = selected.team.team_name || `${selected.team.manager_name}'s Team`;
+  const displayName = selected.team.team_name || defaultTeamName(selected.team.manager_name);
   $('#myTeamTitle').textContent = selected.team.team_name || 'My Team';
   $('#myTeamEyebrow').textContent = `${managerFirstName || selected.team.manager_name.split(' ')[0]}'s Manager View`;
   const roster = members.filter((member) => member.fantasy_team_id === selected.team.id).sort((a, b) => a.name.localeCompare(b.name));
@@ -680,7 +688,7 @@ function renderPublicTeams() {
     return `<button class="${selectedPublicWeekId === week.id ? 'selected' : ''}" data-public-week="${week.id}" aria-pressed="${selectedPublicWeekId === week.id}"><span>Week ${week.number}</span><strong class="${week.is_complete ? '' : 'air-date'}">${escapeHtml(summary)}</strong></button>`;
   }).join('');
   const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person" data-available-cast-detail="${member.id}" tabindex="0" role="button"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></div></article>`).join('');
-  const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || `${row.team.manager_name}'s Team`)}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
+  const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || defaultTeamName(row.team.manager_name))}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
   const canEditThisTeam = Boolean(managerTeamId && selected.team.id === managerTeamId);
   $('#editMyTeam').hidden = !canEditThisTeam;
   $('#editMyTeam').onclick = canEditThisTeam ? () => openMyTeamEditor(selected.team) : null;
@@ -860,7 +868,7 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
     const snapshot = snapshotMap.get(member.id);
     const teamId = snapshot?.fantasy_team_id ?? member.fantasy_team_id;
     const team = teamMap.get(teamId);
-    const teamName = snapshot?.team_name || team?.team_name || (snapshot?.manager_name ? `${snapshot.manager_name}'s Team` : team?.manager_name ? `${team.manager_name}'s Team` : 'Available cast');
+    const teamName = snapshot?.team_name || team?.team_name || (snapshot?.manager_name ? defaultTeamName(snapshot.manager_name) : team?.manager_name ? defaultTeamName(team.manager_name) : 'Available cast');
     const role = snapshot?.cast_role || roleAtWeek(member);
     return { member, role, teamId, teamName, points: contributions.get(member.id) || 0 };
   });

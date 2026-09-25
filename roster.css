@@ -566,8 +566,9 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 .team-card .card-chevron { margin-top: 2px; }
 .team-roster-more { border-style: dashed !important; background: #f7f2f6 !important; color: #5e505d; }
 .team-roster-more span { color: #493b48; }
-.standing-card { position: relative; padding-right: 28px; }
-.standing-chevron { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); }
+.standing-card { position: relative; padding-right: 48px; }
+.standing-total { margin-right: 26px; }
+.standing-chevron { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
 .dance-row { position: relative; overflow: hidden; }
 .dance-row::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: #b99d68; opacity: .7; }
 .dance-row.dance-performance::before { background: #9b778b; }
@@ -609,6 +610,9 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 @media (min-width: 901px) {
   #overviewTeamDetail { top: 22px; }
   .league-directory .team-card { min-height: 0; }
+  .roster-scroll-card { max-height: 470px; }
+  .roster-scroll-card #rosterResults { max-height: 325px; }
+  .nested-role-rates .role-rate-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 750px) {
@@ -636,6 +640,7 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .standing-contributors span { padding: 3px 5px; font-size: 10px; }
   .standing-contributors span:nth-child(n+4) { display: none; }
   .standing-total { grid-column: 3; grid-row: 1; min-width: 0; text-align: right; }
+  .standing-total { margin-right: 5px; }
   .standing-total strong { font-size: 23px; }
   .standing-total span { font-size: 8px; }
   .standing-chevron { right: 6px; font-size: 19px; }
