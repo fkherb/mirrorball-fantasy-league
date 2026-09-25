@@ -139,6 +139,11 @@ for both involved teams, and removes expired offers the next time either
 manager opens or acts on trading. The matching interface adds countdowns,
 image-based offer building, custom confirmations, and a History view.
 
+Then run `supabase/fix-trade-counter-history-and-cancellation.sql`. It records
+the original offer before replacing it with a counteroffer and lets the sender
+of either an offer or counteroffer cancel while the other manager is deciding.
+Cancelled offers are retained in the private history for both teams.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast
