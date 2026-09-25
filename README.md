@@ -118,6 +118,11 @@ commissioner-editable league name, and adds a distinct season-finale marker.
 The existing `is_finale` field continues to mean “no elimination”; the new
 marker hides Add Week only when the last scheduled week is the season finale.
 
+Run `supabase/restrict-mirrorball-wins-to-pros-and-houghs.sql` after that. It
+limits past Mirrorball-win entry to pros (including eliminated pros) and to
+Judges/Hosts with Hough scoring enabled, with the same rule enforced by the
+database.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast

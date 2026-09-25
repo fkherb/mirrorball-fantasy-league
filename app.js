@@ -17,6 +17,7 @@ const displayImagePath = (member) => {
 };
 const isPairRole = (role) => role === 'Star' || role === 'Pro';
 const isAnyPairRole = (role) => ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(role);
+const canHaveMirrorballWins = (role, isHough = false) => ['Pro', 'Eliminated Pro'].includes(role) || (role === 'Judges + Hosts' && isHough);
 const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
 const activePairRole = (role) => role.includes('Star') ? 'Star' : role.includes('Pro') ? 'Pro' : role;
 const judgeScoreImage = (score) => `${assetRoot}Images/Judges Scores/${score}.png?v=20260921-optimized`;
@@ -155,7 +156,7 @@ async function openCastDetail(castMemberId) {
     ? Object.entries(member.profile_details).filter(([, value]) => value).map(([label, value]) => `<div><small>${escapeHtml(label.replaceAll('_', ' '))}</small><strong>${escapeHtml(value)}</strong></div>`).join('')
     : '';
   openModal(`<div class="cast-profile-hero"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt="${escapeHtml(member.name)}"><div><p class="eyebrow">${escapeHtml(displayRole(member))}</p><h2>${escapeHtml(member.name)}</h2><p class="sub">${partner ? `Partnered with ${escapeHtml(partner.name)}` : 'Current season cast'}</p>${team ? `<span class="cast-team-pill">${escapeHtml(team.team_name || `${team.manager_name}'s Team`)}</span>` : '<span class="cast-team-pill">Available cast</span>'}</div></div>
-    <div class="cast-profile-stats"><div><strong>${fantasyPoints}</strong><span>Fantasy points</span></div>${isPairRole(roleForWeek(member, pairingData.weeks?.[0], pairingData.weeks || [])) ? `<div><strong>${Number(scoreEntry.official || 0)}</strong><span>Judges total</span></div>` : ''}<div><strong>${Number(scoreEntry.appearanceCount || 0)}</strong><span>Appearances</span></div><div><strong>${Number(member.mirrorball_wins || 0)}</strong><span>Past wins</span></div></div>
+    <div class="cast-profile-stats"><div><strong>${fantasyPoints}</strong><span>Fantasy points</span></div>${isPairRole(roleForWeek(member, pairingData.weeks?.[0], pairingData.weeks || [])) ? `<div><strong>${Number(scoreEntry.official || 0)}</strong><span>Judges total</span></div>` : ''}<div><strong>${Number(scoreEntry.appearanceCount || 0)}</strong><span>Appearances</span></div>${canHaveMirrorballWins(member.role, member.is_hough) ? `<div><strong>${Number(member.mirrorball_wins || 0)}</strong><span>Past wins</span></div>` : ''}</div>
     <section class="cast-profile-copy"><h3>About ${escapeHtml(member.name.split(' ')[0])}</h3><p>${escapeHtml(member.bio || 'Biography details have not been added yet.')}</p>${member.career_highlights ? `<h3>Career highlights</h3><p>${escapeHtml(member.career_highlights)}</p>` : ''}</section>${details ? `<div class="cast-profile-details">${details}</div>` : ''}`);
 }
 
@@ -187,15 +188,18 @@ async function editPlayer(id) {
       <label>Portrait position<input id="imagePosition" type="range" min="0" max="100" value="${player.image_position ?? 50}"><span class="range-note">Move left or right to center the image.</span></label>
       <label>Biography <span class="optional">(optional)</span><textarea id="editBio" rows="4">${escapeHtml(player.bio || '')}</textarea></label>
       <label>Career highlights <span class="optional">(optional)</span><textarea id="editCareerHighlights" rows="3">${escapeHtml(player.career_highlights || '')}</textarea></label>
-      <label>Past Mirrorball wins<input id="editMirrorballWins" type="number" min="0" max="99" value="${Number(player.mirrorball_wins || 0)}"></label>
+      <label id="editMirrorballWinsField" ${canHaveMirrorballWins(player.role, player.is_hough) ? '' : 'hidden'}>Past Mirrorball wins<input id="editMirrorballWins" type="number" min="0" max="99" value="${Number(player.mirrorball_wins || 0)}"></label>
       <div class="modal-actions"><button id="savePlayer">Save changes</button><button id="deletePlayer" class="danger">Delete cast member</button></div>`);
+    const syncEditWinsField = () => { const eligible = canHaveMirrorballWins($('#editRole').value, $('#editIsHough').checked); $('#editMirrorballWinsField').hidden = !eligible; if (!eligible) $('#editMirrorballWins').value = '0'; };
     $('#editRole').addEventListener('change', (event) => {
       const role = event.target.value;
       $('#surpriseRate').hidden = role !== 'Surprise';
       $('#roleDetailField').hidden = role !== 'Judges + Hosts';
       $('#partnerField').hidden = !isAnyPairRole(role);
       if (isAnyPairRole(role)) $('#editPartner').innerHTML = `<option value="">No partner</option>${partnerOptions(activePairRole(role), players, partnerships, partner?.id)}`;
+      syncEditWinsField();
     });
+    $('#editIsHough').addEventListener('change', syncEditWinsField);
     $('#editPartner').addEventListener('change', (event) => { $('#partnershipNameField').hidden = !event.target.value; });
     $('#imagePosition').addEventListener('input', (event) => { $('#editPhotoPreview').style.objectPosition = `${event.target.value}% center`; });
     $('#savePlayer').addEventListener('click', async () => {
@@ -211,7 +215,7 @@ async function editPlayer(id) {
         p_is_hough: role === 'Judges + Hosts' && $('#editIsHough').checked,
         p_partner_id: partnerId || null, p_partnership_name: partnershipName,
         p_bio: $('#editBio').value.trim() || null, p_career_highlights: $('#editCareerHighlights').value.trim() || null,
-        p_mirrorball_wins: Number($('#editMirrorballWins').value || 0),
+        p_mirrorball_wins: canHaveMirrorballWins(role, role === 'Judges + Hosts' && $('#editIsHough').checked) ? Number($('#editMirrorballWins').value || 0) : 0,
       });
       if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
       $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
@@ -237,15 +241,18 @@ async function openAddPlayer() {
     <label id="newPartnerField">Add partnership <span class="optional">(optional)</span><select id="newPartner"><option value="">No partner yet</option>${partnerOptions('Star', players, partnerships)}</select></label>
     <label>Biography <span class="optional">(optional)</span><textarea id="newBio" rows="4"></textarea></label>
     <label>Career highlights <span class="optional">(optional)</span><textarea id="newCareerHighlights" rows="3"></textarea></label>
-    <label>Past Mirrorball wins<input id="newMirrorballWins" type="number" min="0" max="99" value="0"></label>
+    <label id="newMirrorballWinsField" hidden>Past Mirrorball wins<input id="newMirrorballWins" type="number" min="0" max="99" value="0"></label>
     <button id="createPlayer">Create cast member</button>`);
+  const syncNewWinsField = () => { const eligible = canHaveMirrorballWins($('#newRole').value, $('#newIsHough').checked); $('#newMirrorballWinsField').hidden = !eligible; if (!eligible) $('#newMirrorballWins').value = '0'; };
   $('#newRole').addEventListener('change', (event) => {
     const role = event.target.value;
     $('#newSurpriseRate').hidden = role !== 'Surprise';
     $('#newRoleDetailField').hidden = role !== 'Judges + Hosts';
     $('#newPartnerField').hidden = !isPairRole(role);
     if (isPairRole(role)) $('#newPartner').innerHTML = `<option value="">No partner yet</option>${partnerOptions(role, players, partnerships)}`;
+    syncNewWinsField();
   });
+  $('#newIsHough').addEventListener('change', syncNewWinsField);
   $('#createPlayer').addEventListener('click', async () => {
     const name = $('#newName').value.trim();
     if (!name) return alert('Enter a cast member name first.');
@@ -259,7 +266,7 @@ async function openAddPlayer() {
       p_is_hough: role === 'Judges + Hosts' && $('#newIsHough').checked,
       p_partner_id: partnerId || null, p_partnership_name: null,
       p_bio: $('#newBio').value.trim() || null, p_career_highlights: $('#newCareerHighlights').value.trim() || null,
-      p_mirrorball_wins: Number($('#newMirrorballWins').value || 0),
+      p_mirrorball_wins: canHaveMirrorballWins(role, role === 'Judges + Hosts' && $('#newIsHough').checked) ? Number($('#newMirrorballWins').value || 0) : 0,
     });
     if (error) return alert(`Couldn’t create ${name}: ${error.message}`);
     $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
