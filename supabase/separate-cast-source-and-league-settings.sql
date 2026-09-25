@@ -141,7 +141,7 @@ $$;
 create or replace function public.update_league_name(p_league_name text)
 returns void
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $$
 begin
@@ -151,6 +151,9 @@ begin
   on conflict (id) do update set league_name = excluded.league_name, updated_at = excluded.updated_at;
 end;
 $$;
+revoke insert, update, delete on public.league_settings from anon, authenticated;
+revoke all on function public.update_league_name(text) from public, anon;
+grant execute on function public.update_league_name(text) to authenticated;
 
 create or replace function public.set_week_season_finale(p_week_id uuid, p_is_season_finale boolean)
 returns void

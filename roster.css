@@ -559,3 +559,86 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 @media (max-width: 700px) {
   #overviewTeamDetail { display: none; }
 }
+
+/* Responsive product pass: clearer interaction, tighter league browsing, and mobile-safe dialogs. */
+.card-chevron, .row-chevron { color: #9b8f98; font: 700 24px/1 Georgia, serif; }
+.team-card { position: relative; }
+.team-card .card-chevron { margin-top: 2px; }
+.team-roster-more { border-style: dashed !important; background: #f7f2f6 !important; color: #5e505d; }
+.team-roster-more span { color: #493b48; }
+.standing-card { position: relative; padding-right: 28px; }
+.standing-chevron { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); }
+.dance-row { position: relative; overflow: hidden; }
+.dance-row::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: #b99d68; opacity: .7; }
+.dance-row.dance-performance::before { background: #9b778b; }
+.dance-card-info { min-width: 0; }
+.dance-card-top .card-chevron { flex: 0 0 auto; margin: -1px -3px 0 0; }
+.cast-roster-row .row-chevron { flex: 0 0 auto; }
+.team-detail-member > div { min-width: 0; flex: 1 1 auto; }
+.team-detail-member > i { margin-left: auto; color: #9b8f98; font: normal 700 20px Georgia, serif; }
+.profile-back-button { margin: 0 0 14px !important; padding: 7px 10px; }
+.league-mobile-switcher { display: none; }
+.league-at-a-glance { margin-bottom: 18px; padding: 12px; }
+.league-at-a-glance > div { padding: 0 14px; }
+.league-at-a-glance span { font-size: 24px; }
+.league-directory .team-roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.league-directory section[id] { scroll-margin-top: 14px; }
+
+.detail-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.detail-section-title h3 { margin: 0; }
+.detail-section-title > span { color: #877c87; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.detail-section-title > strong { color: #302638; font: 700 25px/1 Georgia, serif; }
+.dance-score-section { padding: 13px; border: 1px solid #e8e0e7; border-radius: 11px; background: #fcfafb; }
+.dance-team-spotlight { margin-top: 12px; padding: 13px 15px; border-radius: 11px; background: linear-gradient(115deg, #382a3b, #4d3448); color: #fff; }
+.dance-team-spotlight span, .dance-team-spotlight strong, .dance-team-spotlight small { display: block; }
+.dance-team-spotlight span { color: #d8c8d2; font-size: 9px; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+.dance-team-spotlight strong { margin: 5px 0 2px; font: 600 18px Georgia, serif; }
+.dance-team-spotlight small { color: #eadfe6; font-size: 10px; }
+.dance-cast-impact-list { overflow: hidden; border: 1px solid #e8e0e7; border-radius: 11px; background: #fff; }
+.dance-cast-impact-list button { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto 12px; align-items: center; gap: 9px; width: 100%; margin: 0; padding: 9px 10px; border-radius: 0; border-top: 1px solid #eee7ec; background: transparent; color: #2f2631; text-align: left; box-shadow: none; }
+.dance-cast-impact-list button:first-child { border-top: 0; }
+.dance-cast-impact-list button:hover, .dance-cast-impact-list button:focus-visible { background: #f7f2f6; }
+.dance-cast-impact-list img { width: 42px; height: 42px; border-radius: 9px; object-fit: cover; background: #eee8ed; }
+.dance-cast-impact-list span, .dance-cast-impact-list b, .dance-cast-impact-list small { display: block; min-width: 0; }
+.dance-cast-impact-list b, .dance-cast-impact-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dance-cast-impact-list b { font-size: 12px; }
+.dance-cast-impact-list small { margin-top: 2px; color: #786e79; font-size: 10px; }
+.dance-cast-impact-list button > strong { color: #745b29; font: 700 17px Georgia, serif; }
+.dance-cast-impact-list i { color: #9b8f98; font: normal 700 20px Georgia, serif; }
+
+@media (min-width: 901px) {
+  #overviewTeamDetail { top: 22px; }
+  .league-directory .team-card { min-height: 0; }
+}
+
+@media (max-width: 750px) {
+  main { padding-bottom: calc(46px + env(safe-area-inset-bottom)); }
+  dialog { margin-top: max(12px, env(safe-area-inset-top)); margin-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .modal { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .league-mobile-switcher { position: sticky; top: 6px; z-index: 5; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: -2px 0 18px; padding: 5px; border: 1px solid #e5dce3; border-radius: 11px; background: #fbf8fae8; box-shadow: 0 8px 20px #2b193012; backdrop-filter: blur(12px); }
+  .league-mobile-switcher button { margin: 0; padding: 8px; background: transparent; color: #6d626c; font-size: 11px; }
+  .league-mobile-switcher button.selected { background: #302638; color: #fff; }
+  .league-directory .team-roster { grid-template-columns: 1fr; }
+  .league-at-a-glance { margin-bottom: 12px; }
+  .dance-row:hover, .standing-card:hover, .team-card:hover { transform: none; box-shadow: 0 10px 25px #2b19300a; }
+  .cast-profile-hero { grid-template-columns: 104px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .cast-profile-hero > img { width: 104px; height: 138px; border-radius: 12px; }
+  .cast-profile-hero h2 { font-size: 23px; }
+  .cast-profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dance-detail-head { padding-right: 30px; }
+}
+
+@media (max-width: 520px) {
+  .standing-card { grid-template-columns: 34px minmax(0, 1fr) 54px; gap: 9px; padding: 12px 24px 12px 12px; }
+  .standing-rank { width: 34px; height: 34px; font-size: 16px; }
+  .standing-main h2 { font-size: 18px; }
+  .standing-roster { margin: 3px 0 7px; font-size: 10px; }
+  .standing-contributors span { padding: 3px 5px; font-size: 10px; }
+  .standing-contributors span:nth-child(n+4) { display: none; }
+  .standing-total { grid-column: 3; grid-row: 1; min-width: 0; text-align: right; }
+  .standing-total strong { font-size: 23px; }
+  .standing-total span { font-size: 8px; }
+  .standing-chevron { right: 6px; font-size: 19px; }
+  .dance-cast-impact-list button { grid-template-columns: 38px minmax(0, 1fr) auto 10px; gap: 8px; padding: 8px; }
+  .dance-cast-impact-list img { width: 38px; height: 38px; }
+}

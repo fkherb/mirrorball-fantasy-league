@@ -123,6 +123,10 @@ limits past Mirrorball-win entry to pros (including eliminated pros) and to
 Judges/Hosts with Hough scoring enabled, with the same rule enforced by the
 database.
 
+Run `supabase/fix-league-name-permissions.sql` on installations that already
+applied the league-settings migration. It fixes the commissioner league-name
+save path while keeping direct writes to `league_settings` blocked.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast
