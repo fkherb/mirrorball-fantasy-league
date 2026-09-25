@@ -133,6 +133,12 @@ counter that changes exactly one side of the offer. Accepting a trade swaps
 both current team assignments atomically; completed-week snapshots remain
 unchanged, and the new assignments are captured when the next week completes.
 
+Then run `supabase/enhance-trade-expiration-history.sql`. It gives each new or
+countered offer a fresh 48-hour response window, records private event history
+for both involved teams, and removes expired offers the next time either
+manager opens or acts on trading. The matching interface adds countdowns,
+image-based offer building, custom confirmations, and a History view.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast

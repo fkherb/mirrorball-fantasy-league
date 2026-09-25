@@ -253,6 +253,51 @@
 .counter-choice span, .counter-choice b, .counter-choice small { display: block; }
 .counter-choice small { margin-top: 3px; color: #786e79; font-size: 10px; font-weight: 500; line-height: 1.35; }
 .counter-choice.disabled { opacity: .48; }
+dialog:has(.trade-builder), dialog:has(.counter-swap-card) { width: min(720px, 94vw); }
+.trade-view-tabs { display: flex; gap: 4px; margin: 12px 0 10px; padding: 3px; border-radius: 8px; background: #f1ebf0; }
+.trade-view-tabs button { flex: 1; margin: 0; padding: 7px 8px; background: transparent; color: #716672; box-shadow: none; font-size: 10px; }
+.trade-view-tabs button.selected { background: #fff; color: #302638; box-shadow: 0 2px 7px #25162a12; }
+.trade-view-tabs span { display: inline-grid; place-items: center; min-width: 17px; height: 17px; margin-left: 3px; padding: 0 4px; border-radius: 999px; background: #e9e1e7; font-size: 9px; }
+.trade-expiry { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; color: #817580; }
+.trade-expiry span { color: #725b2d; font-size: 10px; font-weight: 850; }
+.trade-expiry small { font-size: 8px; }
+.trade-history-list { display: grid; gap: 9px; }
+.trade-history-item { padding: 11px; border: 1px solid #e7dfe5; border-radius: 10px; background: #fff; }
+.trade-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.trade-history-head > small { color: #877c87; font-size: 9px; }
+.trade-status { padding: 4px 7px; border-radius: 999px; background: #eee8ed; color: #665b64; font-size: 8px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.trade-status-accepted { background: #e2f2eb; color: #24664e; }
+.trade-status-denied { background: #f6e7ed; color: #96355e; }
+.trade-status-countered { background: #f3ecd9; color: #735a27; }
+.trade-swap-person { position: relative; display: flex; align-items: center; min-width: 0; gap: 7px; }
+.trade-swap-person.changed { padding: 5px; border: 1px solid #bea464; border-radius: 9px; background: #fffdf5; }
+.trade-swap-person .trade-remove-change { position: absolute; top: -8px; right: -6px; display: grid; place-items: center; width: 20px; height: 20px; margin: 0; padding: 0; border-radius: 999px; background: #302638; color: #fff; font-size: 14px; line-height: 1; }
+.trade-builder { display: grid; gap: 17px; margin-top: 18px; }
+.trade-builder section, .counter-picker { padding: 14px; border: 1px solid #e7dfe5; border-radius: 11px; background: #fcfafb; }
+.trade-builder-title { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
+.trade-builder-title > span { display: grid; place-items: center; width: 25px; height: 25px; flex: 0 0 25px; border-radius: 999px; background: #302638; color: #fff; font-size: 10px; font-weight: 850; }
+.trade-builder-title b, .trade-builder-title small { display: block; }
+.trade-builder-title b { font-size: 12px; }
+.trade-builder-title small { margin-top: 2px; color: #817580; font-size: 9px; }
+.trade-picker-grid, .trade-team-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.trade-member-choice, .trade-team-choice { display: grid; grid-template-columns: 42px minmax(0, 1fr) 14px; align-items: center; gap: 9px; width: 100%; margin: 0; padding: 8px; border: 1px solid #e7dfe5; border-radius: 9px; background: #fff; color: #302638; text-align: left; box-shadow: none; }
+.trade-team-choice { grid-template-columns: minmax(0, 1fr) 14px; }
+.trade-member-choice:hover, .trade-team-choice:hover { background: #f7f2f6; }
+.trade-member-choice.selected, .trade-team-choice.selected { border-color: #9c7b91; background: #f2eaf0; box-shadow: inset 0 0 0 1px #9c7b91; }
+.trade-member-choice img { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; background: #eee8ed; }
+.trade-member-choice span, .trade-member-choice b, .trade-member-choice small, .trade-team-choice span, .trade-team-choice b, .trade-team-choice small { display: block; min-width: 0; }
+.trade-member-choice b, .trade-member-choice small, .trade-team-choice b, .trade-team-choice small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trade-member-choice b, .trade-team-choice b { font-size: 11px; }
+.trade-member-choice small, .trade-team-choice small { margin-top: 2px; color: #817580; font-size: 9px; }
+.trade-member-choice i, .trade-team-choice i { color: #8d7e89; font: normal 700 18px Georgia, serif; }
+.counter-swap-card { margin: 16px 0; padding: 14px; border: 1px solid #e2d8df; border-radius: 11px; background: #faf7f9; }
+.counter-swap-card .trade-swap img, .confirm-trade-preview .trade-swap img { width: 48px; height: 48px; flex-basis: 48px; }
+.counter-swap-card .trade-swap b, .confirm-trade-preview .trade-swap b { font-size: 12px; }
+.counter-side-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 12px; padding-top: 11px; border-top: 1px solid #e7dfe5; }
+.counter-side-actions button { margin: 0; padding: 8px; font-size: 10px; }
+.counter-picker { margin-bottom: 12px; }
+.confirm-trade-preview { margin-top: 15px; padding: 13px; border: 1px solid #e5dce3; border-radius: 11px; background: #faf7f9; }
+.trade-confirm .modal-actions { justify-content: flex-end; }
 .public-section-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .public-section-head h2, .public-section-head h3 { margin: 0; }
 .public-section-head h3 { font-size: 17px; }
@@ -685,4 +730,23 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
   .trade-form-arrow { padding: 0; transform: rotate(90deg); }
   .trade-swap { grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); }
   .trade-swap img { width: 31px; height: 31px; flex-basis: 31px; }
+  .trade-picker-grid, .trade-team-picker { grid-template-columns: 1fr; }
+  .counter-side-actions { grid-template-columns: 1fr; }
+}
+
+/* Tablet: stack the two large work areas before either one becomes cramped. */
+@media (min-width: 751px) and (max-width: 1100px) {
+  .league-directory { grid-template-columns: 1fr; }
+  .league-directory .commissioner-section + .commissioner-section { margin-top: 26px; padding-top: 22px; border-top: 1px solid #e2d9e0; }
+  .league-directory .team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .league-directory .team-card { min-width: 0; }
+  .roster-scroll-card { max-height: 540px; }
+  .roster-scroll-card #rosterResults { max-height: 395px; }
+  .nested-role-rates .role-rate-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .public-team-columns { grid-template-columns: 1fr; }
+  .team-side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 751px) and (max-width: 850px) {
+  .team-side-column { grid-template-columns: 1fr; }
 }

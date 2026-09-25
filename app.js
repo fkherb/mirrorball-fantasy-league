@@ -39,6 +39,8 @@ let managerNavLabelMode = 'default';
 let managerCustomNavLabel = '';
 let supportsDatabaseHardening = false;
 let scoreDeskLoadVersion = 0;
+let tradeViewMode = 'active';
+let tradeCountdownTimer = null;
 
 function displayRole(memberOrRole) {
   const member = typeof memberOrRole === 'string' ? { role: memberOrRole } : memberOrRole || {};
@@ -720,19 +722,83 @@ function tradeContext(trade) {
   };
 }
 
+function tradeMemberChoice(member, selected = false, attribute = '') {
+  return `<button type="button" class="trade-member-choice ${selected ? 'selected' : ''}" ${attribute}><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member?.image_position ?? 50}% center" alt=""><span><b>${escapeHtml(member?.name || 'Unavailable')}</b><small>${escapeHtml(displayRole(member))}</small></span><i aria-hidden="true">${selected ? '✓' : '›'}</i></button>`;
+}
+
+function tradeSwapMarkup(mine, theirs, options = {}) {
+  const side = (member, label, sideName) => `<div class="trade-swap-person ${options.changedSide === sideName ? 'changed' : ''}"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member?.image_position ?? 50}% center" alt=""><span><small>${label}</small><b>${escapeHtml(member?.name || 'Unavailable')}</b></span>${options.changedSide === sideName ? '<button type="button" class="trade-remove-change" aria-label="Remove this change">×</button>' : ''}</div>`;
+  return `<div class="trade-swap">${side(mine, 'You send', 'mine')}<i aria-hidden="true">⇄</i>${side(theirs, 'You receive', 'theirs')}</div>`;
+}
+
+function tradeTimeRemaining(expiresAt) {
+  const milliseconds = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return 'Expired';
+  const minutes = Math.ceil(milliseconds / 60000);
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m left`;
+  return `${minutes}m left`;
+}
+
+function refreshTradeCountdowns() {
+  let hasExpired = false;
+  document.querySelectorAll('[data-trade-expires]').forEach((item) => {
+    const label = tradeTimeRemaining(item.dataset.tradeExpires);
+    item.textContent = label;
+    if (label === 'Expired') hasExpired = true;
+  });
+  if (hasExpired) loadTrades();
+}
+
+function historyTradeContext(entry) {
+  const memberById = new Map((standingsSnapshot?.members || []).map((member) => [member.id, member]));
+  return {
+    initiatorMember: memberById.get(entry.initiator_cast_member_id) || { name: entry.initiator_cast_member_name },
+    counterpartyMember: memberById.get(entry.counterparty_cast_member_id) || { name: entry.counterparty_cast_member_name },
+  };
+}
+
+function openTradeConfirmation({ trade, title, message, confirmLabel, destructive = false, onConfirm }) {
+  const context = tradeContext(trade);
+  const isInitiator = trade.initiator_team_id === managerTeamId;
+  const mine = isInitiator ? context.initiatorMember : context.counterpartyMember;
+  const theirs = isInitiator ? context.counterpartyMember : context.initiatorMember;
+  openModal(`<div class="trade-confirm"><p class="eyebrow">Confirm trade</p><h2>${escapeHtml(title)}</h2><p class="sub">${escapeHtml(message)}</p><div class="confirm-trade-preview">${tradeSwapMarkup(mine, theirs)}</div><p id="tradeConfirmError" class="sub error" hidden></p><div class="modal-actions"><button id="cancelTradeConfirmation" type="button" class="secondary">Cancel</button><button id="confirmTradeAction" type="button" class="${destructive ? 'danger' : ''}">${escapeHtml(confirmLabel)}</button></div></div>`);
+  $('#cancelTradeConfirmation').addEventListener('click', () => $('#modal').close());
+  $('#confirmTradeAction').addEventListener('click', async () => {
+    const button = $('#confirmTradeAction');
+    button.disabled = true;
+    const error = await onConfirm();
+    if (error) {
+      button.disabled = false;
+      const errorBox = $('#tradeConfirmError');
+      errorBox.hidden = false;
+      errorBox.textContent = error.message || String(error);
+      return;
+    }
+    $('#modal').close();
+  });
+}
+
 async function loadTrades() {
   const container = $('#tradeCenter');
   if (!container) return;
+  if (tradeCountdownTimer) clearInterval(tradeCountdownTimer);
   if (!managerTeamId) {
     container.innerHTML = '<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub">Connect a manager account to a fantasy team to trade.</p>';
     return;
   }
-  const { data: trades, error } = await db.from('trade_offers').select('*').order('updated_at', { ascending: false });
-  if (error) {
-    const setupMissing = error.code === '42P01' || /trade_offers/i.test(error.message || '');
-    container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub ${setupMissing ? '' : 'error'}">${setupMissing ? 'Trading will appear after its database setup is installed.' : `Couldn’t load trades: ${escapeHtml(error.message)}`}</p>`;
+  const [offersResult, historyResult] = await Promise.all([
+    db.rpc('get_my_trade_offers'),
+    db.rpc('get_my_trade_history'),
+  ]);
+  if (offersResult.error || historyResult.error) {
+    const error = offersResult.error || historyResult.error;
+    const setupMissing = ['42P01', 'PGRST202'].includes(error.code) || /trade|function/i.test(error.message || '');
+    container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub ${setupMissing ? '' : 'error'}">${setupMissing ? 'Run the latest trade database update to enable timers and history.' : `Couldn’t load trades: ${escapeHtml(error.message)}`}</p>`;
     return;
   }
+  const trades = offersResult.data || [];
+  const history = historyResult.data || [];
   const tradeCards = (trades || []).map((trade) => {
     const context = tradeContext(trade);
     const isInitiator = trade.initiator_team_id === managerTeamId;
@@ -741,45 +807,66 @@ async function loadTrades() {
     const otherTeamName = isInitiator ? context.counterpartyTeamName : context.initiatorTeamName;
     const awaitingMe = trade.awaiting_team_id === managerTeamId;
     const mayCounter = awaitingMe && trade.status === 'pending' && trade.counterparty_team_id === managerTeamId;
-    return `<article class="trade-offer ${awaitingMe ? 'needs-action' : ''}"><div class="trade-offer-top"><span>${trade.status === 'countered' ? 'Counter offer' : 'Trade offer'}</span><small>${awaitingMe ? 'Your response' : `Waiting for ${escapeHtml(otherTeamName)}`}</small></div><div class="trade-swap"><div><img src="${escapeHtml(displayImagePath(mine))}" style="object-position:${mine?.image_position ?? 50}% center" alt=""><span><small>You send</small><b>${escapeHtml(mine?.name || 'Unavailable')}</b></span></div><i aria-hidden="true">⇄</i><div><img src="${escapeHtml(displayImagePath(theirs))}" style="object-position:${theirs?.image_position ?? 50}% center" alt=""><span><small>You receive</small><b>${escapeHtml(theirs?.name || 'Unavailable')}</b></span></div></div>${awaitingMe ? `<div class="trade-actions"><button data-accept-trade="${trade.id}">Accept</button>${mayCounter ? `<button class="secondary" data-counter-trade="${trade.id}">Counter</button>` : ''}<button class="secondary trade-deny" data-deny-trade="${trade.id}">Deny</button></div>` : ''}</article>`;
+    return `<article class="trade-offer ${awaitingMe ? 'needs-action' : ''}"><div class="trade-offer-top"><span>${trade.status === 'countered' ? 'Counter offer' : 'Trade offer'}</span><small>${awaitingMe ? 'Your response' : `Waiting for ${escapeHtml(otherTeamName)}`}</small></div>${tradeSwapMarkup(mine, theirs)}<div class="trade-expiry"><span data-trade-expires="${escapeHtml(trade.expires_at)}">${escapeHtml(tradeTimeRemaining(trade.expires_at))}</span><small>Offer closes automatically</small></div>${awaitingMe ? `<div class="trade-actions"><button data-accept-trade="${trade.id}">Accept</button>${mayCounter ? `<button class="secondary" data-counter-trade="${trade.id}">Counter</button>` : ''}<button class="secondary trade-deny" data-deny-trade="${trade.id}">Deny</button></div>` : ''}</article>`;
   }).join('');
-  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary">Propose trade</button></div><p class="sub">Swap one cast member with another manager.</p><div class="trade-list">${tradeCards || '<div class="trade-empty">No active trade offers.</div>'}</div>`;
+  const statusLabels = { countered: 'Countered', accepted: 'Accepted', denied: 'Denied', expired: 'Expired' };
+  const historyCards = history.map((entry) => {
+    const context = historyTradeContext(entry);
+    const isInitiator = entry.initiator_team_id === managerTeamId;
+    const mine = isInitiator ? context.initiatorMember : context.counterpartyMember;
+    const theirs = isInitiator ? context.counterpartyMember : context.initiatorMember;
+    const date = new Date(entry.event_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    return `<article class="trade-history-item"><div class="trade-history-head"><span class="trade-status trade-status-${entry.event_type}">${statusLabels[entry.event_type] || entry.event_type}</span><small>${escapeHtml(date)}</small></div>${tradeSwapMarkup(mine, theirs)}</article>`;
+  }).join('');
+  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary">Propose trade</button></div><p class="sub">Swap one cast member with another manager.</p><div class="trade-view-tabs" role="tablist"><button type="button" data-trade-view="active" class="${tradeViewMode === 'active' ? 'selected' : ''}">Active <span>${trades.length}</span></button><button type="button" data-trade-view="history" class="${tradeViewMode === 'history' ? 'selected' : ''}">History</button></div><div class="trade-list" ${tradeViewMode === 'active' ? '' : 'hidden'}>${tradeCards || '<div class="trade-empty">No active trade offers.</div>'}</div><div class="trade-history-list" ${tradeViewMode === 'history' ? '' : 'hidden'}>${historyCards || '<div class="trade-empty">No past trade activity yet.</div>'}</div>`;
   $('#newTrade')?.addEventListener('click', openNewTrade);
+  document.querySelectorAll('[data-trade-view]').forEach((button) => button.addEventListener('click', () => { tradeViewMode = button.dataset.tradeView; loadTrades(); }));
   document.querySelectorAll('[data-accept-trade]').forEach((button) => button.addEventListener('click', async () => {
-    if (!confirm('Accept this trade and swap the two cast members now?')) return;
-    button.disabled = true;
-    const { error: acceptError } = await db.rpc('accept_trade', { p_trade_id: button.dataset.acceptTrade });
-    if (acceptError) { button.disabled = false; return alert(`Couldn’t accept this trade: ${acceptError.message}`); }
-    loadStandings();
+    const trade = trades.find((item) => item.id === button.dataset.acceptTrade);
+    openTradeConfirmation({ trade, title: 'Accept this trade?', message: 'The cast members will switch teams immediately and the change will be captured in the next completed week.', confirmLabel: 'Accept trade', onConfirm: async () => {
+      const { error } = await db.rpc('accept_trade', { p_trade_id: trade.id });
+      if (!error) await loadStandings();
+      return error;
+    } });
   }));
   document.querySelectorAll('[data-counter-trade]').forEach((button) => button.addEventListener('click', () => openCounterTrade(trades.find((trade) => trade.id === button.dataset.counterTrade))));
   document.querySelectorAll('[data-deny-trade]').forEach((button) => button.addEventListener('click', async () => {
-    if (!confirm('Deny and delete this trade offer?')) return;
-    button.disabled = true;
-    const { error: denyError } = await db.rpc('deny_trade', { p_trade_id: button.dataset.denyTrade });
-    if (denyError) { button.disabled = false; return alert(`Couldn’t deny this trade: ${denyError.message}`); }
-    loadTrades();
+    const trade = trades.find((item) => item.id === button.dataset.denyTrade);
+    openTradeConfirmation({ trade, title: 'Deny this trade?', message: 'This offer will close and move to your trade history.', confirmLabel: 'Deny trade', destructive: true, onConfirm: async () => {
+      const { error } = await db.rpc('deny_trade', { p_trade_id: trade.id });
+      if (!error) await loadTrades();
+      return error;
+    } });
   }));
+  refreshTradeCountdowns();
+  tradeCountdownTimer = setInterval(refreshTradeCountdowns, 60000);
 }
 
 function openNewTrade() {
   const { members, teamRows } = standingsSnapshot;
-  const teamById = new Map(teamRows.map((row) => [row.team.id, row.team]));
   const myRoster = members.filter((member) => member.fantasy_team_id === managerTeamId).sort((a, b) => a.name.localeCompare(b.name));
-  const otherRoster = members.filter((member) => member.fantasy_team_id && member.fantasy_team_id !== managerTeamId).sort((a, b) => {
-    const aTeam = teamById.get(a.fantasy_team_id); const bTeam = teamById.get(b.fantasy_team_id);
-    return (aTeam?.manager_name || '').localeCompare(bTeam?.manager_name || '') || a.name.localeCompare(b.name);
-  });
+  const otherRoster = members.filter((member) => member.fantasy_team_id && member.fantasy_team_id !== managerTeamId);
   if (!myRoster.length || !otherRoster.length) return alert('Both teams need an assigned cast member before proposing a trade.');
-  const mineOptions = myRoster.map((member) => `<option value="${member.id}">${escapeHtml(member.name)} · ${escapeHtml(displayRole(member))}</option>`).join('');
-  const theirOptions = otherRoster.map((member) => { const team = teamById.get(member.fantasy_team_id); return `<option value="${member.id}">${escapeHtml(team?.team_name || defaultTeamName(team?.manager_name))} — ${escapeHtml(member.name)}</option>`; }).join('');
-  openModal(`<p class="eyebrow">New trade</p><h2>Propose a Trade</h2><p class="sub">Choose one cast member to send and the specific cast member you want back.</p><div class="trade-form"><label>You send<select id="tradeMine">${mineOptions}</select></label><div class="trade-form-arrow" aria-hidden="true">⇄</div><label>You request<select id="tradeTheirs">${theirOptions}</select></label></div><div class="modal-actions"><button id="sendTrade">Send offer</button></div>`);
-  $('#sendTrade').addEventListener('click', async () => {
-    const button = $('#sendTrade'); button.disabled = true;
-    const { error } = await db.rpc('request_trade', { p_my_cast_member_id: $('#tradeMine').value, p_requested_cast_member_id: $('#tradeTheirs').value });
-    if (error) { button.disabled = false; return alert(`Couldn’t send this trade: ${error.message}`); }
-    $('#modal').close(); loadTrades();
-  });
+  renderNewTrade({ mineId: null, teamId: null, theirsId: null });
+
+  function renderNewTrade(state) {
+    const otherTeams = teamRows.filter((row) => row.team.id !== managerTeamId && members.some((member) => member.fantasy_team_id === row.team.id));
+    const theirRoster = state.teamId ? members.filter((member) => member.fantasy_team_id === state.teamId).sort((a, b) => a.name.localeCompare(b.name)) : [];
+    openModal(`<p class="eyebrow">New trade</p><h2>Propose a Trade</h2><p class="sub">Build a one-for-one offer. The other manager has 48 hours to respond.</p><div class="trade-builder"><section><div class="trade-builder-title"><span>1</span><div><b>Choose who you send</b><small>Your current roster</small></div></div><div class="trade-picker-grid">${myRoster.map((member) => tradeMemberChoice(member, state.mineId === member.id, `data-trade-mine="${member.id}"`)).join('')}</div></section><section><div class="trade-builder-title"><span>2</span><div><b>Choose a manager</b><small>Select the team you want to trade with</small></div></div><div class="trade-team-picker">${otherTeams.map(({ team }) => `<button type="button" class="trade-team-choice ${state.teamId === team.id ? 'selected' : ''}" data-trade-team="${team.id}"><span><b>${escapeHtml(team.team_name || defaultTeamName(team.manager_name))}</b><small>${escapeHtml(team.manager_name)}</small></span><i>${state.teamId === team.id ? '✓' : '›'}</i></button>`).join('')}</div></section>${state.teamId ? `<section><div class="trade-builder-title"><span>3</span><div><b>Choose who you request</b><small>${escapeHtml(teamRows.find((row) => row.team.id === state.teamId)?.team.team_name || 'Their roster')}</small></div></div><div class="trade-picker-grid">${theirRoster.map((member) => tradeMemberChoice(member, state.theirsId === member.id, `data-trade-theirs="${member.id}"`)).join('')}</div></section>` : ''}</div><p id="tradeBuilderError" class="sub error" hidden></p><div class="modal-actions"><button id="sendTrade" ${state.mineId && state.theirsId ? '' : 'disabled'}>Send 48-hour offer</button></div>`);
+    document.querySelectorAll('[data-trade-mine]').forEach((button) => button.addEventListener('click', () => renderNewTrade({ ...state, mineId: button.dataset.tradeMine })));
+    document.querySelectorAll('[data-trade-team]').forEach((button) => button.addEventListener('click', () => renderNewTrade({ ...state, teamId: button.dataset.tradeTeam, theirsId: null })));
+    document.querySelectorAll('[data-trade-theirs]').forEach((button) => button.addEventListener('click', () => renderNewTrade({ ...state, theirsId: button.dataset.tradeTheirs })));
+    $('#sendTrade').addEventListener('click', async () => {
+      const button = $('#sendTrade'); button.disabled = true;
+      const { error } = await db.rpc('request_trade', { p_my_cast_member_id: state.mineId, p_requested_cast_member_id: state.theirsId });
+      if (error) {
+        button.disabled = false;
+        const errorBox = $('#tradeBuilderError'); errorBox.hidden = false; errorBox.textContent = error.message;
+        return;
+      }
+      $('#modal').close(); loadTrades();
+    });
+  }
 }
 
 function openCounterTrade(trade) {
@@ -789,21 +876,31 @@ function openCounterTrade(trade) {
   const initiatorAlternatives = members.filter((member) => member.fantasy_team_id === trade.initiator_team_id && member.id !== trade.initiator_cast_member_id).sort((a, b) => a.name.localeCompare(b.name));
   const counterpartyAlternatives = members.filter((member) => member.fantasy_team_id === trade.counterparty_team_id && member.id !== trade.counterparty_cast_member_id).sort((a, b) => a.name.localeCompare(b.name));
   if (!initiatorAlternatives.length && !counterpartyAlternatives.length) return alert('There are no other cast members available for a counter offer.');
-  const requestOptions = initiatorAlternatives.map((member) => `<option value="${member.id}">${escapeHtml(member.name)}</option>`).join('');
-  const offerOptions = counterpartyAlternatives.map((member) => `<option value="${member.id}">${escapeHtml(member.name)}</option>`).join('');
-  const startingMode = initiatorAlternatives.length ? 'request' : 'offer';
-  openModal(`<p class="eyebrow">Trade response</p><h2>Counter Offer</h2><p class="sub">Change one side of the trade. You can request someone different or offer someone different, but not both.</p><div class="counter-current"><span>Current offer</span><b>${escapeHtml(context.counterpartyMember?.name)} for ${escapeHtml(context.initiatorMember?.name)}</b></div><div class="counter-options"><label class="counter-choice ${initiatorAlternatives.length ? '' : 'disabled'}"><input type="radio" name="counterMode" value="request" ${startingMode === 'request' ? 'checked' : ''} ${initiatorAlternatives.length ? '' : 'disabled'}><span><b>Request someone different</b><small>Keep your offer and ask for another member of ${escapeHtml(context.initiatorTeamName)}.</small></span></label><label id="counterRequestField" ${startingMode === 'request' ? '' : 'hidden'}>New requested cast member<select id="counterRequest">${requestOptions}</select></label><label class="counter-choice ${counterpartyAlternatives.length ? '' : 'disabled'}"><input type="radio" name="counterMode" value="offer" ${startingMode === 'offer' ? 'checked' : ''} ${counterpartyAlternatives.length ? '' : 'disabled'}><span><b>Offer someone different</b><small>Keep the original request and change who you send.</small></span></label><label id="counterOfferField" ${startingMode === 'offer' ? '' : 'hidden'}>New offered cast member<select id="counterOffer">${offerOptions}</select></label></div><div class="modal-actions"><button id="sendCounterTrade">Send counter</button></div>`);
-  const syncCounterMode = () => { const mode = document.querySelector('input[name="counterMode"]:checked')?.value; $('#counterRequestField').hidden = mode !== 'request'; $('#counterOfferField').hidden = mode !== 'offer'; };
-  document.querySelectorAll('input[name="counterMode"]').forEach((input) => input.addEventListener('change', syncCounterMode));
-  $('#sendCounterTrade').addEventListener('click', async () => {
-    const mode = document.querySelector('input[name="counterMode"]:checked')?.value;
-    const initiatorId = mode === 'request' ? $('#counterRequest').value : trade.initiator_cast_member_id;
-    const counterpartyId = mode === 'offer' ? $('#counterOffer').value : trade.counterparty_cast_member_id;
-    const button = $('#sendCounterTrade'); button.disabled = true;
-    const { error } = await db.rpc('counter_trade', { p_trade_id: trade.id, p_initiator_cast_member_id: initiatorId, p_counterparty_cast_member_id: counterpartyId });
-    if (error) { button.disabled = false; return alert(`Couldn’t send this counter offer: ${error.message}`); }
-    $('#modal').close(); loadTrades();
-  });
+  renderCounter({ choosing: null, changedSide: null, replacementId: null });
+
+  function renderCounter(state) {
+    const replacement = members.find((member) => member.id === state.replacementId);
+    const mine = state.changedSide === 'mine' ? replacement : context.counterpartyMember;
+    const theirs = state.changedSide === 'theirs' ? replacement : context.initiatorMember;
+    const choices = state.choosing === 'mine' ? counterpartyAlternatives : state.choosing === 'theirs' ? initiatorAlternatives : [];
+    const currentSwap = tradeSwapMarkup(mine, theirs, { changedSide: state.changedSide });
+    openModal(`<p class="eyebrow">Trade response</p><h2>Counter Offer</h2><p class="sub">Replace one person in the current offer. Once selected, remove that change with × before choosing the other side.</p><div class="counter-swap-card">${currentSwap}<div class="counter-side-actions"><button type="button" data-counter-side="mine" ${state.changedSide || !counterpartyAlternatives.length ? 'disabled' : ''}>Replace who you send</button><button type="button" data-counter-side="theirs" ${state.changedSide || !initiatorAlternatives.length ? 'disabled' : ''}>Request someone else</button></div></div>${state.choosing ? `<div class="counter-picker"><div class="trade-builder-title"><span>1</span><div><b>${state.choosing === 'mine' ? 'Choose a new cast member to send' : `Choose another member of ${escapeHtml(context.initiatorTeamName)}`}</b><small>Only this side of the offer will change</small></div></div><div class="trade-picker-grid">${choices.map((member) => tradeMemberChoice(member, false, `data-counter-member="${member.id}"`)).join('')}</div></div>` : ''}<p id="counterTradeError" class="sub error" hidden></p><div class="modal-actions"><button id="sendCounterTrade" ${state.changedSide ? '' : 'disabled'}>Send 48-hour counter</button></div>`);
+    document.querySelectorAll('[data-counter-side]').forEach((button) => button.addEventListener('click', () => renderCounter({ choosing: button.dataset.counterSide, changedSide: null, replacementId: null })));
+    document.querySelectorAll('[data-counter-member]').forEach((button) => button.addEventListener('click', () => renderCounter({ choosing: null, changedSide: state.choosing, replacementId: button.dataset.counterMember })));
+    $('.trade-remove-change')?.addEventListener('click', () => renderCounter({ choosing: null, changedSide: null, replacementId: null }));
+    $('#sendCounterTrade').addEventListener('click', async () => {
+      const initiatorId = state.changedSide === 'theirs' ? state.replacementId : trade.initiator_cast_member_id;
+      const counterpartyId = state.changedSide === 'mine' ? state.replacementId : trade.counterparty_cast_member_id;
+      const button = $('#sendCounterTrade'); button.disabled = true;
+      const { error } = await db.rpc('counter_trade', { p_trade_id: trade.id, p_initiator_cast_member_id: initiatorId, p_counterparty_cast_member_id: counterpartyId });
+      if (error) {
+        button.disabled = false;
+        const errorBox = $('#counterTradeError'); errorBox.hidden = false; errorBox.textContent = error.message;
+        return;
+      }
+      $('#modal').close(); loadTrades();
+    });
+  }
 }
 
 function openMyTeamEditor(team) {

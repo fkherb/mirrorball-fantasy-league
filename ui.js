@@ -3,10 +3,21 @@ import { db } from './supabase-client.js';
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button')];
   const views = [...document.querySelectorAll('.view')];
-  const openView = (name) => {
+  const rememberedViews = new Set(['standings', 'teams', 'score', 'league']);
+  const storedView = localStorage.getItem('mirrorball-active-view');
+  let requestedView = rememberedViews.has(location.hash.slice(1))
+    ? location.hash.slice(1)
+    : rememberedViews.has(storedView) ? storedView : 'standings';
+  const openView = (name, remember = true) => {
+    if (!views.some((view) => view.id === name)) name = 'standings';
     views.forEach((view) => view.classList.toggle('active', view.id === name));
     buttons.forEach((button) => button.classList.toggle('active', button.dataset.view === name));
     buttons.find((button) => button.dataset.view === name)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    if (remember && rememberedViews.has(name)) {
+      requestedView = name;
+      localStorage.setItem('mirrorball-active-view', name);
+      history.replaceState(null, '', `${location.pathname}${location.search}#${name}`);
+    }
   };
   buttons.forEach((button) => button.addEventListener('click', () => openView(button.dataset.view)));
 
@@ -65,13 +76,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
     scoreDeskLink.hidden = !isPlatformAdmin;
     castRosterLink.hidden = !isPlatformAdmin;
-    if (myTeamNav.hidden && document.querySelector('#teams').classList.contains('active')) openView('standings');
+    if (requestedView === 'teams' && myTeamNav.hidden) openView('standings', false);
+    else openView(requestedView, false);
     menu.hidden = true;
     window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, firstName, lastName, displayName, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
   }
 
   const { data: { session } } = await db.auth.getSession();
   await showAccess(session);
+  window.addEventListener('hashchange', () => {
+    const view = location.hash.slice(1);
+    if (rememberedViews.has(view)) {
+      requestedView = view;
+      if (view !== 'teams' || !myTeamNav.hidden) openView(view, false);
+    }
+  });
   db.auth.onAuthStateChange((_event, nextSession) => { queueMicrotask(() => showAccess(nextSession)); });
 
   auth.addEventListener('click', () => {
