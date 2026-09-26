@@ -48,6 +48,7 @@ let supportsDatabaseHardening = false;
 let scoreDeskLoadVersion = 0;
 let tradeViewMode = 'active';
 let tradeCountdownTimer = null;
+let tradeLoadVersion = 0;
 const loadVersions = { roster: 0, teams: 0, standings: 0, settings: 0, rules: 0 };
 
 const friendlyError = (context = 'complete that request') => `We couldn’t ${context}. Please try again.`;
@@ -836,7 +837,14 @@ function tradeMemberChoice(member, selected = false, attribute = '') {
 }
 
 function tradeSwapMarkup(mine, theirs, options = {}) {
-  const side = (member, label, sideName) => `<div class="trade-swap-person ${options.changedSide === sideName ? 'changed' : ''}"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member?.image_position ?? 50}% center" alt=""><span><small>${label}</small><b>${escapeHtml(member?.name || 'Unavailable')}</b></span>${options.changedSide === sideName ? '<button type="button" class="trade-remove-change" aria-label="Remove this change">×</button>' : ''}</div>`;
+  const selectableSides = new Set(options.selectableSides || []);
+  const side = (member, label, sideName) => {
+    const changed = options.changedSide === sideName;
+    const selectable = !options.changedSide && selectableSides.has(sideName);
+    const tag = selectable ? 'button' : 'div';
+    const attributes = selectable ? `type="button" data-counter-side="${sideName}" aria-label="Replace ${escapeHtml(member?.name || 'this cast member')} in the counter offer"` : '';
+    return `<${tag} ${attributes} class="trade-swap-person ${changed ? 'changed' : ''} ${selectable ? 'selectable' : ''}"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member?.image_position ?? 50}% center" alt=""><span><small>${escapeHtml(label)}</small><b>${escapeHtml(member?.name || 'Unavailable')}</b></span>${changed ? '<button type="button" class="trade-remove-change" aria-label="Remove this change">×</button>' : ''}</${tag}>`;
+  };
   return `<div class="trade-swap">${side(mine, 'You send', 'mine')}<i aria-hidden="true">⇄</i>${side(theirs, 'You receive', 'theirs')}</div>`;
 }
 
@@ -890,6 +898,7 @@ function openTradeConfirmation({ trade, title, message, confirmLabel, destructiv
 }
 
 async function loadTrades() {
+  const loadVersion = ++tradeLoadVersion;
   const container = $('#tradeCenter');
   if (!container) return;
   if (tradeCountdownTimer) clearInterval(tradeCountdownTimer);
@@ -901,6 +910,7 @@ async function loadTrades() {
     db.rpc('get_my_trade_offers'),
     db.rpc('get_my_trade_history'),
   ]);
+  if (loadVersion !== tradeLoadVersion || !container.isConnected) return;
   if (offersResult.error || historyResult.error) {
     const error = offersResult.error || historyResult.error;
     const setupMissing = ['42P01', 'PGRST202'].includes(error.code) || /trade|function/i.test(error.message || '');
@@ -937,8 +947,10 @@ async function loadTrades() {
   document.querySelectorAll('[data-accept-trade]').forEach((button) => button.addEventListener('click', async () => {
     const trade = trades.find((item) => item.id === button.dataset.acceptTrade);
     openTradeConfirmation({ trade, title: 'Accept this trade?', message: 'The cast members will switch teams immediately and the change will be captured in the next completed week.', confirmLabel: 'Accept trade', onConfirm: async () => {
+      tradeLoadVersion += 1;
       const { error } = await db.rpc('accept_trade', { p_trade_id: trade.id });
       if (!error) await loadStandings();
+      await loadTrades();
       return error;
     } });
   }));
@@ -946,21 +958,23 @@ async function loadTrades() {
   document.querySelectorAll('[data-deny-trade]').forEach((button) => button.addEventListener('click', async () => {
     const trade = trades.find((item) => item.id === button.dataset.denyTrade);
     openTradeConfirmation({ trade, title: 'Deny this trade?', message: 'This offer will close and move to your trade history.', confirmLabel: 'Deny trade', destructive: true, onConfirm: async () => {
+      tradeLoadVersion += 1;
       const { error } = await db.rpc('deny_trade', { p_trade_id: trade.id });
-      if (!error) await loadTrades();
+      await loadTrades();
       return error;
     } });
   }));
   document.querySelectorAll('[data-cancel-trade]').forEach((button) => button.addEventListener('click', () => {
     const trade = trades.find((item) => item.id === button.dataset.cancelTrade);
     openTradeConfirmation({ trade, title: 'Cancel this offer?', message: 'The other manager will no longer be able to respond. The cancelled offer will remain in trade history.', confirmLabel: 'Cancel offer', destructive: true, onConfirm: async () => {
+      tradeLoadVersion += 1;
       const { error } = await db.rpc('cancel_trade', { p_trade_id: trade.id });
-      if (!error) await loadTrades();
+      await loadTrades();
       return error;
     } });
   }));
   refreshTradeCountdowns();
-  tradeCountdownTimer = setInterval(refreshTradeCountdowns, 60000);
+  tradeCountdownTimer = setInterval(() => document.hidden ? refreshTradeCountdowns() : loadTrades(), 60000);
 }
 
 function openNewTrade() {
@@ -979,14 +993,17 @@ function openNewTrade() {
     document.querySelectorAll('[data-trade-theirs]').forEach((button) => button.addEventListener('click', () => renderNewTrade({ ...state, theirsId: button.dataset.tradeTheirs })));
     $('#sendTrade').addEventListener('click', async () => {
       const button = $('#sendTrade'); button.disabled = true;
+      tradeLoadVersion += 1;
       const { error } = await db.rpc('request_trade', { p_my_cast_member_id: state.mineId, p_requested_cast_member_id: state.theirsId });
       if (error) {
+        await loadTrades();
         button.disabled = false;
         console.error(error);
         const errorBox = $('#tradeBuilderError'); errorBox.hidden = false; errorBox.textContent = friendlyError('send this trade');
         return;
       }
-      $('#modal').close(); loadTrades();
+      $('#modal').close();
+      await loadTrades();
     });
   }
 }
@@ -1005,8 +1022,12 @@ function openCounterTrade(trade) {
     const mine = state.changedSide === 'mine' ? replacement : context.counterpartyMember;
     const theirs = state.changedSide === 'theirs' ? replacement : context.initiatorMember;
     const choices = state.choosing === 'mine' ? counterpartyAlternatives : state.choosing === 'theirs' ? initiatorAlternatives : [];
-    const currentSwap = tradeSwapMarkup(mine, theirs, { changedSide: state.changedSide });
-    openModal(`<p class="eyebrow">Trade response</p><h2>Counter Offer</h2><p class="sub">Replace one person in the current offer. Once selected, remove that change with × before choosing the other side.</p><div class="counter-swap-card">${currentSwap}<div class="counter-side-actions"><button type="button" data-counter-side="mine" ${state.changedSide || !counterpartyAlternatives.length ? 'disabled' : ''}>Replace who you send</button><button type="button" data-counter-side="theirs" ${state.changedSide || !initiatorAlternatives.length ? 'disabled' : ''}>Request someone else</button></div></div>${state.choosing ? `<div class="counter-picker"><div class="trade-builder-title"><span>1</span><div><b>${state.choosing === 'mine' ? 'Choose a new cast member to send' : `Choose another member of ${escapeHtml(context.initiatorTeamName)}`}</b><small>Only this side of the offer will change</small></div></div><div class="trade-picker-grid">${choices.map((member) => tradeMemberChoice(member, false, `data-counter-member="${member.id}"`)).join('')}</div></div>` : ''}<p id="counterTradeError" class="sub error" hidden></p><div class="modal-actions"><button id="sendCounterTrade" ${state.changedSide ? '' : 'disabled'}>Send Counter</button></div>`);
+    const selectableSides = [
+      ...(counterpartyAlternatives.length ? ['mine'] : []),
+      ...(initiatorAlternatives.length ? ['theirs'] : []),
+    ];
+    const currentSwap = tradeSwapMarkup(mine, theirs, { changedSide: state.changedSide, selectableSides });
+    openModal(`<p class="eyebrow">Trade response</p><h2>Counter Offer</h2><p class="sub">Select the cast member in the current offer that you want to replace. Once selected, remove that change with × before choosing the other side.</p><div class="counter-swap-card">${currentSwap}</div>${state.choosing ? `<div class="counter-picker"><div class="trade-builder-title"><span>1</span><div><b>${state.choosing === 'mine' ? 'Choose a new cast member to send' : `Choose another member of ${escapeHtml(context.initiatorTeamName)}`}</b><small>Only this side of the offer will change</small></div></div><div class="trade-picker-grid">${choices.map((member) => tradeMemberChoice(member, false, `data-counter-member="${member.id}"`)).join('')}</div></div>` : ''}<p id="counterTradeError" class="sub error" hidden></p><div class="modal-actions"><button id="sendCounterTrade" ${state.changedSide ? '' : 'disabled'}>Send counter</button></div>`);
     document.querySelectorAll('[data-counter-side]').forEach((button) => button.addEventListener('click', () => renderCounter({ choosing: button.dataset.counterSide, changedSide: null, replacementId: null })));
     document.querySelectorAll('[data-counter-member]').forEach((button) => button.addEventListener('click', () => renderCounter({ choosing: null, changedSide: state.choosing, replacementId: button.dataset.counterMember })));
     $('.trade-remove-change')?.addEventListener('click', () => renderCounter({ choosing: null, changedSide: null, replacementId: null }));
@@ -1014,14 +1035,17 @@ function openCounterTrade(trade) {
       const initiatorId = state.changedSide === 'theirs' ? state.replacementId : trade.initiator_cast_member_id;
       const counterpartyId = state.changedSide === 'mine' ? state.replacementId : trade.counterparty_cast_member_id;
       const button = $('#sendCounterTrade'); button.disabled = true;
+      tradeLoadVersion += 1;
       const { error } = await db.rpc('counter_trade', { p_trade_id: trade.id, p_initiator_cast_member_id: initiatorId, p_counterparty_cast_member_id: counterpartyId });
       if (error) {
+        await loadTrades();
         button.disabled = false;
         console.error(error);
         const errorBox = $('#counterTradeError'); errorBox.hidden = false; errorBox.textContent = friendlyError('send this counter offer');
         return;
       }
-      $('#modal').close(); loadTrades();
+      $('#modal').close();
+      await loadTrades();
     });
   }
 }
@@ -1597,6 +1621,11 @@ if (isScoreDeskSurface) {
   if (overviewLayout && 'ResizeObserver' in window) {
     new ResizeObserver(() => renderOverviewTeamDetail()).observe(overviewLayout);
   }
+  const refreshVisibleTrades = () => {
+    if (!document.hidden && $('#tradeCenter')) loadTrades();
+  };
+  window.addEventListener('focus', refreshVisibleTrades);
+  document.addEventListener('visibilitychange', refreshVisibleTrades);
   window.addEventListener('mirrorball-auth-change', async (event) => {
     canEdit = event.detail.isCommissioner;
     canManageShow = false;
