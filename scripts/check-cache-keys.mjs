@@ -16,4 +16,11 @@ if (versions.size !== 1) {
   throw new Error(`Static asset cache keys do not match:\n${detail}`);
 }
 
-console.log(`Static asset cache key verified: ${[...versions.keys()][0]}`);
+const expectedKey = [...versions.keys()][0];
+const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
+const moduleKeys = [...app.matchAll(/from ['"][^'"]+\.js\?v=([^'"]+)['"]/g)].map((match) => match[1]);
+if (!moduleKeys.length || moduleKeys.some((key) => key !== expectedKey)) {
+  throw new Error(`app.js module import cache key must match ${expectedKey}.`);
+}
+
+console.log(`Static asset cache key verified: ${expectedKey}`);

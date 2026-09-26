@@ -71,6 +71,14 @@ async function runAction(action, success, button = document.activeElement) {
   }
 }
 
+async function completeProfileIfNeeded(context) {
+  if (context.onboardingCompleted) return { error: null };
+  if (typeof window.mirrorballSaveProfile !== 'function') {
+    return { error: new Error('Save your profile before continuing.') };
+  }
+  return window.mirrorballSaveProfile();
+}
+
 export async function renderLeagueHub(context) {
   const version = ++hubVersion;
   const container = $('#leagueHubContent');
@@ -78,6 +86,7 @@ export async function renderLeagueHub(context) {
   if (!container || !joinBanner) return;
   const leagues = context.leagues || [];
   const signedIn = context.signedIn;
+  const membershipLimitReached = leagues.length >= 5;
   let invites = [];
   if (signedIn) {
     const result = await db.rpc('get_my_league_invites');
@@ -92,10 +101,13 @@ export async function renderLeagueHub(context) {
     if (version !== hubVersion) return;
     const league = preview.data?.[0];
     joinBanner.innerHTML = league
-      ? `<div class="card pad workspace-invite-banner"><p class="eyebrow">League invitation</p><h2>Join ${safe(league.league_name)}</h2><p class="sub">${signedIn ? context.onboardingCompleted ? 'You can join this league now.' : 'Confirm your profile details before joining.' : 'Continue with Google or Apple to join.'}</p><button id="joinSharedLeague" ${signedIn && context.onboardingCompleted ? '' : 'disabled'}>Join league</button>${signedIn ? '' : '<a href="#signin" id="joinSignInLink">Sign in</a>'}</div>`
+      ? `<div class="card pad workspace-invite-banner"><p class="eyebrow">League invitation</p><h2>Join ${safe(league.league_name)}</h2><p class="sub">${signedIn ? membershipLimitReached ? 'You already belong to the maximum of five leagues.' : context.onboardingCompleted ? 'You can join this league now.' : 'We’ll save your profile before joining.' : 'Continue with Google or Apple to join.'}</p><button id="joinSharedLeague" ${signedIn && !membershipLimitReached && !context.leaguesError ? '' : 'disabled'}>Join league</button>${signedIn ? '' : '<a href="#signin" id="joinSignInLink">Sign in</a>'}</div>`
       : '<div class="card pad">This invitation link has expired or was revoked.</div>';
     $('#joinSharedLeague')?.addEventListener('click', () => runAction(
-      () => db.rpc('join_league_with_link', { p_token: token }),
+      async () => {
+        const profile = await completeProfileIfNeeded(context);
+        return profile.error ? profile : db.rpc('join_league_with_link', { p_token: token });
+      },
       async () => { const id = league.league_id; location.assign(leagueUrl(id)); },
       $('#joinSharedLeague'),
     ));
@@ -109,28 +121,37 @@ export async function renderLeagueHub(context) {
     container.innerHTML = '';
     return;
   }
+  const ownedCount = leagues.filter((league) => league.member_role === 'owner' && league.league_id !== defaultLeagueId).length;
+  const createDisabled = context.leaguesError || membershipLimitReached || ownedCount >= 2;
   const onboarding = !context.onboardingCompleted
-    ? '<p class="account-league-note">Save your profile below before creating or joining a league.</p>' : '';
-  container.innerHTML = `${onboarding}<div class="workspace-section-head"><h2>Your leagues</h2><button id="createLeagueButton" type="button" ${!context.onboardingCompleted || context.leaguesError ? 'disabled' : ''}>Create</button></div>${context.leaguesError ? '<p class="account-league-note">Couldn’t load your leagues. Refresh to try again.</p><button id="retryAccountLeagues" type="button">Try again</button>' : `<div class="workspace-league-list">${leagues.map((league) => `<a class="workspace-league-link ${league.league_id === context.leagueId ? 'current' : ''}" href="${safe(leagueUrl(league.league_id))}" ${league.league_id === context.leagueId ? 'aria-current="page"' : ''}><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<p class="account-league-note">No leagues yet. Create one to invite friends.</p>'}</div>`}${invites.length ? `<div class="workspace-invites-mini"><h2>Invitations <span class="invite-count">${invites.length}</span></h2><div class="workspace-invite-list">${invites.map((invite) => `<article class="workspace-invite-row"><div><b>${safe(invite.league_name)}</b><small>From @${safe(invite.inviter_username)}</small></div><div><button data-invite-accept="${invite.id}" ${context.onboardingCompleted ? '' : 'disabled'}>Join</button><button class="secondary" data-invite-decline="${invite.id}">Decline</button></div></article>`).join('')}</div></div>` : ''}`;
+    ? '<p class="account-league-note">Your profile details will be saved when you join or create a league.</p>' : '';
+  container.innerHTML = `${onboarding}<div class="workspace-section-head"><h2>Your leagues</h2><button id="createLeagueButton" type="button" ${createDisabled ? 'disabled' : ''}>Create</button></div>${context.leaguesError ? '<p class="account-league-note">Couldn’t load your leagues. Refresh to try again.</p><button id="retryAccountLeagues" type="button">Try again</button>' : `<div class="workspace-league-list">${leagues.map((league) => `<a class="workspace-league-link ${league.league_id === context.leagueId ? 'current' : ''}" href="${safe(leagueUrl(league.league_id))}" ${league.league_id === context.leagueId ? 'aria-current="page"' : ''}><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<p class="account-league-note">No leagues yet. Create one to invite friends.</p>'}</div><p class="account-league-limits">${leagues.length} of 5 joined · ${ownedCount} of 2 created</p>`}${invites.length ? `<section class="workspace-invites-mini"><div class="workspace-inbox-head"><h2>Invitations</h2><span>${invites.length}</span></div><div class="workspace-invite-list">${invites.map((invite) => `<article class="workspace-invite-row"><span class="workspace-invite-mark" aria-hidden="true">${safe(invite.league_name.charAt(0).toUpperCase())}</span><div class="workspace-invite-copy"><b>${safe(invite.league_name)}</b><small>Invited by @${safe(invite.inviter_username)}</small></div><div class="workspace-invite-actions"><button data-invite-accept="${invite.id}" ${membershipLimitReached || context.leaguesError ? 'disabled' : ''}>Join</button><button class="secondary" data-invite-decline="${invite.id}">Decline</button></div></article>`).join('')}</div></section>` : ''}`;
   $('#retryAccountLeagues')?.addEventListener('click', () => location.reload());
   $('#createLeagueButton')?.addEventListener('click', () => {
     dialog('<p class="eyebrow">New league</p><h2>Create a League</h2><p class="sub">Name your league, then invite 2–5 more managers. Roster size adjusts automatically as they join; you can change it in League settings before the draft.</p><label>League name<input id="newLeagueName" maxlength="80" placeholder="e.g. Saturday Night League"></label><div class="modal-actions"><button id="confirmCreateLeague">Create league</button></div>');
-    $('#confirmCreateLeague').addEventListener('click', async () => {
-      const button = $('#confirmCreateLeague');
-      button.disabled = true;
-      const { data, error } = await db.rpc('create_fantasy_league', {
-        p_name: $('#newLeagueName').value.trim(),
-      });
-      if (error) { button.disabled = false; return dialog(`<h2>Couldn’t create league</h2><p>${safe(errorMessage(error))}</p>`); }
-      location.assign(leagueUrl(data));
+    $('#confirmCreateLeague').addEventListener('click', () => {
+      let createdId;
+      runAction(async () => {
+        const profile = await completeProfileIfNeeded(context);
+        if (profile.error) return profile;
+        const result = await db.rpc('create_fantasy_league', { p_name: $('#newLeagueName').value.trim() });
+        createdId = result.data;
+        return result;
+      }, async () => location.assign(leagueUrl(createdId)), $('#confirmCreateLeague'));
     });
   });
   container.querySelectorAll('[data-invite-accept], [data-invite-decline]').forEach((button) => {
     button.addEventListener('click', () => runAction(
-      () => db.rpc('respond_to_league_invite', {
-        p_invite_id: button.dataset.inviteAccept || button.dataset.inviteDecline,
-        p_accept: Boolean(button.dataset.inviteAccept),
-      }),
+      async () => {
+        if (button.dataset.inviteAccept) {
+          const profile = await completeProfileIfNeeded(context);
+          if (profile.error) return profile;
+        }
+        return db.rpc('respond_to_league_invite', {
+          p_invite_id: button.dataset.inviteAccept || button.dataset.inviteDecline,
+          p_accept: Boolean(button.dataset.inviteAccept),
+        });
+      },
       async () => { location.reload(); },
       button,
     ));
@@ -548,7 +569,7 @@ function confirmStartDraft(context) {
 }
 
 function openLeagueSettings(context, refresh) {
-  dialog(`<p class="eyebrow">League settings</p><h2>Edit ${safe(context.leagueName)}</h2><label>League name<input id="workspaceLeagueName" maxlength="80" value="${safe(context.leagueName)}"></label><label class="workspace-auto-size"><input id="workspaceAutoRoster" type="checkbox" ${context.rosterSizeOverridden ? '' : 'checked'} ${context.leagueStatus === 'setup' ? '' : 'disabled'}> Set roster size automatically as managers join</label><label>Cast members per team / draft rounds<input id="workspaceRosterSize" type="number" min="1" max="30" value="${context.rosterSize}" ${context.leagueStatus === 'setup' && context.rosterSizeOverridden ? '' : 'disabled'}></label><p class="sub">${context.leagueStatus === 'setup' ? `Current plan: ${context.memberCount} manager${context.memberCount === 1 ? '' : 's'} · ${context.rosterSize} rounds. Manual roster size × managers cannot exceed ${context.castCount} cast members. The size locks when the draft begins.` : 'The draft has started, so roster size is locked.'}</p><div class="modal-actions"><button id="saveWorkspaceSettings">Save settings</button></div>${context.leagueStatus === 'setup' ? '<div class="workspace-danger-zone"><h3>Delete league</h3><p class="sub">Permanently remove this league, its teams, and any invitations. This cannot be undone.</p><button id="deleteWorkspaceLeague" class="danger">Delete league</button></div>' : ''}`);
+  dialog(`<p class="eyebrow">League settings</p><h2>Edit ${safe(context.leagueName)}</h2><label>League name<input id="workspaceLeagueName" maxlength="80" value="${safe(context.leagueName)}"></label><label class="workspace-auto-size"><input id="workspaceAutoRoster" type="checkbox" ${context.rosterSizeOverridden ? '' : 'checked'} ${context.leagueStatus === 'setup' ? '' : 'disabled'}> Set roster size automatically as managers join</label><label>Cast members per team / draft rounds<input id="workspaceRosterSize" type="number" min="1" max="30" value="${context.rosterSize}" ${context.leagueStatus === 'setup' && context.rosterSizeOverridden ? '' : 'disabled'}></label><p class="sub">${context.leagueStatus === 'setup' ? `Current plan: ${context.memberCount} manager${context.memberCount === 1 ? '' : 's'} · ${context.rosterSize} rounds. Manual roster size × managers cannot exceed ${context.castCount} cast members. The size locks when the draft begins.` : 'The draft has started, so roster size is locked.'}</p><div class="modal-actions"><button id="saveWorkspaceSettings">Save settings</button></div><div class="workspace-danger-zone"><h3>Delete league</h3><p class="sub">Permanently remove this league, its teams, invitations, draft, trades, and scoring history for every manager. This cannot be undone.</p><button id="deleteWorkspaceLeague" class="danger">Delete league</button></div>`);
   $('#workspaceAutoRoster').addEventListener('change', () => {
     $('#workspaceRosterSize').disabled = $('#workspaceAutoRoster').checked;
   });
@@ -561,7 +582,7 @@ function openLeagueSettings(context, refresh) {
     $('#saveWorkspaceSettings'),
   ));
   $('#deleteWorkspaceLeague')?.addEventListener('click', () => {
-    dialog(`<h2>Delete ${safe(context.leagueName)}?</h2><p class="sub">This permanently removes the league for every manager. Type its name to confirm.</p><label>League name<input id="confirmDeleteLeagueName" autocomplete="off"></label><button id="confirmDeleteLeague" class="danger" disabled>Delete league permanently</button>`);
+    dialog(`<h2>Delete ${safe(context.leagueName)}?</h2><p class="sub">This permanently removes the league and all its draft and trade history for every manager. Type its name to confirm.</p><label>League name<input id="confirmDeleteLeagueName" autocomplete="off"></label><button id="confirmDeleteLeague" class="danger" disabled>Delete league permanently</button>`);
     $('#confirmDeleteLeagueName').addEventListener('input', () => {
       $('#confirmDeleteLeague').disabled = $('#confirmDeleteLeagueName').value.trim() !== context.leagueName;
     });

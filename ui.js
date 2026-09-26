@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     pendingPicture = null;
     pictureDirty = false;
     profileEditing = currentProfile?.onboarding_completed === false;
-    profileCancel.hidden = profileEditing;
+    profileCancel.hidden = false;
     pictureFile.value = '';
     selectedAvatarUrl = currentProfile?.avatar_url || '';
     updatePicturePreview(selectedAvatarUrl, displayName);
@@ -391,14 +391,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       auth.setAttribute('aria-expanded', 'false');
     }
   });
-  document.querySelector('#saveAccountProfile').addEventListener('click', async () => {
+  const saveAccountProfile = async () => {
     const button = document.querySelector('#saveAccountProfile');
     const username = usernameInput.value.trim().toLowerCase();
     const displayName = displayNameInput.value.trim();
     let avatarUrl = selectedAvatarUrl;
     usernameInput.value = username;
-    if (!/^[a-z0-9_]{3,20}$/.test(username)) return alert('Username must be 3–20 characters using lowercase letters, numbers, or underscores.');
-    if (!displayName || displayName.length > 80) return alert('Enter a display name of 80 characters or fewer.');
+    if (!/^[a-z0-9_]{3,20}$/.test(username)) return { error: new Error('Username must be 3–20 characters using lowercase letters, numbers, or underscores.') };
+    if (!displayName || displayName.length > 80) return { error: new Error('Enter a display name of 80 characters or fewer.') };
+    if (button.disabled) return { error: new Error('Profile changes are already being saved.') };
     button.disabled = true;
     button.textContent = 'Saving…';
     if (pendingPicture) {
@@ -410,17 +411,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (upload.error) {
         button.disabled = false;
         button.textContent = 'Save changes';
-        return alert('Couldn’t upload your picture. Please try again.');
+        return { error: new Error('Couldn’t upload your picture. Please try again.') };
       }
       avatarUrl = db.storage.from('profile-pictures').getPublicUrl(path).data.publicUrl;
     }
     const { error } = await db.rpc('update_my_profile', { p_username: username, p_display_name: displayName, p_avatar_url: avatarUrl || null });
     button.disabled = false;
     button.textContent = 'Save changes';
-    if (error) return alert(error.message.includes('already taken') ? 'That username is already taken.' : `Couldn’t save your profile: ${error.message}`);
+    if (error) return { error: new Error(error.message.includes('already taken') ? 'That username is already taken.' : `Couldn’t save your profile: ${error.message}`) };
     await showAccess(currentSession);
     menu.hidden = false;
     auth.setAttribute('aria-expanded', 'true');
+    return { error: null };
+  };
+  window.mirrorballSaveProfile = saveAccountProfile;
+  document.querySelector('#saveAccountProfile').addEventListener('click', async () => {
+    const { error } = await saveAccountProfile();
+    if (error) alert(error.message);
   });
   document.querySelector('#magic').addEventListener('click', async () => {
     const button = document.querySelector('#magic');

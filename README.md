@@ -240,11 +240,13 @@ Identity ownership after this migration:
 
 ## Operational reminders
 
-For the updated invite and sign-in flow, run `supabase/delete-setup-league.sql`
-after `supabase/finish-league-draft-setup.sql`. It adds an owner-only deletion
-function for secondary leagues that have not started a draft. The confirmation
-requires the league name; started drafts and the original league cannot be
-deleted through it.
+After the previously applied `supabase/delete-setup-league.sql`, run
+`supabase/league-limits-and-full-deletion.sql`. It allows each account
+to create up to two non-original leagues and hold up to five active league
+memberships (including the original league). It also lets a league owner delete
+their drafted secondary league and its league-specific records. Deletion is
+permanent; the original league is protected. Existing managers with backfilled
+profiles are marked onboarded, while new accounts still confirm their profile.
 
 Google and Apple sign-in use the existing Supabase Auth users and profile
 trigger. New users finish onboarding by choosing a username and display name;
