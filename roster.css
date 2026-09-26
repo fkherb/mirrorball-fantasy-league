@@ -168,7 +168,7 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-league-team > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 5px; margin-top: 11px; }
 .workspace-league-team > div span { padding: 6px; border-radius: 6px; background: #f8f5f7; font-size: 11px; overflow-wrap: anywhere; }
 .workspace-remove-manager { margin-top: 12px; }
-.workspace-roster-row,.workspace-pending-invite,.workspace-profile-result { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px; border-bottom: 1px solid #e8e0e7; }
+.workspace-roster-row,.workspace-profile-result { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px; border-bottom: 1px solid #e8e0e7; }
 .workspace-roster-row { width: 100%; background: #fff; color: #302638; text-align: left; }
 .workspace-roster-row:hover,.workspace-roster-row:focus-visible { background: #f8f3f7; }
 .workspace-roster-row img { width: 42px; height: 42px; object-fit: cover; border-radius: 7px; background: #eee8ed; }
@@ -177,7 +177,19 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-profile-modal { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 1fr); gap: 16px; }
 .workspace-profile-modal > img { width: 100%; max-height: 390px; object-fit: cover; border-radius: 12px; }
 @media (max-width: 520px) { .workspace-profile-modal { grid-template-columns: 1fr; } .workspace-profile-modal > img { max-height: 280px; } }
-.workspace-pending-invite { max-width: 450px; }
+.workspace-pending-invites { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e8e0e7; }
+#inviteLinkStatus { margin-bottom: 0; }
+.workspace-pending-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.workspace-pending-head h3 { margin: 0; font-size: 14px; }
+.workspace-pending-head > span { display: grid; place-items: center; min-width: 21px; height: 21px; padding: 0 6px; border-radius: 999px; background: #efe8ed; color: #654b62; font-size: 11px; font-weight: 800; }
+.workspace-pending-list { display: grid; gap: 7px; }
+.workspace-pending-invite { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 9px 10px; border: 1px solid #e8e0e7; border-radius: 9px; background: #faf8fa; }
+.workspace-invite-avatar { display: grid; flex: 0 0 38px; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #e9dfe7; color: #49364b; font: 700 17px Georgia, serif; overflow: hidden; }
+.workspace-invite-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.workspace-pending-person { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.workspace-pending-person b { overflow-wrap: anywhere; font-size: 12px; }
+.workspace-pending-person small { color: #786e79; font-size: 10px; }
+.workspace-pending-invite button { flex: 0 0 auto; margin: 0; padding: 7px 10px; font-size: 11px; }
 .workspace-danger-zone { margin-top: 22px; padding-top: 16px; border-top: 1px solid #e8d9df; }
 .workspace-danger-zone h3 { margin: 0 0 5px; }
 .account-provider-links { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e8e0e7; }

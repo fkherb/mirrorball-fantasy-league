@@ -533,9 +533,9 @@ async function loadPendingInvites(leagueId) {
   if (result.error) { console.error(result.error); return []; }
   const pending = result.data || [];
   if (!pending.length) return pending;
-  const people = await db.from('profile_directory').select('user_id,username').in('user_id', pending.map((item) => item.invitee_id));
-  const nameById = new Map((people.data || []).map((person) => [person.user_id, person.username]));
-  return pending.map((item) => ({ ...item, username: nameById.get(item.invitee_id) || 'member' }));
+  const people = await db.from('profile_directory').select('user_id,username,display_name,avatar_url').in('user_id', pending.map((item) => item.invitee_id));
+  const personById = new Map((people.data || []).map((person) => [person.user_id, person]));
+  return pending.map((item) => ({ ...item, ...personById.get(item.invitee_id), username: personById.get(item.invitee_id)?.username || 'member' }));
 }
 
 function confirmStartDraft(context) {
@@ -581,7 +581,7 @@ function openInviteManager(context, refresh) {
     const pending = await loadPendingInvites(context.leagueId);
     const container = $('#pendingLeagueInvites');
     if (!container) return;
-    container.innerHTML = pending.length ? `<h3>Pending invites</h3>${pending.map((invite) => `<div class="workspace-pending-invite"><span>@${safe(invite.username)}</span><button class="secondary" data-cancel-invite="${invite.id}">Cancel</button></div>`).join('')}` : '';
+    container.innerHTML = pending.length ? `<section class="workspace-pending-invites"><div class="workspace-pending-head"><h3>Pending invites</h3><span>${pending.length}</span></div><div class="workspace-pending-list">${pending.map((invite) => `<div class="workspace-pending-invite"><span class="workspace-invite-avatar">${invite.avatar_url ? `<img src="${safe(invite.avatar_url)}" alt="">` : safe((invite.display_name || invite.username).charAt(0).toUpperCase())}</span><span class="workspace-pending-person"><b>${safe(invite.display_name || invite.username)}</b><small>@${safe(invite.username)} · Awaiting response</small></span><button class="secondary" data-cancel-invite="${invite.id}" aria-label="Cancel invitation for ${safe(invite.username)}">Cancel</button></div>`).join('')}</div></section>` : '';
     $('#manageLeagueInvites') && ($('#manageLeagueInvites').textContent = pending.length ? 'Manage Invites' : 'Invite');
     container.querySelectorAll('[data-cancel-invite]').forEach((button) => button.addEventListener('click', () => runAction(
       () => db.rpc('cancel_league_invite', { p_invite_id: button.dataset.cancelInvite }),
