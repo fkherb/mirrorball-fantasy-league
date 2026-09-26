@@ -1151,3 +1151,23 @@ dialog:has(.draft-claim-dialog) .close { position: absolute; top: 12px; right: 1
   .workspace-team-detail.is-drafting .workspace-available-list { max-height: min(420px, 48vh); }
   .draft-claim-dialog .modal-actions { display: grid; grid-template-columns: 1fr 1fr; }
 }
+
+/* Public overview stays useful without exposing a member's standings. */
+#memberOverview[hidden], #signedOutOverview[hidden] { display: none; }
+body:not(.auth-ready) nav button[data-view]:not([data-view="standings"]) { display: none; }
+.welcome-home { max-width: 1120px; margin: 6px auto 0; }
+.welcome-hero { position: relative; overflow: hidden; padding: clamp(30px,6vw,70px); border: 1px solid #d9c9d5; border-radius: 20px; background: radial-gradient(circle at 85% 15%,#705169 0,#3e2e42 37%,#221a29 76%); color: #fff; box-shadow: 0 18px 42px #2b19301a; }
+.welcome-hero::after { content: '✦'; position: absolute; top: -45px; right: 4%; color: #ffffff12; font: 280px/1 Georgia,serif; pointer-events: none; }
+.welcome-hero .eyebrow { color: #d8bfd1; font-size: 11px; }
+.welcome-hero h1 { max-width: 650px; margin: 12px 0 16px; font: 600 clamp(38px,6vw,72px)/1.03 Georgia,serif; letter-spacing: -.035em; }
+.welcome-hero > p:not(.eyebrow) { max-width: 570px; margin: 0 0 28px; color: #eadfe8; font-size: clamp(14px,1.5vw,17px); line-height: 1.5; }
+.welcome-hero button { position: relative; z-index: 1; padding: 12px 17px; background: #fff; color: #302638; }
+.welcome-how { margin-top: 34px; }
+.welcome-heading h2 { margin: 0 0 17px; font: 600 clamp(23px,3vw,32px) Georgia,serif; }
+.welcome-steps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.welcome-steps article { padding: 21px; border: 1px solid #e8e0e7; border-radius: 13px; background: #fff; }
+.welcome-steps article > span { color: #9a718d; font: 700 20px Georgia,serif; }
+.welcome-steps h3 { margin: 18px 0 7px; font-size: 16px; }
+.welcome-steps p { margin: 0; color: #786e79; font-size: 13px; line-height: 1.5; }
+.welcome-footnote { margin: 20px 0; color: #8a7d87; font-size: 11px; }
+@media (max-width: 700px) { .welcome-steps { grid-template-columns: 1fr; } .welcome-steps article { padding: 18px; } .welcome-steps h3 { margin-top: 9px; } }

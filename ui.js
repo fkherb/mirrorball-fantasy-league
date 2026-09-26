@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
   buttons.forEach((button) => button.addEventListener('click', () => openView(button.dataset.view)));
+  document.querySelector('#welcomeGetStarted')?.addEventListener('click', () => openView('signin', false));
 
   const auth = document.querySelector('#auth');
   const menu = document.querySelector('#accountMenu');
@@ -339,10 +340,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     myTeamNav.setAttribute('aria-label', teamNavLabel);
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
     const dancesNav = buttons.find((button) => button.dataset.view === 'score');
-    dancesNav.hidden = selectedLeague?.league_id !== defaultLeagueId && ['setup', 'drafting'].includes(selectedLeague?.status);
+    dancesNav.hidden = !signedInEmail || (selectedLeague?.league_id !== defaultLeagueId && ['setup', 'drafting'].includes(selectedLeague?.status));
+    buttons.find((button) => button.dataset.view === 'league').hidden = !signedInEmail;
+    document.body.classList.add('auth-ready');
     scoreDeskLink.hidden = !isPlatformAdmin;
     castRosterLink.hidden = !isPlatformAdmin;
-    if ((requestedView === 'teams' && myTeamNav.hidden) || (requestedView === 'score' && dancesNav.hidden)) openView('standings', false);
+    if ((requestedView === 'teams' && myTeamNav.hidden) || (requestedView === 'score' && dancesNav.hidden)
+      || (requestedView === 'league' && !signedInEmail)) openView('standings', false);
     else openView(requestedView, false);
     if (previousUserId !== session?.user?.id) menu.hidden = currentProfile?.onboarding_completed !== false;
     auth.setAttribute('aria-expanded', String(!menu.hidden));
@@ -443,10 +447,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelector(`#signIn${label}`).addEventListener('click', async () => {
       const button = document.querySelector(`#signIn${label}`);
       button.disabled = true;
-      const { error } = await db.auth.signInWithOAuth({ provider, options: { redirectTo } });
-      if (error) {
+      const message = document.querySelector('#signInMessage');
+      message.textContent = `Opening ${label} sign-in…`;
+      try { sessionStorage.setItem('mirrorball-oauth-return', JSON.stringify({ search: location.search, view: requestedView, provider })); }
+      catch { /* Sign-in can still continue when browser storage is restricted. */ }
+      try {
+        const callbackUrl = new URL('./', location.href).toString();
+        const { data, error } = await db.auth.signInWithOAuth({ provider, options: { redirectTo: callbackUrl, skipBrowserRedirect: true } });
+        if (error) throw error;
+        if (!data?.url) throw new Error('The sign-in link was not returned. Please try again.');
+        location.assign(data.url);
+      } catch (error) {
         button.disabled = false;
-        document.querySelector('#signInMessage').textContent = `Couldn’t continue with ${label}: ${error.message}`;
+        message.textContent = `Couldn’t continue with ${label}: ${error.message}`;
       }
     });
     document.querySelector(`#connect${label}`).addEventListener('click', async () => {
@@ -460,6 +473,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
   document.querySelector('#signOut').addEventListener('click', async () => { await db.auth.signOut(); });
+  const queryError = new URLSearchParams(location.search);
+  const fragmentError = new URLSearchParams(location.hash.slice(1));
+  const oauthError = fragmentError.get('error_description') || queryError.get('error_description')
+    || fragmentError.get('error') || queryError.get('error');
   const { data: { session } } = await db.auth.getSession();
+  let oauthReturn = null;
+  const clearOauthReturn = () => { try { sessionStorage.removeItem('mirrorball-oauth-return'); } catch { /* Storage may be unavailable. */ } };
+  try { oauthReturn = JSON.parse(sessionStorage.getItem('mirrorball-oauth-return') || 'null'); } catch { /* Ignore malformed old state. */ }
+  if (oauthError) {
+    requestedView = 'signin';
+    history.replaceState(null, '', `${location.pathname}${oauthReturn?.search || ''}#signin`);
+    clearOauthReturn();
+    document.querySelector('#signInMessage').textContent = `Sign-in was not completed: ${oauthError}`;
+  } else if (session && oauthReturn) {
+    requestedView = rememberedViews.has(oauthReturn.view) ? oauthReturn.view : 'standings';
+    history.replaceState(null, '', `${location.pathname}${oauthReturn.search || ''}#${requestedView}`);
+    clearOauthReturn();
+  }
   await showAccess(session);
 });
