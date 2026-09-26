@@ -1116,3 +1116,38 @@ dialog .close { display: grid; width: 42px; height: 42px; place-items: center; p
 @media (min-width: 751px) and (max-width: 850px) {
   .team-side-column { grid-template-columns: 1fr; }
 }
+
+/* During a draft, keep the roster compact and give the cast pool the width it needs. */
+.workspace-team-detail.is-drafting .public-team-columns { display: block; }
+.workspace-team-detail.is-drafting .public-team-columns > section { margin-bottom: 20px; }
+.workspace-team-detail.is-drafting .team-side-column { display: block; height: auto; min-height: 0; }
+.workspace-team-detail.is-drafting .workspace-cast-list { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); align-content: start; max-height: none; overflow: visible; }
+.workspace-team-detail.is-drafting .workspace-cast-list > .sub { grid-column: 1 / -1; margin: 0; }
+.workspace-team-detail.is-drafting .available-cast-panel { display: block; padding: 16px; }
+.workspace-team-detail.is-drafting .workspace-available-list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-auto-rows: max-content; align-content: start; max-height: min(460px, 52vh); padding-right: 5px; }
+.workspace-team-detail.is-drafting .workspace-cast-tile { min-width: 0; }
+.workspace-team-detail.is-drafting .workspace-cast-tile b { overflow-wrap: anywhere; }
+.workspace-league-draft-banner { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: -2px 0 20px; padding: 14px 16px; border: 1px solid #d9c5d4; border-radius: 11px; background: linear-gradient(110deg,#f6eef4,#fcf8f1); }
+.workspace-league-draft-banner .eyebrow { margin-bottom: 4px; }
+.workspace-league-draft-banner strong { display: block; font: 600 17px Georgia,serif; }
+.workspace-league-draft-banner small { display: block; margin-top: 3px; color: #786e79; font-size: 11px; }
+.workspace-league-draft-banner button { flex: 0 0 auto; }
+dialog:has(.draft-claim-dialog) { position: relative; width: min(500px, calc(100vw - 28px)); }
+dialog:has(.draft-claim-dialog) .close { position: absolute; top: 12px; right: 12px; margin: 0; background: #f3eef2; color: #302638; }
+.draft-claim-dialog > .eyebrow, .draft-claim-dialog > h2 { padding-right: 44px; }
+.draft-claim-dialog h2 { margin-bottom: 7px; font: 600 25px/1.15 Georgia, serif; }
+.draft-claim-dialog > .sub { margin-bottom: 16px; line-height: 1.4; }
+.draft-claim-dialog .workspace-cast-tile { grid-template-columns: 62px minmax(0,1fr); gap: 12px; padding: 10px; background: #faf7f9; }
+.draft-claim-dialog .workspace-cast-tile img { width: 62px; height: 62px; }
+.draft-claim-dialog .workspace-cast-tile b { font-size: 14px; }
+.draft-claim-dialog .workspace-cast-tile small { font-size: 11px; }
+.draft-claim-dialog .modal-actions { justify-content: flex-end; margin-top: 20px; }
+.draft-claim-dialog .modal-actions button { margin: 0; }
+@media (max-width: 600px) {
+  .workspace-league-draft-banner { align-items: flex-start; }
+  .workspace-league-draft-banner button { padding: 8px; font-size: 11px; }
+  .workspace-team-detail.is-drafting .workspace-cast-list,
+  .workspace-team-detail.is-drafting .workspace-available-list { grid-template-columns: 1fr; }
+  .workspace-team-detail.is-drafting .workspace-available-list { max-height: min(420px, 48vh); }
+  .draft-claim-dialog .modal-actions { display: grid; grid-template-columns: 1fr 1fr; }
+}

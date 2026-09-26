@@ -333,6 +333,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   const canClaim = isYourTurn || context.leagueStatus === 'active';
   const castScrollTop = body.querySelector('.workspace-available-list')?.scrollTop || 0;
   body.innerHTML = `<section class="card public-team-detail workspace-team-detail">${draftStrip}${context.leagueStatus === 'drafting' ? `<section class="workspace-draft-rounds"><div class="public-section-head"><div><p class="eyebrow">Draft board</p><h3>Round ${draftRound} picks</h3></div><span>${data.picks.length} of ${data.order.length * context.rosterSize} picked</span></div><div class="workspace-round-tabs" role="group" aria-label="Draft rounds">${Array.from({ length: context.rosterSize }, (_, index) => `<button type="button" data-draft-round="${index + 1}" class="${draftRound === index + 1 ? 'selected' : ''}" aria-pressed="${draftRound === index + 1}">Round ${index + 1}</button>`).join('')}</div><div class="workspace-round-picks">${roundSlots}</div></section>` : ''}<div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Roster</p><h3>Team Roster · ${roster.length}/${context.rosterSize}</h3></div></div><div class="workspace-cast-list">${roster.map((member) => castTile(member, context.leagueStatus === 'active' ? `<strong class="workspace-points">${score.pointsByTeamCast.get(ownTeam.id)?.get(member.id) || 0} pts</strong>` : '')).join('') || '<p class="sub">Your picks will appear here.</p>'}</div></section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? 'Draft pool' : 'Free agents'}</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">${isYourTurn ? 'It is your turn. Claim one cast member below.' : context.leagueStatus === 'drafting' ? 'Claims open when it is your turn.' : context.leagueStatus === 'active' ? 'Claim a cast member by releasing one from your roster.' : 'Claims open after the draft starts.'}</p><div class="workspace-available-list">${available.map((member) => castTile(member, canClaim ? `<button data-workspace-claim="${member.id}">Claim</button>` : '')).join('') || '<p class="sub">No cast members are available.</p>'}</div></section>${context.leagueStatus === 'active' ? '<section id="workspaceTradeCenter" class="card pad workspace-trades">Loading trades…</section>' : ''}</div></div></section>`;
+  body.firstElementChild.classList.toggle('is-drafting', context.leagueStatus === 'drafting');
   body.querySelector('.workspace-available-list').scrollTop = castScrollTop;
   body.querySelectorAll('[data-draft-round]').forEach((button) => button.addEventListener('click', () => {
     selectedDraftRound = Number(button.dataset.draftRound);
@@ -353,7 +354,8 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     const incoming = data.cast.find((member) => member.id === button.dataset.workspaceClaim);
     if (!incoming) return;
     if (context.leagueStatus === 'drafting') {
-      dialog(`<p class="eyebrow">Draft pick #${turn.pickNumber}</p><h2>Claim ${safe(incoming.name)}?</h2>${castTile(incoming)}<p class="sub">This pick is final and will fill one of your ${context.rosterSize} roster spots.</p><div class="modal-actions"><button id="confirmWorkspaceClaim">Claim cast member</button></div>`);
+      dialog(`<div class="draft-claim-dialog"><p class="eyebrow">Round ${turn.round} · Pick #${turn.pickNumber}</p><h2>Draft ${safe(incoming.name)}?</h2><p class="sub">This selection is final and fills one of your ${context.rosterSize} roster spots.</p>${castTile(incoming)}<div class="modal-actions"><button id="cancelWorkspaceClaim" type="button" class="secondary">Keep browsing</button><button id="confirmWorkspaceClaim">Confirm pick</button></div></div>`);
+      $('#cancelWorkspaceClaim').addEventListener('click', () => $('#modal').close());
       $('#confirmWorkspaceClaim').addEventListener('click', () => runAction(
         () => db.rpc('claim_league_cast_member', { p_league_id: context.leagueId, p_incoming_cast_member_id: incoming.id }),
         async () => { $('#modal').close(); selectedDraftRound = null; await refresh(); },
@@ -520,6 +522,15 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   $('#leagueTeamCount').textContent = data.teams.length;
   $('#leagueCastCount').textContent = data.cast.length;
   $('#leagueAvailableCount').textContent = data.cast.length - assignmentMap.size;
+  $('#league .workspace-league-draft-banner')?.remove();
+  if (context.leagueStatus === 'drafting') {
+    const turn = draftTurn(data.order, data.picks, context.rosterSize);
+    const banner = document.createElement('div');
+    banner.className = 'workspace-league-draft-banner';
+    banner.innerHTML = `<div><p class="eyebrow">Draft in progress · Round ${turn?.round || context.rosterSize}</p><strong>${safe(memberByTeam.get(turn?.teamId)?.display_name || 'The next manager')} is on the clock</strong><small>${data.picks.length} of ${data.order.length * context.rosterSize} picks complete</small></div><button type="button" id="leagueOpenDraft">Open draft</button>`;
+    $('#league .league-at-a-glance').after(banner);
+    banner.querySelector('button').addEventListener('click', () => $('#myTeamNav').click());
+  }
   $('#editLeagueName').hidden = context.leagueRole !== 'owner';
   $('#editLeagueName').onclick = () => openLeagueSettings(context, refresh);
   const teamsHeading = $('#leagueTeamsPane .splithead');
