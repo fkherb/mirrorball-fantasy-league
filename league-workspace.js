@@ -116,6 +116,65 @@ async function completeProfileIfNeeded(context) {
   return window.mirrorballSaveProfile();
 }
 
+function inviteRows(invites, context, membershipLimitReached) {
+  return invites.map((invite) => `<article class="workspace-invite-row"><span class="workspace-invite-mark" aria-hidden="true">${safe(invite.league_name.charAt(0).toUpperCase())}</span><div class="workspace-invite-copy"><b>${safe(invite.league_name)}</b><small>Invited by @${safe(invite.inviter_username)}</small></div><div class="workspace-invite-actions"><button data-invite-accept="${safe(invite.id)}" ${membershipLimitReached || context.leaguesError ? 'disabled' : ''}>Join</button><button class="secondary" data-invite-decline="${safe(invite.id)}">Decline</button></div></article>`).join('');
+}
+
+function bindInviteActions(scope, context) {
+  scope.querySelectorAll('[data-invite-accept], [data-invite-decline]').forEach((button) => {
+    button.addEventListener('click', () => runAction(
+      async () => {
+        if (button.dataset.inviteAccept) {
+          const profile = await completeProfileIfNeeded(context);
+          if (profile.error) return profile;
+        }
+        return db.rpc('respond_to_league_invite', {
+          p_invite_id: button.dataset.inviteAccept || button.dataset.inviteDecline,
+          p_accept: Boolean(button.dataset.inviteAccept),
+        });
+      },
+      async () => { location.reload(); },
+      button,
+    ));
+  });
+}
+
+function renderWelcomeActions(context, invites, invitesError) {
+  const getStarted = $('#welcomeGetStarted');
+  const inviteButton = $('#welcomeInvites');
+  const shareButton = $('#welcomeShare');
+  const status = $('#welcomeStatus');
+  const firstStep = $('#signedOutOverview .welcome-steps article p');
+  if (!getStarted || !inviteButton || !shareButton || !status) return;
+  const noLeague = context.noLeague;
+  if (firstStep) firstStep.textContent = noLeague
+    ? 'Create a league or accept an invitation from a friend. Then get ready to draft together.'
+    : 'Continue with Google or Apple, choose a username, then invite friends to your league.';
+  getStarted.textContent = noLeague ? context.leaguesError ? 'Try again' : 'Create league' : 'Create an account or sign in';
+  inviteButton.hidden = !noLeague;
+  shareButton.hidden = !noLeague;
+  inviteButton.textContent = context.leaguesError || invitesError ? 'Invites (—)' : `Invites (${invites.length})`;
+  status.hidden = !noLeague;
+  status.textContent = noLeague ? context.leaguesError ? 'We couldn’t load your leagues. Please try again.' : 'Already invited? Check your invitations. Or create a league to get started.' : '';
+  inviteButton.onclick = () => {
+    dialog(`<div class="welcome-invite-dialog"><p class="eyebrow">Your invitations</p><h2>League invites</h2><p class="sub">Join a league to start drafting with friends.</p>${invitesError ? '<div class="welcome-empty-invites"><b>Couldn’t load invitations</b><p>Refresh the page to try again.</p></div>' : invites.length ? `<div class="workspace-invite-list">${inviteRows(invites, context, false)}</div>` : '<div class="welcome-empty-invites"><b>No invitations yet</b><p>Ask a friend to invite you by username or send you a league link.</p></div>'}</div>`);
+    bindInviteActions($('#modalBody'), context);
+  };
+  shareButton.onclick = async () => {
+    if (!context.username) {
+      dialog('<h2>Set your username first</h2><p>Choose a username in your profile before sharing it with friends.</p>');
+      return;
+    }
+    const siteUrl = new URL('./', location.href).toString();
+    const message = `Come join me on Dancing with the Stars Fantasy League! ${siteUrl} Find me @${context.username}.`;
+    if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && navigator.share) {
+      try { await navigator.share({ text: message }); } catch (error) {
+        if (error.name !== 'AbortError') console.error(error);
+      }
+    } else location.href = `sms:?body=${encodeURIComponent(message)}`;
+  };
+}
+
 export async function renderLeagueHub(context) {
   const version = ++hubVersion;
   const container = $('#leagueHubContent');
@@ -125,12 +184,14 @@ export async function renderLeagueHub(context) {
   const signedIn = context.signedIn;
   const membershipLimitReached = leagues.length >= 5;
   let invites = [];
+  let invitesError = false;
   if (signedIn) {
     const result = await db.rpc('get_my_league_invites');
     if (version !== hubVersion) return;
     if (!result.error) invites = result.data || [];
-    else console.error(result.error);
+    else { invitesError = true; console.error(result.error); }
   }
+  renderWelcomeActions(context, invites, invitesError);
 
   const token = context.joinToken;
   if (token) {
@@ -162,7 +223,7 @@ export async function renderLeagueHub(context) {
   const createDisabled = context.leaguesError || membershipLimitReached || ownedCount >= 2;
   const onboarding = !context.onboardingCompleted
     ? '<p class="account-league-note">Your profile details will be saved when you join or create a league.</p>' : '';
-  container.innerHTML = `${onboarding}<div class="workspace-section-head"><h2>Your leagues</h2><button id="createLeagueButton" type="button" ${createDisabled ? 'disabled' : ''}>Create</button></div>${context.leaguesError ? '<p class="account-league-note">Couldn’t load your leagues. Refresh to try again.</p><button id="retryAccountLeagues" type="button">Try again</button>' : `<div class="workspace-league-list">${leagues.map((league) => `<a class="workspace-league-link ${league.league_id === context.leagueId ? 'current' : ''}" href="${safe(leagueUrl(league.league_id))}" ${league.league_id === context.leagueId ? 'aria-current="page"' : ''}><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<p class="account-league-note">No leagues yet. Create one to invite friends.</p>'}</div><p class="account-league-limits">${leagues.length} of 5 joined · ${ownedCount} of 2 created</p>`}${invites.length ? `<section class="workspace-invites-mini"><div class="workspace-inbox-head"><h2>Invitations</h2><span>${invites.length}</span></div><div class="workspace-invite-list">${invites.map((invite) => `<article class="workspace-invite-row"><span class="workspace-invite-mark" aria-hidden="true">${safe(invite.league_name.charAt(0).toUpperCase())}</span><div class="workspace-invite-copy"><b>${safe(invite.league_name)}</b><small>Invited by @${safe(invite.inviter_username)}</small></div><div class="workspace-invite-actions"><button data-invite-accept="${invite.id}" ${membershipLimitReached || context.leaguesError ? 'disabled' : ''}>Join</button><button class="secondary" data-invite-decline="${invite.id}">Decline</button></div></article>`).join('')}</div></section>` : ''}`;
+  container.innerHTML = `${onboarding}<div class="workspace-section-head"><h2>Your leagues</h2><button id="createLeagueButton" type="button" ${createDisabled ? 'disabled' : ''}>Create</button></div>${context.leaguesError ? '<p class="account-league-note">Couldn’t load your leagues. Refresh to try again.</p><button id="retryAccountLeagues" type="button">Try again</button>' : `<div class="workspace-league-list">${leagues.map((league) => `<a class="workspace-league-link ${league.league_id === context.leagueId ? 'current' : ''}" href="${safe(leagueUrl(league.league_id))}" ${league.league_id === context.leagueId ? 'aria-current="page"' : ''}><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<p class="account-league-note">No leagues yet. Create one to invite friends.</p>'}</div><p class="account-league-limits">${leagues.length} of 5 joined · ${ownedCount} of 2 created</p>`}${invites.length ? `<section class="workspace-invites-mini"><div class="workspace-inbox-head"><h2>Invitations</h2><span>${invites.length}</span></div><div class="workspace-invite-list">${inviteRows(invites, context, membershipLimitReached)}</div></section>` : ''}`;
   $('#retryAccountLeagues')?.addEventListener('click', () => location.reload());
   $('#createLeagueButton')?.addEventListener('click', () => {
     dialog('<div class="workspace-create-league"><p class="eyebrow">New league</p><h2>Create a League</h2><p class="sub">Start a private league, then invite your friends.</p><label>League name<input id="newLeagueName" maxlength="80" placeholder="e.g. Saturday Night League"></label><div class="workspace-create-facts"><span><b>3–6 managers</b><small>Invite friends after creating</small></span><span><b>Auto-sized rosters</b><small>Adjustable before the draft</small></span></div><div class="modal-actions"><button id="confirmCreateLeague">Create league</button></div></div>');
@@ -177,22 +238,7 @@ export async function renderLeagueHub(context) {
       }, async () => location.assign(leagueUrl(createdId)), $('#confirmCreateLeague'));
     });
   });
-  container.querySelectorAll('[data-invite-accept], [data-invite-decline]').forEach((button) => {
-    button.addEventListener('click', () => runAction(
-      async () => {
-        if (button.dataset.inviteAccept) {
-          const profile = await completeProfileIfNeeded(context);
-          if (profile.error) return profile;
-        }
-        return db.rpc('respond_to_league_invite', {
-          p_invite_id: button.dataset.inviteAccept || button.dataset.inviteDecline,
-          p_accept: Boolean(button.dataset.inviteAccept),
-        });
-      },
-      async () => { location.reload(); },
-      button,
-    ));
-  });
+  bindInviteActions(container, context);
 }
 
 function draftTurn(order, picks, rosterSize) {

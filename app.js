@@ -1,6 +1,6 @@
 import { db } from './supabase-client.js';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-league-parity-v18';
-import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260926-league-parity-v18';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-welcome-v19';
+import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260926-welcome-v19';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1686,9 +1686,10 @@ if (isScoreDeskSurface) {
     managerNavLabelMode = event.detail.teamNavLabelMode || 'default';
     managerCustomNavLabel = event.detail.customTeamNavLabel || '';
     renderLeagueHub(event.detail);
-    $('#signedOutOverview').hidden = event.detail.signedIn;
-    $('#memberOverview').hidden = !event.detail.signedIn;
-    if (!event.detail.signedIn) {
+    const showWelcome = !event.detail.signedIn || event.detail.noLeague;
+    $('#signedOutOverview').hidden = !showWelcome;
+    $('#memberOverview').hidden = showWelcome;
+    if (showWelcome) {
       stopSecondaryLeague();
       Object.keys(loadVersions).forEach((key) => { loadVersions[key] += 1; });
       standingsSnapshot = null;
