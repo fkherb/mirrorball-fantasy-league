@@ -170,8 +170,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modal = document.querySelector('#modal');
     const body = document.querySelector('#modalBody');
     body.replaceChildren();
+    const picker = document.createElement('div');
+    picker.className = 'account-picture-picker';
+    const eyebrow = document.createElement('p');
+    eyebrow.className = 'eyebrow';
+    eyebrow.textContent = 'Profile picture';
     const heading = document.createElement('h2');
     heading.textContent = 'Choose a cast photo';
+    const description = document.createElement('p');
+    description.className = 'sub';
+    description.textContent = 'Pick a favorite cast member. You can change this any time.';
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'account-picture-search';
+    search.placeholder = 'Search cast members';
+    search.setAttribute('aria-label', 'Search cast photos');
+    const count = document.createElement('p');
+    count.className = 'account-picture-count';
     const grid = document.createElement('div');
     grid.className = 'account-picture-grid';
     for (const member of data || []) {
@@ -181,6 +196,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const choice = document.createElement('button');
       choice.type = 'button';
       choice.className = 'account-picture-choice';
+      choice.dataset.name = member.name.toLowerCase();
+      choice.setAttribute('aria-label', `Use ${member.name} as your profile photo`);
+      if (url === selectedAvatarUrl) {
+        choice.classList.add('selected');
+        choice.setAttribute('aria-pressed', 'true');
+      }
       const image = document.createElement('img');
       image.src = url;
       image.alt = '';
@@ -202,7 +223,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       grid.append(choice);
     }
-    body.append(heading, grid);
+    const filterChoices = () => {
+      const term = search.value.trim().toLowerCase();
+      let visible = 0;
+      grid.querySelectorAll('.account-picture-choice').forEach((choice) => {
+        choice.hidden = !choice.dataset.name.includes(term);
+        if (!choice.hidden) visible += 1;
+      });
+      count.textContent = visible ? `${visible} cast photo${visible === 1 ? '' : 's'}` : 'No matching cast photos';
+    };
+    search.addEventListener('input', filterChoices);
+    filterChoices();
+    picker.append(eyebrow, heading, description, search, count, grid);
+    body.append(picker);
     modal.dataset.dirty = 'false';
     document.querySelector('#modalClose').onclick = () => modal.close();
     modal.oncancel = null;
