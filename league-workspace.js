@@ -20,6 +20,7 @@ let workspaceActionPending = false;
 let selectedDanceWeekId = null;
 let tradeTab = 'active';
 let workspaceRosterFilter = 'all';
+let selectedWorkspaceOverviewTeamId = null;
 
 function dialog(markup) {
   const modal = $('#modal');
@@ -295,27 +296,97 @@ function renderStandings(context, data, score, assignmentMap, memberByTeam, refr
     manager: memberByTeam.get(team.id)?.display_name || team.manager_name })).sort((a, b) => b.points - a.points || (a.team_name || a.manager).localeCompare(b.team_name || b.manager));
   const isSetup = context.leagueStatus === 'setup';
   const isDrafting = context.leagueStatus === 'drafting';
-  $('#standings .eyebrow').textContent = context.leagueName;
+  $('#standingsLeagueName').textContent = context.leagueName;
   $('#standingsSubtitle').textContent = isSetup
     ? 'Your league is getting ready for its draft.'
     : context.leagueStatus === 'drafting' ? 'The draft is underway. Standings begin after every roster is filled.'
-      : score.scoringWeeks.length ? 'Scores from every completed show count toward this league.' : 'The season is ready. Scores will appear after the first completed show.';
+      : score.scoringWeeks.length ? `Through ${score.scoringWeeks.at(-1).title || (score.scoringWeeks.at(-1).theme ? `${score.scoringWeeks.at(-1).theme} Week` : `Week ${score.scoringWeeks.at(-1).number}`)} · current fantasy-team totals` : 'The season is ready. Scores will appear after the first completed show.';
   const turn = draftTurn(data.order, data.picks, context.rosterSize);
   const setupPanel = isSetup ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">Before the draft</p><h2>Build your league</h2><p class="sub">${data.members.length} of 3–6 managers joined. ${data.members.length < 3 ? `Invite ${3 - data.members.length} more to start.` : 'Your league can start its draft whenever the owner is ready.'} Roster size is currently ${context.rosterSize} cast per team${context.rosterSizeOverridden ? ' (custom)' : ' (automatic)'}.</p><div class="workspace-setup-facts"><span><b>${data.members.length}</b> managers</span><span><b>${context.rosterSize}</b> draft rounds</span><span><b>${data.cast.length}</b> cast in pool</span></div>${context.leagueRole === 'owner' ? `<div class="modal-actions">${data.members.length < 6 ? '<button id="overviewInvitePlayers">Invite players</button>' : ''}<button id="overviewLeagueSettings" class="secondary">League settings</button></div>` : '<p class="sub">The league owner can invite managers and start the draft when at least three have joined.</p>'}</section>` : isDrafting ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">${context.draftPaused ? 'Draft paused' : 'Draft in progress'}</p><h2>Round ${turn?.round || context.rosterSize} of ${context.rosterSize}</h2><p class="sub">${data.picks.length} of ${data.order.length * context.rosterSize} picks complete. ${context.draftPaused ? 'The clock and picks are paused until the league owner resumes.' : turn ? `${safe(memberByTeam.get(turn.teamId)?.display_name || 'The next manager')} is on the clock.` : 'Every roster is filled.'}</p><a class="workspace-inline-link" href="#teams" id="overviewOpenDraft">View the draft</a></section>` : !score.scoringWeeks.length ? '<section class="card pad workspace-setup-panel"><p class="eyebrow">Season ready</p><h2>Waiting for the first completed show</h2><p class="sub">Your draft teams are set. Weekly points and highlights will appear after a show is completed.</p></section>' : '';
-  $('#standingsContent').innerHTML = `${setupPanel}${rows.length ? `<div class="workspace-standings-list">${rows.map((team, index) => `<button type="button" class="card workspace-standing-card" data-workspace-standing="${team.id}" aria-label="View ${safe(team.team_name || team.manager)} roster"><span class="workspace-rank">${isSetup || isDrafting ? '•' : index + 1}</span><span><small>${safe(team.manager)}</small><b>${safe(team.team_name || `${team.manager.split(' ')[0]}'s Team`)}</b></span><strong>${context.leagueStatus === 'active' ? `${team.points} pts` : `${[...assignmentMap.values()].filter((id) => id === team.id).length}/${context.rosterSize} cast`}</strong></button>`).join('')}</div>` : '<div class="card pad">No teams yet.</div>'}`;
+  const scored = context.leagueStatus === 'active' && score.scoringWeeks.length > 0;
+  const castPoints = (team) => data.cast.map((cast) => ({ cast, points: score.pointsByTeamCast.get(team.id)?.get(cast.id) || 0 }))
+    .filter(({ cast, points }) => points || assignmentMap.get(cast.id) === team.id)
+    .sort((a, b) => b.points - a.points || a.cast.name.localeCompare(b.cast.name));
+  if (scored && !rows.some((team) => team.id === selectedWorkspaceOverviewTeamId)) selectedWorkspaceOverviewTeamId = rows[0]?.id;
+  $('#standingsContent').innerHTML = scored ? `<div class="standings-grid">${rows.map((team, index) => {
+    const leaders = castPoints(team);
+    const tied = rows.filter((item) => item.points === rows[0].points).length > 1 && team.points === rows[0].points;
+    const rank = rows.findIndex((item) => item.points === team.points) + 1;
+    return `<article class="card standing-card ${index === 0 || tied ? 'leader' : ''} ${tied ? 'tied-leader' : ''} ${team.id === selectedWorkspaceOverviewTeamId ? 'selected' : ''}" data-workspace-standing="${team.id}" tabindex="0" role="button" aria-label="View ${safe(team.team_name || team.manager)} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${safe(team.manager)}</p><h2>${safe(team.team_name || `${team.manager.split(' ')[0]}'s Team`)}</h2>${tied ? '<p class="tie-note">Tied for first</p>' : ''}<div class="standing-contributors">${leaders.slice(0, 4).map(({ cast, points }) => `<span>${safe(cast.name)} <b>${points}</b></span>`).join('') || '<span>No cast assigned</span>'}${leaders.length > 4 ? `<span>+${leaders.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${team.points}</strong><span>points</span></div><span class="card-chevron standing-chevron" aria-hidden="true">›</span></article>`;
+  }).join('')}</div>` : `${setupPanel}${rows.length ? `<div class="workspace-standings-list">${rows.map((team) => `<button type="button" class="card workspace-standing-card" data-workspace-standing="${team.id}" aria-label="View ${safe(team.team_name || team.manager)} roster"><span class="workspace-rank">•</span><span><small>${safe(team.manager)}</small><b>${safe(team.team_name || `${team.manager.split(' ')[0]}'s Team`)}</b></span><strong>${[...assignmentMap.values()].filter((id) => id === team.id).length}/${context.rosterSize} cast</strong></button>`).join('')}</div>` : '<div class="card pad">No teams yet.</div>'}`;
   $('#overviewInvitePlayers')?.remove();
   $('#overviewLeagueSettings')?.addEventListener('click', () => openLeagueSettings(context, refresh));
   $('#overviewOpenDraft')?.addEventListener('click', (event) => { event.preventDefault(); $('#myTeamNav').click(); });
-  $('#standingsContent').querySelectorAll('[data-workspace-standing]').forEach((button) => button.addEventListener('click', () => {
+  const detailMarkup = (team) => {
+    const leaders = castPoints(team).slice(0, 5);
+    return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${safe(team.team_name || `${team.manager.split(' ')[0]}'s Team`)}</h2><p class="sub">Managed by ${safe(team.manager)}</p></div><div class="league-detail-total"><strong>${team.points}</strong><span>season points</span></div></div><p class="top-cast-label">Top Five Cast Members</p><div class="league-score-list">${leaders.map(({ cast, points }) => {
+      const parts = score.scoringWeeks.reduce((total, week) => {
+        if (score.snapshotByKey.get(`${week.id}:${cast.id}`)?.fantasy_team_id === team.id) {
+          const entry = score.pointsByWeekCast.get(`${week.id}:${cast.id}`);
+          total.official += entry?.official || 0; total.appearances += entry?.appearances || 0;
+        }
+        return total;
+      }, { official: 0, appearances: 0 });
+      return `<div class="league-score-row" data-overview-cast="${cast.id}" role="button" tabindex="0"><div class="league-score-member"><strong>${safe(cast.name)}</strong><span class="role-rate-pill">${safe(cast.role)}</span></div><div class="league-score-parts"><span>Judges Total <b>${parts.official}</b></span><span class="appearance-part">Appearances <b>${parts.appearances}</b></span></div><strong class="league-score-total">${points}</strong></div>`;
+    }).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>`;
+  };
+  const bindCastDetail = (container, team) => container.querySelectorAll('[data-overview-cast]').forEach((item) => {
+    const open = () => openWorkspaceCastProfile(data.cast.find((cast) => cast.id === item.dataset.overviewCast), team.team_name);
+    item.addEventListener('click', open);
+    item.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
+  const drawDetail = () => {
+    const panel = $('#overviewTeamDetail');
+    const team = rows.find((item) => item.id === selectedWorkspaceOverviewTeamId);
+    if (!scored || !team || !$('#standings').classList.contains('active') || $('.overview-layout').getBoundingClientRect().width < 1030) { panel.innerHTML = ''; return; }
+    panel.innerHTML = `<section class="card overview-team-detail">${detailMarkup(team)}</section>`;
+    bindCastDetail(panel, team);
+  };
+  $('#standingsContent').querySelectorAll('[data-workspace-standing]').forEach((button) => {
+    const open = () => {
     const team = rows.find((item) => item.id === button.dataset.workspaceStanding);
+    if (scored) {
+      selectedWorkspaceOverviewTeamId = team.id;
+      $('#standingsContent').querySelectorAll('[data-workspace-standing]').forEach((item) => item.classList.toggle('selected', item === button));
+      if ($('.overview-layout').getBoundingClientRect().width >= 1030) drawDetail();
+      else { dialog(`<div class="overview-mobile-detail">${detailMarkup(team)}</div>`); bindCastDetail($('#modalBody'), team); }
+      return;
+    }
     const roster = data.cast.filter((cast) => assignmentMap.get(cast.id) === team.id)
       .sort((a, b) => (score.pointsByTeamCast.get(team.id)?.get(b.id) || 0)
         - (score.pointsByTeamCast.get(team.id)?.get(a.id) || 0));
     dialog(`<p class="eyebrow">${safe(context.leagueName)}</p><h2>${safe(team.team_name || `${team.manager.split(' ')[0]}'s Team`)}</h2><p class="sub">Managed by ${safe(team.manager)} · ${context.leagueStatus === 'active' ? `${team.points} season points` : `${roster.length}/${context.rosterSize} cast drafted`}</p><div class="workspace-cast-list">${roster.map((cast) => castTile(cast, context.leagueStatus === 'active' ? `<strong class="workspace-points">${score.pointsByTeamCast.get(team.id)?.get(cast.id) || 0} pts</strong>` : '')).join('') || '<p class="sub">The draft has not filled this roster yet.</p>'}</div>`);
-  }));
-  $('#overviewTeamDetail').innerHTML = '';
-  $('.highlight-preview').hidden = true;
-  $('.highlight-preview').style.display = 'none';
+    };
+    button.addEventListener('click', open);
+    button.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
+  drawDetail();
+  window.removeEventListener('resize', window.workspaceOverviewResize);
+  window.workspaceOverviewResize = drawDetail;
+  window.addEventListener('resize', drawDetail);
+  $('.highlight-preview').hidden = !scored;
+  $('.highlight-preview').style.display = scored ? '' : 'none';
+  if (scored) renderWorkspaceHighlights(data, score, rows);
+}
+
+function renderWorkspaceHighlights(data, score, rows) {
+  const week = score.scoringWeeks.at(-1);
+  if (!week) return;
+  const teamScores = rows.map((team) => ({ team, points: score.pointsByWeekTeam.get(`${week.id}:${team.id}`) || 0 }));
+  const bestTeam = Math.max(0, ...teamScores.map((item) => item.points));
+  const castScores = data.cast.map((cast) => {
+    const entry = score.pointsByWeekCast.get(`${week.id}:${cast.id}`);
+    return { cast, points: (entry?.official || 0) + (entry?.appearances || 0), appearances: data.appearances.filter((appearance) =>
+      appearance.cast_member_id === cast.id && data.dances.some((dance) => dance.id === appearance.dance_id && dance.week_id === week.id)).length };
+  });
+  const bestCast = Math.max(0, ...castScores.map((item) => item.points));
+  const mostAppearances = Math.max(0, ...castScores.map((item) => item.appearances));
+  const winners = bestTeam ? teamScores.filter((item) => item.points === bestTeam) : [];
+  const mvps = bestCast ? castScores.filter((item) => item.points === bestCast) : [];
+  const leaders = mostAppearances ? castScores.filter((item) => item.appearances === mostAppearances) : [];
+  const names = (items, getName) => `<div class="highlight-name-list">${items.map((item) => `<span>${safe(getName(item))}</span>`).join('')}</div>`;
+  $('#highlightWeek').textContent = week.title || (week.theme ? `${week.theme} Week` : `Week ${week.number}`);
+  $('#leagueHighlightCards').innerHTML = `<article class="card"><small>Team of the week</small>${bestTeam ? `<strong class="highlight-value">${bestTeam}</strong><p>fantasy points${winners.length > 1 ? ' each' : ''}</p>${names(winners, ({ team }) => team.team_name || team.manager)}` : '<p>No fantasy-team points were recorded.</p>'}</article><article class="card"><small>Top cast score</small>${bestCast ? `<strong class="highlight-value">${bestCast}</strong><p>points${mvps.length > 1 ? ' each' : ''}</p>${names(mvps, ({ cast }) => cast.name)}` : '<p>No cast points were recorded.</p>'}</article><article class="card"><small>Most appearances</small>${mostAppearances ? `<strong class="highlight-value">${mostAppearances}</strong><p>dance${mostAppearances === 1 ? '' : 's'}${leaders.length > 1 ? ' each' : ''}</p>${names(leaders, ({ cast }) => cast.name)}` : '<p>No appearances were recorded.</p>'}</article>`;
 }
 
 function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh) {
@@ -614,19 +685,25 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
     const teamId = assignmentMap.get(castId);
     return memberByTeam.get(teamId)?.team_name || memberByTeam.get(teamId)?.display_name || 'Available cast';
   };
-  content.innerHTML = `<div class="card pad workspace-week-head"><p class="eyebrow">Week ${week.number}</p><h2>${safe(week.title || week.theme || `Week ${week.number}`)}</h2><p class="sub">${week.is_complete ? 'Completed show' : 'Upcoming show · scores pending'}</p></div><div class="workspace-dance-list">${weekDances.map((dance) => {
+  const competitiveCount = weekDances.filter((dance) => dance.kind === 'competitive').length;
+  content.innerHTML = `<div class="score-week-head card"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${safe(week.title || (week.theme ? `${week.theme} Week` : `Week ${week.number}`))}</h2></div><p class="sub">${week.is_complete ? 'Completed show' : 'Upcoming show · scores pending'}</p></div><div class="week-summary"><span>${competitiveCount} competitive</span>${weekDances.length > competitiveCount ? `<span>${weekDances.length - competitiveCount} performances</span>` : ''}<span class="${week.is_complete ? 'week-complete' : ''}">${week.is_complete ? 'Complete' : 'Upcoming'}</span></div></div><div class="dance-list">${weekDances.map((dance) => {
     const pair = pairById.get(dance.partnership_id);
     const names = pair ? `${nameFor(pair.star_id)} & ${nameFor(pair.pro_id)}` : dance.name || 'Performance';
-    const total = score.scoreByDance.get(dance.id);
-    return `<button type="button" class="card workspace-dance-card" data-workspace-dance="${dance.id}"><span><small>${safe(dance.kind)}${dance.dance_type ? ` · ${safe(dance.dance_type)}` : ''}</small><b>${safe(names)}</b><small>${safe(dance.song || '')}</small></span><strong>${week.is_complete && total != null ? total : 'View'}</strong></button>`;
+    const judges = data.scores.filter((item) => item.dance_id === dance.id);
+    const appearances = data.appearances.filter((item) => item.dance_id === dance.id);
+    return `<article class="card dance-row dance-${safe(dance.kind)}" data-workspace-dance="${dance.id}" tabindex="0" role="button" aria-label="View details for ${safe(names)}"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${safe(names)}</h3></div><span class="card-chevron" aria-hidden="true">›</span></div>${dance.kind === 'competitive' ? `<div class="dance-details"><span>${safe(dance.dance_type || 'Dance type not set')}</span>${dance.song ? `<span>${safe(dance.song)}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${judges.map((judge) => `<img src="Images/Judges Scores/${Number(judge.score) || 0}.png?v=20260921-optimized" alt="${safe(judge.judge_name)}: ${Number(judge.score) || 0}">`).join('')}${!judges.length ? '<span class="dance-score-pending">Awaiting scores</span>' : ''}</div>` : dance.song ? `<div class="dance-details"><span>${safe(dance.song)}</span></div>` : ''}${appearances.length ? `<div class="dance-cast"><span>Cast</span>${appearances.map((appearance) => `<b>${safe(nameFor(appearance.cast_member_id))}</b>`).join('')}</div>` : ''}</article>`;
   }).join('') || '<div class="card pad">No dances recorded for this week.</div>'}</div>`;
-  content.querySelectorAll('[data-workspace-dance]').forEach((button) => button.addEventListener('click', () => {
+  content.querySelectorAll('[data-workspace-dance]').forEach((button) => {
+    const open = () => {
     const dance = weekDances.find((item) => item.id === button.dataset.workspaceDance);
     const pair = pairById.get(dance.partnership_id);
     const involved = pair ? [pair.star_id, pair.pro_id] : data.appearances.filter((item) => item.dance_id === dance.id).map((item) => item.cast_member_id);
     const judges = data.scores.filter((item) => item.dance_id === dance.id);
     dialog(`<p class="eyebrow">Week ${week.number} · ${safe(dance.dance_type || dance.kind)}</p><h2>${safe(pair ? `${nameFor(pair.star_id)} & ${nameFor(pair.pro_id)}` : dance.name || 'Performance')}</h2><p class="sub">${safe(dance.song || 'Song not set')}</p><div class="workspace-dance-judges">${judges.map((judge) => `<span>${safe(judge.judge_name)} <b>${judge.score}</b></span>`).join('') || '<p>Scores pending.</p>'}</div><h3>Cast and fantasy teams</h3>${involved.map((id) => `<p>${safe(nameFor(id))} · ${safe(teamFor(id))}</p>`).join('')}${data.appearances.filter((item) => item.dance_id === dance.id && !involved.includes(item.cast_member_id)).map((item) => `<p>${safe(nameFor(item.cast_member_id))} · ${safe(teamFor(item.cast_member_id))}</p>`).join('')}`);
-  }));
+    };
+    button.addEventListener('click', open);
+    button.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
 }
 
 async function renderLeague(context, data, assignmentMap, memberByTeam, score, refresh) {
@@ -658,8 +735,26 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   $('#commissionerTeamResults').innerHTML = data.teams.map((team) => {
     const member = memberByTeam.get(team.id);
     const roster = data.cast.filter((cast) => assignmentMap.get(cast.id) === team.id);
-    return `<article class="card pad workspace-league-team"><p class="eyebrow">${safe(member?.display_name || team.manager_name)}</p><h3>${safe(team.team_name || `${(member?.display_name || team.manager_name).split(' ')[0]}'s Team`)}</h3><small>${roster.length}/${context.rosterSize} cast · ${score.totalByTeam.get(team.id) || 0} points</small><div>${roster.map((cast) => `<span>${safe(cast.name)}</span>`).join('') || `<span>${context.leagueStatus === 'setup' ? 'Draft not started' : context.leagueStatus === 'drafting' ? 'Waiting for first pick' : 'No cast on this team'}</span>`}</div>${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member?.member_role === 'member' ? `<button class="secondary workspace-remove-manager" data-remove-member="${member.user_id}">Remove manager</button>` : ''}</article>`;
+    const managerName = member?.display_name || team.manager_name;
+    const teamName = team.team_name || `${managerName.split(' ')[0]}'s Team`;
+    return `<article class="card team-card workspace-team-card" data-workspace-team="${team.id}" tabindex="0" role="button" aria-label="View ${safe(teamName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${safe(managerName)}</p><h2>${safe(teamName)}</h2></div><span class="card-chevron" aria-hidden="true">›</span></div><p class="team-mobile-hint">Tap to view lineup</p>${roster.length ? `<ul class="team-roster">${roster.map((cast) => `<li><span>${safe(cast.name)}</span><small>${safe(cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role)}</small></li>`).join('')}</ul>` : `<p class="sub">${context.leagueStatus === 'setup' ? 'Draft not started' : context.leagueStatus === 'drafting' ? 'Waiting for first pick' : 'No cast on this team'}</p>`}${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member?.member_role === 'member' ? `<button class="secondary workspace-remove-manager" data-remove-member="${member.user_id}">Remove manager</button>` : ''}</article>`;
   }).join('');
+  $('#commissionerTeamResults').querySelectorAll('[data-workspace-team]').forEach((card) => {
+    const open = () => {
+      const team = data.teams.find((item) => item.id === card.dataset.workspaceTeam);
+      const managerName = memberByTeam.get(team.id)?.display_name || team.manager_name;
+      const teamName = team.team_name || `${managerName.split(' ')[0]}'s Team`;
+      const roster = data.cast.filter((cast) => assignmentMap.get(cast.id) === team.id);
+      dialog(`<div class="team-detail-head"><div><p class="eyebrow">${safe(managerName)}</p><h2>${safe(teamName)}</h2><p class="sub">Current roster</p></div></div>${roster.length ? `<div class="team-detail-grid">${roster.map((cast) => `<article class="team-detail-member" data-workspace-team-cast="${cast.id}" tabindex="0" role="button"><img src="${safe(castImage(cast))}" alt=""><div><b>${safe(cast.name)}</b><span>${safe(cast.role)}</span></div><i aria-hidden="true">›</i></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
+      $('#modalBody').querySelectorAll('[data-workspace-team-cast]').forEach((tile) => {
+        const show = () => openWorkspaceCastProfile(data.cast.find((cast) => cast.id === tile.dataset.workspaceTeamCast), teamName);
+        tile.addEventListener('click', show);
+        tile.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); show(); } });
+      });
+    };
+    card.addEventListener('click', (event) => { if (!event.target.closest('button')) open(); });
+    card.addEventListener('keydown', (event) => { if (event.target.closest('button')) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+  });
   const rosterResults = $('#rosterResults');
   const drawCast = () => {
     const term = $('#rosterSearch').value.trim().toLowerCase();
@@ -667,12 +762,23 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
       || (workspaceRosterFilter === 'pros' && ['Pro', 'Eliminated Pro', 'DWTS Next Pro'].includes(cast.role))
       || (workspaceRosterFilter === 'stars' && ['Star', 'Eliminated Star'].includes(cast.role))
       || (workspaceRosterFilter === 'bonus' && !['Pro', 'Eliminated Pro', 'DWTS Next Pro', 'Star', 'Eliminated Star'].includes(cast.role));
-    rosterResults.innerHTML = data.cast.filter((cast) => cast.name.toLowerCase().includes(term) && matchesFilter(cast)).map((cast) =>
-      `<button type="button" class="workspace-roster-row" data-workspace-cast="${cast.id}"><img src="${safe(castImage(cast))}" alt=""><span><b>${safe(cast.name)}</b><small>${safe(cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role)} · ${safe(memberByTeam.get(assignmentMap.get(cast.id))?.team_name || 'Available')}</small></span><span aria-hidden="true">›</span></button>`).join('') || '<p class="sub">No matching cast members.</p>';
-    rosterResults.querySelectorAll('[data-workspace-cast]').forEach((button) => button.addEventListener('click', () => {
+    rosterResults.innerHTML = data.cast.filter((cast) => cast.name.toLowerCase().includes(term) && matchesFilter(cast)).map((cast) => {
+      const partner = data.pairs.find((pair) => pair.star_id === cast.id || pair.pro_id === cast.id);
+      const partnerId = partner?.star_id === cast.id ? partner.pro_id : partner?.star_id;
+      const partnerName = data.cast.find((item) => item.id === partnerId)?.name;
+      const teamName = memberByTeam.get(assignmentMap.get(cast.id))?.team_name || 'Available';
+      const eliminated = data.weeks.find((week) => week.id === cast.eliminated_week_id);
+      const detail = [cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role, partnerName, teamName, eliminated ? `Eliminated Week ${eliminated.number}` : null].filter(Boolean).join(' · ');
+      return `<div class="row cast-roster-row" data-workspace-cast="${cast.id}" tabindex="0" role="button" aria-label="View ${safe(cast.name)} profile"><img class="player-photo" style="object-position:${Number(cast.image_position) || 50}% center" src="${safe(castImage(cast))}" alt=""><span><b>${safe(cast.name)}</b><small>${safe(detail)}</small></span><span class="row-chevron" aria-hidden="true">›</span></div>`;
+    }).join('') || '<p class="sub">No matching cast members.</p>';
+    rosterResults.querySelectorAll('[data-workspace-cast]').forEach((button) => {
+      const open = () => {
       const cast = data.cast.find((item) => item.id === button.dataset.workspaceCast);
       openWorkspaceCastProfile(cast, memberByTeam.get(assignmentMap.get(cast.id))?.team_name || 'Available cast');
-    }));
+      };
+      button.addEventListener('click', open);
+      button.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
+    });
   };
   $('#rosterSearch').oninput = drawCast;
   document.querySelectorAll('[data-roster-filter]').forEach((button) => {
@@ -685,7 +791,7 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   });
   drawCast();
   const rateByRole = new Map(data.roles.map((role) => [role.id, role]));
-  $('#roleRatesContent').innerHTML = `<div class="role-rate-grid">${data.rates.map((rate) => `<div class="card role-rate-item"><span>${safe(rateByRole.get(rate.role_id)?.name || 'Role')}</span><strong>${rate.appearance_points == null ? 'Varies' : `+${rate.appearance_points}`}</strong></div>`).join('')}</div>`;
+  $('#roleRatesContent').innerHTML = `<div class="card role-rate-table"><div class="role-rate-heading"><span>Cast role</span><span>Appearance points</span></div>${data.rates.map((rate) => `<div class="role-rate-row"><span>${safe(rateByRole.get(rate.role_id)?.name || 'Role')}</span><strong>${rate.appearance_points == null ? 'Varies' : `+${rate.appearance_points}`}</strong></div>`).join('')}</div>`;
   $('#editRules').hidden = context.leagueRole !== 'owner';
   $('#editRules').onclick = () => {
     dialog(`<h2>Appearance rates</h2><p class="sub">These rates belong only to ${safe(context.leagueName)}.</p>${data.rates.filter((rate) => rate.appearance_points != null).map((rate) => `<label>${safe(rateByRole.get(rate.role_id)?.name || 'Role')}<input type="number" min="0" max="99" data-workspace-rate="${safe(rateByRole.get(rate.role_id)?.name || '')}" value="${rate.appearance_points}"></label>`).join('')}<button id="saveWorkspaceRates">Save rates</button>`);
@@ -945,6 +1051,9 @@ export function stopSecondaryLeague() {
   refreshCurrentWorkspaceTrades = null;
   selectedDraftRound = null;
   selectedTeamWeekId = 'all';
+  selectedWorkspaceOverviewTeamId = null;
+  window.removeEventListener('resize', window.workspaceOverviewResize);
+  window.workspaceOverviewResize = null;
 }
 
 window.addEventListener('focus', () => { refreshCurrentWorkspaceTrades?.(); refreshCurrentWorkspaceDraft?.(); });

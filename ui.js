@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openView = (name, remember = true) => {
     if (!views.some((view) => view.id === name)) name = 'standings';
     views.forEach((view) => view.classList.toggle('active', view.id === name));
+    if (name === 'standings') requestAnimationFrame(() => window.workspaceOverviewResize?.());
     buttons.forEach((button) => button.classList.toggle('active', button.dataset.view === name));
     buttons.find((button) => button.dataset.view === name)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
     if (remember && rememberedViews.has(name)) {

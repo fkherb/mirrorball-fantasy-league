@@ -1,5 +1,5 @@
 import { db } from './supabase-client.js';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-league-settings-v15';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-league-parity-v16';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -502,8 +502,9 @@ async function loadLeagueSettings() {
   if (!$('#leagueName')) return;
   const loadVersion = ++loadVersions.settings;
   const { data, error } = await db.from('league_settings').select('league_name').eq('id', 1).maybeSingle();
-  if (loadVersion !== loadVersions.settings) return;
+  if (loadVersion !== loadVersions.settings || activeLeagueId !== defaultLeagueId) return;
   $('#leagueName').textContent = error ? 'DWTS Fantasy League' : data?.league_name || 'DWTS Fantasy League';
+  $('#standingsLeagueName').textContent = $('#leagueName').textContent;
   $('#editLeagueName').hidden = !canEdit;
   $('#editLeagueName').onclick = canEdit ? () => {
     openModal(`<p class="eyebrow">League settings</p><h2>Edit league name</h2><label>League name<input id="leagueNameInput" maxlength="80" value="${escapeHtml($('#leagueName').textContent)}"></label><div class="modal-actions"><button id="saveLeagueName">Save name</button></div>`);
@@ -699,6 +700,7 @@ function overviewUsesSplitLayout() {
 }
 
 function renderOverviewTeamDetail() {
+  if (activeLeagueId !== defaultLeagueId) return;
   if (!standingsSnapshot) return;
   if (!overviewUsesSplitLayout()) {
     $('#overviewTeamDetail').innerHTML = '';
