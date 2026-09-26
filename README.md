@@ -158,6 +158,12 @@ Run `supabase/allow-managers-to-claim-available-cast.sql` after it. This exposes
 that same atomic swap to each signed-in manager for their own team only, powering
 the Team-page free-agent claim flow without allowing direct additions or drops.
 
+Finally, run `supabase/harden-data-integrity-and-manager-inputs.sql`. It locks
+free-agent claims to the signed-in manager's own team even when that manager is
+also a commissioner, records competing trade offers as Superseded before an
+accepted trade removes them, and enforces manager/team/navigation text limits
+at the database boundary.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast
@@ -181,3 +187,6 @@ the Team-page free-agent claim flow without allowing direct additions or drops.
 - Appearance rates in Rules are league-wide: changing one recalculates every
   week. Surprise rates remain specific to each cast member in Cast Roster.
 - Export or back up the Supabase data before making large commissioner edits.
+- `node scripts/check-cache-keys.mjs` verifies that every page references the
+  same JavaScript and CSS cache key. The GitHub workflow runs this check on
+  every push and pull request.

@@ -48,6 +48,60 @@ let supportsDatabaseHardening = false;
 let scoreDeskLoadVersion = 0;
 let tradeViewMode = 'active';
 let tradeCountdownTimer = null;
+const loadVersions = { roster: 0, teams: 0, standings: 0, settings: 0, rules: 0 };
+
+const friendlyError = (context = 'complete that request') => `We couldn’t ${context}. Please try again.`;
+const loadingMarkup = (label = 'Loading') => `<div class="loading-state" role="status" aria-live="polite"><span class="loading-shimmer"></span><span class="loading-shimmer"></span><span class="loading-shimmer short"></span><p>${escapeHtml(label)}…</p></div>`;
+
+function showNotice(message, title = 'Something went wrong') {
+  const dialog = $('#modal');
+  if (!dialog) return;
+  if (dialog.open && $('#modalBody')?.textContent.trim()) {
+    dialog.querySelector('.inline-notice-overlay')?.remove();
+    dialog.insertAdjacentHTML('beforeend', `<div class="inline-notice-overlay" role="alertdialog" aria-modal="true"><div><p class="eyebrow">${escapeHtml(title)}</p><h2>${escapeHtml(message)}</h2><div class="modal-actions"><button type="button" data-dismiss-inline-notice>Close</button></div></div></div>`);
+    dialog.querySelector('[data-dismiss-inline-notice]').addEventListener('click', () => dialog.querySelector('.inline-notice-overlay').remove());
+    return;
+  }
+  openModal(`<div class="notice-dialog" role="alert"><p class="eyebrow">${escapeHtml(title)}</p><h2>${escapeHtml(message)}</h2><div class="modal-actions"><button id="dismissNotice" type="button">Close</button></div></div>`);
+  $('#dismissNotice')?.addEventListener('click', () => dialog.close());
+}
+
+function openConfirmation({ title, message, confirmLabel = 'Confirm', destructive = false, onConfirm, onCancel = null }) {
+  openModal(`<div class="confirm-dialog"><p class="eyebrow">Please confirm</p><h2>${escapeHtml(title)}</h2><p class="sub">${escapeHtml(message)}</p><p id="confirmActionError" class="sub error" hidden></p><div class="modal-actions"><button id="cancelConfirmation" type="button" class="secondary">Cancel</button><button id="confirmAction" type="button" class="${destructive ? 'danger' : ''}">${escapeHtml(confirmLabel)}</button></div></div>`);
+  $('#cancelConfirmation').addEventListener('click', () => onCancel ? onCancel() : $('#modal').close());
+  $('#confirmAction').addEventListener('click', async () => {
+    const button = $('#confirmAction');
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = 'Working…';
+    try {
+      const error = await onConfirm();
+      if (error) throw error;
+      $('#modal').close();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = original;
+      $('#confirmActionError').hidden = false;
+      $('#confirmActionError').textContent = friendlyError('complete this action');
+      console.error(error);
+    }
+  });
+}
+
+async function withBusy(button, busyLabel, action) {
+  if (!button || button.disabled) return;
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = busyLabel;
+  try { return await action(); }
+  finally { if (button.isConnected) { button.disabled = false; button.textContent = original; } }
+}
+
+function renderLoadError(container, context, retry) {
+  if (!container) return;
+  container.innerHTML = `<div class="card empty error-state"><b>${escapeHtml(friendlyError(context))}</b><button type="button" class="secondary">Try again</button></div>`;
+  container.querySelector('button')?.addEventListener('click', retry);
+}
 
 function displayRole(memberOrRole) {
   const member = typeof memberOrRole === 'string' ? { role: memberOrRole } : memberOrRole || {};
@@ -60,7 +114,7 @@ function displayRole(memberOrRole) {
 
 async function getTeamManagerMap() {
   const { data, error } = await db.rpc('get_league_team_managers');
-  if (error) return new Map();
+  if (error) { console.error(error); return new Map(); }
   return new Map((data || []).map((person) => [person.fantasy_team_id, { ...person, name: [person.first_name, person.last_name].filter(Boolean).join(' ') }]));
 }
 
@@ -89,14 +143,42 @@ function showRosterMessage(message, isError = false) {
 }
 
 function openModal(contents) {
+  const dialog = $('#modal');
   $('#modalBody').innerHTML = `<div class="modal">${contents}</div>`;
-  if (!$('#modal').open) $('#modal').showModal();
-  $('#modalClose').onclick = () => $('#modal').close();
+  dialog.dataset.dirty = 'false';
+  if (!dialog.open) dialog.showModal();
+  const requestClose = () => {
+    if (dialog.dataset.dirty !== 'true') return dialog.close();
+    if (dialog.querySelector('.discard-prompt')) return;
+    dialog.insertAdjacentHTML('beforeend', '<div class="discard-prompt" role="alertdialog" aria-modal="true"><div><h2>Discard unsaved changes?</h2><p>Anything you entered in this window will be lost.</p><div class="modal-actions"><button type="button" class="secondary" data-keep-editing>Keep editing</button><button type="button" class="danger" data-discard-changes>Discard</button></div></div></div>');
+    dialog.querySelector('[data-keep-editing]').addEventListener('click', () => dialog.querySelector('.discard-prompt').remove());
+    dialog.querySelector('[data-discard-changes]').addEventListener('click', () => dialog.close());
+  };
+  $('#modalClose').onclick = requestClose;
+  dialog.oncancel = (event) => { event.preventDefault(); requestClose(); };
+  $('#modalBody').oninput = (event) => { if (event.target.matches('input,select,textarea')) dialog.dataset.dirty = 'true'; };
+  $('#modalBody').onchange = (event) => { if (event.target.matches('input,select,textarea')) dialog.dataset.dirty = 'true'; };
 }
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
 }
+
+// Keep technical database details out of the member-facing interface while
+// preserving concise validation messages written specifically for managers.
+window.alert = (message) => {
+  const text = String(message || '');
+  const publicText = text.startsWith('Couldn’t') && text.includes(':') ? `${text.split(':')[0]}. Please try again.` : text;
+  showNotice(publicText, text.startsWith('Couldn’t') ? 'Please try again' : 'Heads up');
+};
+
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button || button.disabled) return;
+  if (button.dataset.clickLock === 'true') { event.preventDefault(); event.stopImmediatePropagation(); return; }
+  button.dataset.clickLock = 'true';
+  window.setTimeout(() => { if (button.isConnected) delete button.dataset.clickLock; }, 700);
+}, true);
 
 async function getPairingData() {
   const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }, { data: teams, error: teamError }, managerMap] = await Promise.all([
@@ -128,15 +210,18 @@ function partnerOptions(role, players, partnerships, selectedId = '') {
 
 async function loadRoster() {
   if (!$('#rosterResults')) return;
+  const loadVersion = ++loadVersions.roster;
   const query = $('#rosterSearch').value.trim();
+  $('#rosterResults').innerHTML = loadingMarkup('Loading cast');
   let rosterData;
-  try { rosterData = await getPairingData(); } catch (error) { return showRosterMessage(`Couldn’t load the cast: ${error.message}`, true); }
+  try { rosterData = await getPairingData(); } catch (error) { console.error(error); return renderLoadError($('#rosterResults'), 'load the cast', loadRoster); }
+  if (loadVersion !== loadVersions.roster) return;
   const { players: allPlayers, partnerships, weeks, teams } = rosterData;
   const players = allPlayers.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()) && (rosterFilter === 'all' || castCategory(player) === rosterFilter));
   if (!players.length) return showRosterMessage(canManageCast ? 'No cast members yet. Add the first one here.' : 'No cast members match this view.');
   $('#rosterResults').innerHTML = players.map((player) => `
     <div class="row cast-roster-row" data-cast-detail="${player.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(player.name)} profile"><img class="player-photo" style="object-position:${player.image_position ?? 50}% center" src="${escapeHtml(displayImagePath(player))}" alt="">
-      <span><b>${player.name}</b><small>${rosterDetail(player, partnerships, allPlayers, weeks, teams)}</small></span>
+      <span><b>${escapeHtml(player.name)}</b><small>${rosterDetail(player, partnerships, allPlayers, weeks, teams)}</small></span>
       ${canManageCast ? `<button data-player-id="${player.id}">Edit</button>` : '<span class="row-chevron" aria-hidden="true">›</span>'}
     </div>`).join('');
   document.querySelectorAll('[data-player-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); editPlayer(button.dataset.playerId); }));
@@ -150,13 +235,16 @@ async function loadRoster() {
   });
 }
 
-async function openCastDetail(castMemberId, returnTeamId = null) {
+async function openCastDetail(castMemberId, returnTeamId = null, returnAction = null) {
   if (!standingsSnapshot && !isOwnerSurface) await loadStandings();
   const [{ data: member, error: memberError }, pairingData] = await Promise.all([
     db.from('cast_members').select('*').eq('id', castMemberId).single(),
-    getPairingData().catch(() => ({ players: [], partnerships: [], weeks: [], teams: [] })),
+    getPairingData().catch((error) => ({ error })),
   ]);
-  if (memberError) return alert(`Couldn’t load this cast member: ${memberError.message}`);
+  if (memberError || pairingData.error) {
+    console.error(memberError || pairingData.error);
+    return showNotice(friendlyError('load this cast member'));
+  }
   const partner = partnerFor(member, pairingData.partnerships, pairingData.players);
   const team = pairingData.teams.find((item) => item.id === member.fantasy_team_id);
   const scoreEntry = standingsSnapshot ? [...standingsSnapshot.weekMemberPoints.values()].reduce((total, weekPoints) => {
@@ -170,20 +258,20 @@ async function openCastDetail(castMemberId, returnTeamId = null) {
   const details = member.profile_details && typeof member.profile_details === 'object'
     ? Object.entries(member.profile_details).filter(([, value]) => value).map(([label, value]) => `<div><small>${escapeHtml(label.replaceAll('_', ' '))}</small><strong>${escapeHtml(value)}</strong></div>`).join('')
     : '';
-  openModal(`${returnTeamId ? '<button class="profile-back-button secondary" id="profileBackToTeam" type="button">← Back to team</button>' : ''}<div class="cast-profile-hero"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt="${escapeHtml(member.name)}"><div><p class="eyebrow">${escapeHtml(displayRole(member))}</p><h2>${escapeHtml(member.name)}</h2><p class="sub">${partner ? `Partnered with ${escapeHtml(partner.name)}` : 'Current season cast'}</p>${team ? `<span class="cast-team-pill">${escapeHtml(team.team_name || defaultTeamName(team.manager_name))}</span>` : '<span class="cast-team-pill">Available cast</span>'}</div></div>
+  openModal(`${returnTeamId || returnAction ? `<button class="profile-back-button secondary" id="profileBack" type="button">← Back to ${returnAction ? 'dance' : 'team'}</button>` : ''}<div class="cast-profile-hero"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt="${escapeHtml(member.name)}"><div><p class="eyebrow">${escapeHtml(displayRole(member))}</p><h2>${escapeHtml(member.name)}</h2><p class="sub">${partner ? `Partnered with ${escapeHtml(partner.name)}` : 'Current season cast'}</p>${team ? `<span class="cast-team-pill">${escapeHtml(team.team_name || defaultTeamName(team.manager_name))}</span>` : '<span class="cast-team-pill">Available cast</span>'}</div></div>
     <div class="cast-profile-stats"><div><strong>${fantasyPoints}</strong><span>Fantasy points</span></div>${isAnyPairRole(member.role) ? `<div><strong>${Number(scoreEntry.official || 0)}</strong><span>Judges total</span></div>` : ''}<div><strong>${Number(scoreEntry.appearanceCount || 0)}</strong><span>Appearances</span></div>${canHaveMirrorballWins(member.role, member.is_hough) ? `<div><strong>${Number(member.mirrorball_wins || 0)}</strong><span>Past wins</span></div>` : ''}</div>
     <section class="cast-profile-copy"><h3>About ${escapeHtml(member.name.split(' ')[0])}</h3><p>${escapeHtml(member.bio || 'Biography details have not been added yet.')}</p>${member.career_highlights ? `<h3>Career highlights</h3><p>${escapeHtml(member.career_highlights)}</p>` : ''}</section>${details ? `<div class="cast-profile-details">${details}</div>` : ''}`);
-  $('#profileBackToTeam')?.addEventListener('click', () => openTeamDetail(returnTeamId));
+  $('#profileBack')?.addEventListener('click', () => returnAction ? returnAction() : openTeamDetail(returnTeamId));
 }
 
 function rosterDetail(player, partnerships, players, weeks, teams) {
   const partner = partnerFor(player, partnerships, players);
   const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
-  const base = player.role === 'Surprise' && player.custom_appearance_points ? `Surprise · +${player.custom_appearance_points}` : displayRole(player);
+  const base = escapeHtml(player.role === 'Surprise' && player.custom_appearance_points ? `Surprise · +${player.custom_appearance_points}` : displayRole(player));
   const fantasyTeam = teams.find((team) => team.id === player.fantasy_team_id);
-  const teamText = fantasyTeam ? ` · ${fantasyTeam.team_name || defaultTeamName(fantasyTeam.manager_name)}` : '';
+  const teamText = fantasyTeam ? ` · ${escapeHtml(fantasyTeam.team_name || defaultTeamName(fantasyTeam.manager_name))}` : '';
   if (!isAnyPairRole(player.role)) return `${base}${teamText}`;
-  const partnerText = partner ? `${partner.name}${teamText}` : '<strong class="missing">No partner assigned</strong>';
+  const partnerText = partner ? `${escapeHtml(partner.name)}${teamText}` : '<strong class="missing">No partner assigned</strong>';
   if (!player.role.startsWith('Eliminated')) return `${base} · ${partnerText}`;
   const week = weeks.find((item) => item.id === player.eliminated_week_id);
   return `${base} · ${partnerText} · Eliminated ${week ? `Week ${week.number}` : 'week not set'}`;
@@ -195,7 +283,7 @@ async function editPlayer(id) {
     const player = players.find((item) => item.id === id);
     const partner = partnerFor(player, partnerships, players);
     const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
-    openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${escapeHtml(displayImagePath(player))}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${player.name}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
+    openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${escapeHtml(displayImagePath(player))}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${escapeHtml(player.name)}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
       <label>Role<select id="editRole" ${player.role.startsWith('Eliminated') ? 'disabled' : ''}>${(player.role.startsWith('Eliminated') ? [player.role] : assignableRoles).map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select>${player.role.startsWith('Eliminated') ? '<span class="range-note">Eliminated roles are managed by completing a week.</span>' : ''}</label>
       <div id="roleDetailField" ${player.role === 'Judges + Hosts' ? '' : 'hidden'}><label>Type<select id="editRoleDetail"><option ${player.role_detail === 'Judge' ? 'selected' : ''}>Judge</option><option ${player.role_detail === 'Host' ? 'selected' : ''}>Host</option><option ${!player.role_detail || player.role_detail === 'Judge + Host' ? 'selected' : ''}>Judge + Host</option></select></label><label class="check-row"><input id="editIsHough" type="checkbox" ${player.is_hough || player.role === 'Hough' ? 'checked' : ''}> Hough scoring rate</label></div>
       <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
@@ -219,8 +307,11 @@ async function editPlayer(id) {
     $('#editPartner').addEventListener('change', (event) => { $('#partnershipNameField').hidden = !event.target.value; });
     $('#imagePosition').addEventListener('input', (event) => { $('#editPhotoPreview').style.objectPosition = `${event.target.value}% center`; });
     $('#savePlayer').addEventListener('click', async () => {
+      const saveButton = $('#savePlayer');
+      if (saveButton.disabled) return;
+      saveButton.disabled = true;
       const role = $('#editRole').value;
-      if (role === 'Surprise' && $('#editRate').value === '') return alert('Enter the Surprise points per appearance.');
+      if (role === 'Surprise' && $('#editRate').value === '') { saveButton.disabled = false; return alert('Enter the Surprise points per appearance.'); }
       const partnerId = isAnyPairRole(role) ? $('#editPartner').value : '';
       const partnershipName = $('#editPartner').value ? $('#partnershipName').value.trim() || null : null;
       const { error: saveError } = await db.rpc('save_cast_member_profile_atomic', {
@@ -233,15 +324,10 @@ async function editPlayer(id) {
         p_bio: $('#editBio').value.trim() || null, p_career_highlights: $('#editCareerHighlights').value.trim() || null,
         p_mirrorball_wins: canHaveMirrorballWins(role, role === 'Judges + Hosts' && $('#editIsHough').checked) ? Number($('#editMirrorballWins').value || 0) : 0,
       });
-      if (saveError) return alert(`Couldn’t save ${player.name}: ${saveError.message}`);
+      if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save ${player.name}: ${saveError.message}`); }
       $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
     });
-    $('#deletePlayer').addEventListener('click', async () => {
-      if (!confirm(`Delete ${player.name}? This cannot be undone.`)) return;
-      const { error: deleteError } = await db.rpc('delete_cast_member_atomic', { p_cast_member_id: id });
-      if (deleteError) return alert(`Couldn’t delete ${player.name}: ${deleteError.message}`);
-      $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
-    });
+    $('#deletePlayer').addEventListener('click', () => openConfirmation({ title: `Delete ${player.name}?`, message: 'This permanently removes the cast member and cannot be undone.', confirmLabel: 'Delete cast member', destructive: true, onCancel: () => editPlayer(id), onConfirm: async () => { const { error } = await db.rpc('delete_cast_member_atomic', { p_cast_member_id: id }); if (!error) { loadRoster(); loadTeams(); loadStandings(); } return error; } }));
   } catch (error) { alert(`Couldn’t open this cast member: ${error.message}`); }
 }
 
@@ -275,6 +361,8 @@ async function openAddPlayer() {
     const role = $('#newRole').value;
     if (role === 'Surprise' && $('#newRate').value === '') return alert('Enter the Surprise points per appearance.');
     const partnerId = isPairRole(role) ? $('#newPartner').value : '';
+    const createButton = $('#createPlayer');
+    createButton.disabled = true;
     const { error } = await db.rpc('save_cast_member_profile_atomic', {
       p_cast_member_id: null, p_name: name, p_role: role, p_image_path: storedImagePathFor(name), p_image_position: 50,
       p_custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) : null,
@@ -284,20 +372,24 @@ async function openAddPlayer() {
       p_bio: $('#newBio').value.trim() || null, p_career_highlights: $('#newCareerHighlights').value.trim() || null,
       p_mirrorball_wins: canHaveMirrorballWins(role, role === 'Judges + Hosts' && $('#newIsHough').checked) ? Number($('#newMirrorballWins').value || 0) : 0,
     });
-    if (error) return alert(`Couldn’t create ${name}: ${error.message}`);
+    if (error) { createButton.disabled = false; return alert(`Couldn’t create ${name}: ${error.message}`); }
     $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
   });
 }
 
 async function loadTeams() {
   if (!$('#commissionerTeamResults')) return;
+  const loadVersion = ++loadVersions.teams;
+  $('#commissionerTeamResults').innerHTML = loadingMarkup('Loading fantasy teams');
   const [{ data: teams, error: teamError }, { data: castMembers, error: castError }, managerMap] = await Promise.all([
     db.from('fantasy_teams').select('*').order('manager_name'),
     db.from('cast_members').select('*').order('name'),
     getTeamManagerMap(),
   ]);
+  if (loadVersion !== loadVersions.teams) return;
   if (teamError || castError) {
-    $('#commissionerTeamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(teamError?.message || castError?.message)}</div>`;
+    console.error(teamError || castError);
+    renderLoadError($('#commissionerTeamResults'), 'load fantasy teams', loadTeams);
     return;
   }
   const availableCount = castMembers.filter((member) => !member.fantasy_team_id).length;
@@ -318,6 +410,13 @@ async function loadTeams() {
       ${roster.length ? `<ul class="team-roster">${rosterPreview.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
     </article>`;
   }).join('');
+  if (canEdit) {
+    document.querySelectorAll('[data-team-detail]').forEach((card) => {
+      card.removeAttribute('role'); card.removeAttribute('tabindex'); card.removeAttribute('aria-label');
+      const editButton = card.querySelector('[data-edit-team-id]');
+      editButton?.insertAdjacentHTML('beforebegin', `<button type="button" class="secondary team-view-button" data-view-team-id="${card.dataset.teamDetail}">View</button>`);
+    });
+  }
   document.querySelectorAll('[data-edit-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); editTeamCard(button.dataset.editTeamId); }));
   document.querySelectorAll('[data-team-detail]').forEach((card) => {
     const open = () => { if (!card.classList.contains('editing')) openTeamDetail(card.dataset.teamDetail); };
@@ -327,6 +426,7 @@ async function loadTeams() {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
     });
   });
+  document.querySelectorAll('[data-view-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openTeamDetail(button.dataset.viewTeamId); }));
 }
 
 async function openTeamDetail(teamId) {
@@ -363,12 +463,15 @@ async function editTeamCard(teamId) {
     ${!manager ? '<p class="sub compact-note">Connect an account to this team before editing its manager name.</p>' : ''}${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
   document.querySelector(`[data-cancel-team-id="${teamId}"]`).addEventListener('click', loadTeams);
   document.querySelector(`[data-save-team-id="${teamId}"]`).addEventListener('click', async () => {
+    const saveButton = document.querySelector(`[data-save-team-id="${teamId}"]`);
+    if (saveButton.disabled) return;
+    saveButton.disabled = true;
     const team_name = $(`#teamName-${teamId}`).value.trim();
     const firstName = $(`#teamManagerFirst-${teamId}`).value.trim();
     const lastName = $(`#teamManagerLast-${teamId}`).value.trim();
-    if (manager && (!firstName || !lastName)) return alert('Enter both the first and last name.');
+    if (manager && (!firstName || !lastName)) { saveButton.disabled = false; return alert('Enter both the first and last name.'); }
     const { error: saveError } = await db.rpc('update_team_profile_atomic', { p_team_id: teamId, p_team_name: team_name || null, p_manager_user_id: manager?.user_id || null, p_first_name: manager ? firstName : null, p_last_name: manager ? lastName : null });
-    if (saveError) return alert(`Couldn’t save this team: ${saveError.message}`);
+    if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save this team: ${saveError.message}`); }
     loadTeams(); loadStandings();
   });
 }
@@ -391,16 +494,21 @@ function weekAiringLabel(week, fallback = '') {
 
 async function loadLeagueSettings() {
   if (!$('#leagueName')) return;
+  const loadVersion = ++loadVersions.settings;
   const { data, error } = await db.from('league_settings').select('league_name').eq('id', 1).maybeSingle();
+  if (loadVersion !== loadVersions.settings) return;
   $('#leagueName').textContent = error ? 'DWTS Fantasy League' : data?.league_name || 'DWTS Fantasy League';
   $('#editLeagueName').hidden = !canEdit;
   $('#editLeagueName').onclick = canEdit ? () => {
     openModal(`<p class="eyebrow">League settings</p><h2>Edit league name</h2><label>League name<input id="leagueNameInput" maxlength="80" value="${escapeHtml($('#leagueName').textContent)}"></label><div class="modal-actions"><button id="saveLeagueName">Save name</button></div>`);
     $('#saveLeagueName').addEventListener('click', async () => {
+      const saveButton = $('#saveLeagueName');
+      if (saveButton.disabled) return;
+      saveButton.disabled = true;
       const name = $('#leagueNameInput').value.trim();
-      if (!name) return alert('Enter a league name.');
+      if (!name) { saveButton.disabled = false; return alert('Enter a league name.'); }
       const { error: saveError } = await db.rpc('update_league_name', { p_league_name: name });
-      if (saveError) return alert(`Couldn’t save the league name: ${saveError.message}`);
+      if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save the league name: ${saveError.message}`); }
       $('#modal').close(); loadLeagueSettings();
     });
   } : null;
@@ -429,6 +537,9 @@ function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
 
 async function loadStandings() {
   if (!$('#standingsContent')) return;
+  const loadVersion = ++loadVersions.standings;
+  $('#standingsContent').innerHTML = loadingMarkup('Loading standings');
+  if ($('#publicTeamResults')) $('#publicTeamResults').innerHTML = loadingMarkup('Loading your team');
   const [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').order('manager_name'),
     db.from('cast_members').select('*').order('name'),
@@ -439,11 +550,13 @@ async function loadStandings() {
     db.from('dance_judge_scores').select('dance_id,score'),
     db.from('dance_appearances').select('id,dance_id,cast_member_id'),
   ]);
+  if (loadVersion !== loadVersions.standings) return;
   const error = [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult].find((result) => result.error)?.error;
   if (error) {
-    $('#standingsContent').innerHTML = `<div class="card empty error">Couldn’t load standings: ${escapeHtml(error.message)}</div>`;
+    console.error(error);
+    renderLoadError($('#standingsContent'), 'load standings', loadStandings);
     $('#overviewTeamDetail').innerHTML = '';
-    $('#publicTeamResults').innerHTML = `<div class="card empty error">Couldn’t load teams: ${escapeHtml(error.message)}</div>`;
+    renderLoadError($('#publicTeamResults'), 'load your team', loadStandings);
     return;
   }
   // The completion migration adds roster snapshots. Until it has been run, do
@@ -452,15 +565,18 @@ async function loadStandings() {
   if (weeksResult.data.some((week) => Object.prototype.hasOwnProperty.call(week, 'is_complete'))) {
     const snapshotColumns = weeksResult.data.some((week) => Object.prototype.hasOwnProperty.call(week, 'uses_rate_snapshots')) ? 'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role,appearance_points' : 'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role';
     const { data, error: snapshotError } = await db.from('weekly_roster_snapshots').select(snapshotColumns);
+    if (loadVersion !== loadVersions.standings) return;
     if (snapshotError) {
-      $('#standingsContent').innerHTML = `<div class="card empty error">Couldn’t load roster snapshots: ${escapeHtml(snapshotError.message)}</div>`;
+      console.error(snapshotError);
+      renderLoadError($('#standingsContent'), 'load historical standings', loadStandings);
       $('#overviewTeamDetail').innerHTML = '';
-      $('#publicTeamResults').innerHTML = `<div class="card empty error">Couldn’t load team history: ${escapeHtml(snapshotError.message)}</div>`;
+      renderLoadError($('#publicTeamResults'), 'load team history', loadStandings);
       return;
     }
     rosterSnapshots = data;
   }
   const managerMap = await getTeamManagerMap();
+  if (loadVersion !== loadVersions.standings) return;
   const displayTeams = teamsResult.data.map((team) => ({ ...team, manager_name: managerNameFor(team, managerMap) }));
   const data = { teams: displayTeams, members: membersResult.data, roles: rolesResult.data, partnerships: partnershipsResult.data, weeks: weeksResult.data, dances: dancesResult.data, scores: scoresResult.data, appearances: appearancesResult.data, rosterSnapshots };
   const { teams, members, weeks, memberPoints, weekMemberPoints } = calculateLeaguePoints(data);
@@ -606,17 +722,23 @@ function renderLeagueHighlights() {
   const castMVPs = bestCastScore > 0 ? castRows.filter((item) => item.total === bestCastScore) : [];
   const mostAppearances = Math.max(0, ...castRows.map((item) => item.appearances));
   const appearanceLeaders = castRows.filter((item) => item.appearances === mostAppearances && mostAppearances > 0);
-  const compactNames = (items, getName) => {
+  const highlightDetails = new Map();
+  const compactNames = (items, getName, key) => {
     if (!items.length) return '';
     const visible = items.slice(0, 3).map((item) => `<span>${escapeHtml(getName(item))}</span>`).join('');
     const remaining = items.length - 3;
-    return `<div class="highlight-name-list">${visible}${remaining > 0 ? `<span class="highlight-more">+${remaining} more tied</span>` : ''}</div>`;
+    highlightDetails.set(key, items.map(getName));
+    return `<div class="highlight-name-list">${visible}${remaining > 0 ? `<button type="button" class="highlight-more" data-highlight-detail="${key}">+${remaining} more tied</button>` : ''}</div>`;
   };
-  const teamNames = compactNames(winningTeams, ({ team }) => team.team_name || defaultTeamName(team.manager_name));
-  const mvpNames = compactNames(castMVPs, ({ member }) => member.name);
-  const appearanceNames = compactNames(appearanceLeaders, ({ member }) => member.name);
+  const teamNames = compactNames(winningTeams, ({ team }) => team.team_name || defaultTeamName(team.manager_name), 'teams');
+  const mvpNames = compactNames(castMVPs, ({ member }) => member.name, 'cast');
+  const appearanceNames = compactNames(appearanceLeaders, ({ member }) => member.name, 'appearances');
   $('#highlightWeek').textContent = weekTitle(week);
   $('#leagueHighlightCards').innerHTML = `<article class="card"><small>Team of the week</small>${bestTeamScore ? `<strong class="highlight-value">${bestTeamScore}</strong><p>fantasy points${winningTeams.length > 1 ? ' each' : ''}</p>${teamNames}` : '<p>No fantasy-team points were recorded.</p>'}</article><article class="card"><small>Top cast score</small>${bestCastScore ? `<strong class="highlight-value">${bestCastScore}</strong><p>points${castMVPs.length > 1 ? ' each' : ''}</p>${mvpNames}` : '<p>No cast points were recorded.</p>'}</article><article class="card"><small>Most appearances</small>${mostAppearances ? `<strong class="highlight-value">${mostAppearances}</strong><p>dance${mostAppearances === 1 ? '' : 's'}${appearanceLeaders.length > 1 ? ' each' : ''}</p>${appearanceNames}` : '<p>No appearances were recorded.</p>'}</article>`;
+  document.querySelectorAll('[data-highlight-detail]').forEach((button) => button.addEventListener('click', () => {
+    const names = highlightDetails.get(button.dataset.highlightDetail) || [];
+    openModal(`<p class="eyebrow">${escapeHtml(weekTitle(week))}</p><h2>Tied leaders</h2><div class="highlight-detail-list">${names.map((name) => `<span>${escapeHtml(name)}</span>`).join('')}</div>`);
+  }));
 }
 
 function renderPublicTeams() {
@@ -759,7 +881,8 @@ function openTradeConfirmation({ trade, title, message, confirmLabel, destructiv
       button.disabled = false;
       const errorBox = $('#tradeConfirmError');
       errorBox.hidden = false;
-      errorBox.textContent = error.message || String(error);
+      errorBox.textContent = friendlyError('complete this trade action');
+      console.error(error);
       return;
     }
     $('#modal').close();
@@ -781,7 +904,9 @@ async function loadTrades() {
   if (offersResult.error || historyResult.error) {
     const error = offersResult.error || historyResult.error;
     const setupMissing = ['42P01', 'PGRST202'].includes(error.code) || /trade|function/i.test(error.message || '');
-    container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub ${setupMissing ? '' : 'error'}">${setupMissing ? 'Run the latest trade database update to enable timers and history.' : `Couldn’t load trades: ${escapeHtml(error.message)}`}</p>`;
+    console.error(error);
+    container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub ${setupMissing ? '' : 'error'}">${setupMissing ? 'Run the latest trade database update to enable timers and history.' : friendlyError('load trades')}</p>${setupMissing ? '' : '<button type="button" class="secondary" id="retryTrades">Try again</button>'}`;
+    $('#retryTrades')?.addEventListener('click', loadTrades);
     return;
   }
   const trades = offersResult.data || [];
@@ -797,7 +922,7 @@ async function loadTrades() {
     const mayCounter = awaitingMe && trade.status === 'pending' && trade.counterparty_team_id === managerTeamId;
     return `<article class="trade-offer ${awaitingMe ? 'needs-action' : ''}"><div class="trade-offer-top"><span>${trade.status === 'countered' ? 'Counter offer' : 'Trade offer'}</span><small>${awaitingMe ? 'Your response' : `Waiting for ${escapeHtml(otherTeamName)}`}</small></div>${tradeSwapMarkup(mine, theirs)}<div class="trade-expiry"><span data-trade-expires="${escapeHtml(trade.expires_at)}">${escapeHtml(tradeTimeRemaining(trade.expires_at))}</span><small>Offer closes automatically</small></div>${awaitingMe ? `<div class="trade-actions"><button data-accept-trade="${trade.id}">Accept</button>${mayCounter ? `<button class="secondary" data-counter-trade="${trade.id}">Counter</button>` : ''}<button class="secondary trade-deny" data-deny-trade="${trade.id}">Deny</button></div>` : canCancel ? `<div class="trade-actions"><button class="secondary trade-deny" data-cancel-trade="${trade.id}">Cancel offer</button></div>` : ''}</article>`;
   }).join('');
-  const statusLabels = { countered: 'Countered', accepted: 'Accepted', denied: 'Denied', expired: 'Expired', cancelled: 'Cancelled' };
+  const statusLabels = { countered: 'Countered', accepted: 'Accepted', denied: 'Denied', expired: 'Expired', cancelled: 'Cancelled', invalidated: 'Superseded' };
   const historyCards = history.map((entry) => {
     const context = historyTradeContext(entry);
     const isInitiator = entry.initiator_team_id === managerTeamId;
@@ -806,7 +931,7 @@ async function loadTrades() {
     const date = new Date(entry.event_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     return `<article class="trade-history-item"><div class="trade-history-head"><span class="trade-status trade-status-${entry.event_type}">${statusLabels[entry.event_type] || entry.event_type}</span><small>${escapeHtml(date)}</small></div>${tradeSwapMarkup(mine, theirs)}</article>`;
   }).join('');
-  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary">Propose trade</button></div><p class="sub">Swap one cast member with another manager.</p><div class="trade-view-tabs" role="tablist"><button type="button" data-trade-view="active" class="${tradeViewMode === 'active' ? 'selected' : ''}">Active <span>${trades.length}</span></button><button type="button" data-trade-view="history" class="${tradeViewMode === 'history' ? 'selected' : ''}">History</button></div><div class="trade-list" ${tradeViewMode === 'active' ? '' : 'hidden'}>${tradeCards || '<div class="trade-empty">No active trade offers.</div>'}</div><div class="trade-history-list" ${tradeViewMode === 'history' ? '' : 'hidden'}>${historyCards || '<div class="trade-empty">No past trade activity yet.</div>'}</div>`;
+  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary">Propose trade</button></div><p class="sub">Swap one cast member with another manager.</p><div class="trade-view-tabs" role="tablist" aria-label="Trade activity"><button type="button" role="tab" aria-selected="${tradeViewMode === 'active'}" data-trade-view="active" class="${tradeViewMode === 'active' ? 'selected' : ''}">Active <span>${trades.length}</span></button><button type="button" role="tab" aria-selected="${tradeViewMode === 'history'}" data-trade-view="history" class="${tradeViewMode === 'history' ? 'selected' : ''}">History</button></div><div class="trade-list" role="tabpanel" ${tradeViewMode === 'active' ? '' : 'hidden'}>${tradeCards || '<div class="trade-empty">No active trade offers.</div>'}</div><div class="trade-history-list" role="tabpanel" ${tradeViewMode === 'history' ? '' : 'hidden'}>${historyCards || '<div class="trade-empty">No past trade activity yet.</div>'}</div>`;
   $('#newTrade')?.addEventListener('click', openNewTrade);
   document.querySelectorAll('[data-trade-view]').forEach((button) => button.addEventListener('click', () => { tradeViewMode = button.dataset.tradeView; loadTrades(); }));
   document.querySelectorAll('[data-accept-trade]').forEach((button) => button.addEventListener('click', async () => {
@@ -857,7 +982,8 @@ function openNewTrade() {
       const { error } = await db.rpc('request_trade', { p_my_cast_member_id: state.mineId, p_requested_cast_member_id: state.theirsId });
       if (error) {
         button.disabled = false;
-        const errorBox = $('#tradeBuilderError'); errorBox.hidden = false; errorBox.textContent = error.message;
+        console.error(error);
+        const errorBox = $('#tradeBuilderError'); errorBox.hidden = false; errorBox.textContent = friendlyError('send this trade');
         return;
       }
       $('#modal').close(); loadTrades();
@@ -891,7 +1017,8 @@ function openCounterTrade(trade) {
       const { error } = await db.rpc('counter_trade', { p_trade_id: trade.id, p_initiator_cast_member_id: initiatorId, p_counterparty_cast_member_id: counterpartyId });
       if (error) {
         button.disabled = false;
-        const errorBox = $('#counterTradeError'); errorBox.hidden = false; errorBox.textContent = error.message;
+        console.error(error);
+        const errorBox = $('#counterTradeError'); errorBox.hidden = false; errorBox.textContent = friendlyError('send this counter offer');
         return;
       }
       $('#modal').close(); loadTrades();
@@ -918,10 +1045,12 @@ function openMyTeamEditor(team) {
     if (!firstName || !lastName) return alert('Enter both your first and last name.');
     if (navMode === 'team' && !teamName) return alert('Add a team name before using it in the navigation.');
     if (navMode === 'custom' && !customLabel) return alert('Enter a custom navigation label.');
+    const saveButton = $('#saveMyTeamProfile');
+    saveButton.disabled = true;
     const { error } = await db.rpc('update_my_team_profile', { p_first_name: firstName, p_last_name: lastName, p_team_name: teamName || null, p_nav_label_mode: navMode, p_custom_nav_label: customLabel });
-    if (error) return alert(`Couldn’t save your team profile: ${error.message}`);
+    if (error) { saveButton.disabled = false; return alert(`Couldn’t save your team profile: ${error.message}`); }
     const { error: authError } = await db.auth.updateUser({ data: { first_name: firstName, last_name: lastName, display_name: `${firstName} ${lastName}` } });
-    if (authError) return alert(`The league profile saved, but your sign-in profile could not be updated: ${authError.message}`);
+    if (authError) { saveButton.disabled = false; return alert('Your league profile saved, but your sign-in profile could not be updated. Please try again.'); }
     managerFirstName = firstName; managerLastName = lastName; managerTeamName = teamName; managerNavLabelMode = navMode; managerCustomNavLabel = customLabel || '';
     $('#auth').textContent = firstName;
     const teamNavLabel = navMode === 'custom' ? customLabel : navMode === 'team' ? teamName : 'My Team';
@@ -967,9 +1096,10 @@ function calculateLeaguePoints(data) {
 
 async function loadScoreDesk() {
   const loadVersion = ++scoreDeskLoadVersion;
+  if ($('#scoreDeskContent')) $('#scoreDeskContent').innerHTML = loadingMarkup('Loading dances');
   const { data: weeks, error } = await db.from('weeks').select('*').order('number');
   if (loadVersion !== scoreDeskLoadVersion) return;
-  if (error) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load weeks: ${escapeHtml(error.message)}</div>`;
+  if (error) { console.error(error); return renderLoadError($('#scoreDeskContent'), 'load weeks', loadScoreDesk); }
   const visibleWeeks = isScoreDeskSurface ? weeks : teamPageWeeks(weeks);
   if (isScoreDeskSurface && $('#newWeek')) $('#newWeek').hidden = !canManageShow || Boolean(weeks[weeks.length - 1]?.is_season_finale);
   if (!visibleWeeks.length) {
@@ -978,25 +1108,34 @@ async function loadScoreDesk() {
     return;
   }
   if (!visibleWeeks.some((week) => week.id === selectedWeekId)) selectedWeekId = visibleWeeks[visibleWeeks.length - 1].id;
-  $('#weekTabs').innerHTML = visibleWeeks.map((week) => `<button class="${week.id === selectedWeekId ? 'selected' : ''}" data-score-week="${week.id}">Week ${week.number}</button>`).join('');
+  $('#weekTabs').setAttribute('role', 'tablist');
+  $('#weekTabs').setAttribute('aria-label', 'Choose a week');
+  $('#weekTabs').innerHTML = visibleWeeks.map((week) => `<button role="tab" aria-selected="${week.id === selectedWeekId}" class="${week.id === selectedWeekId ? 'selected' : ''}" data-score-week="${week.id}">Week ${week.number}</button>`).join('');
   document.querySelectorAll('[data-score-week]').forEach((button) => button.addEventListener('click', () => { selectedWeekId = button.dataset.scoreWeek; editingWeekId = null; loadScoreDesk(); }));
   const week = visibleWeeks.find((item) => item.id === selectedWeekId);
   const { data: dances, error: danceError } = await db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order');
   if (loadVersion !== scoreDeskLoadVersion) return;
-  if (danceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(danceError.message)}</div>`;
+  if (danceError) { console.error(danceError); return renderLoadError($('#scoreDeskContent'), 'load dances', loadScoreDesk); }
   const danceIds = dances.map((dance) => dance.id);
   const [{ data: judgeScores, error: judgeError }, { data: appearances, error: appearanceError }] = danceIds.length ? await Promise.all([
     db.from('dance_judge_scores').select('dance_id,judge_name,score').in('dance_id', danceIds),
     db.from('dance_appearances').select('id,dance_id,cast_member_id').in('dance_id', danceIds),
   ]) : [{ data: [], error: null }, { data: [], error: null }];
   if (loadVersion !== scoreDeskLoadVersion) return;
-  if (judgeError || appearanceError) return $('#scoreDeskContent').innerHTML = `<div class="card empty error">Couldn’t load dances: ${escapeHtml(judgeError?.message || appearanceError?.message)}</div>`;
-  const [pairData, roleResult, snapshotResult] = await Promise.all([
-    getPairingData().catch(() => ({ players: [], partnerships: [], weeks: [], teams: [] })),
+  if (judgeError || appearanceError) { console.error(judgeError || appearanceError); return renderLoadError($('#scoreDeskContent'), 'load dance scoring', loadScoreDesk); }
+  const [pairResult, roleResult, snapshotResult] = await Promise.all([
+    getPairingData().then((data) => ({ data })).catch((error) => ({ error })),
     db.from('roles').select('name,appearance_points'),
     week.is_complete ? db.from('weekly_roster_snapshots').select('*').eq('week_id', week.id) : Promise.resolve({ data: [], error: null }),
   ]);
   if (loadVersion !== scoreDeskLoadVersion) return;
+  const detailError = pairResult.error || roleResult.error || snapshotResult.error;
+  if (detailError) {
+    console.error(detailError);
+    renderLoadError($('#scoreDeskContent'), week.is_complete ? 'load this week’s historical details' : 'load dance details', loadScoreDesk);
+    return;
+  }
+  const pairData = pairResult.data;
   const danceDetailContext = { roles: roleResult.data || [], snapshots: snapshotResult.data || [] };
   const judgeOrder = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
   const scoresForDance = (danceId) => judgeScores.filter((score) => score.dance_id === danceId).sort((a, b) => judgeOrder.indexOf(a.judge_name) - judgeOrder.indexOf(b.judge_name));
@@ -1017,7 +1156,7 @@ async function loadScoreDesk() {
     if (!isScoreDeskSurface) loadRules();
   }
   const airing = weekAiringLabel(week);
-  const completionStatus = week.is_complete ? 'Week complete' : week.is_finale ? 'No elimination · ready to complete' : `${week.double_elimination ? 'Double elimination' : 'Standard elimination'} · elimination not set`;
+  const completionStatus = week.is_complete ? 'Week complete' : !isScoreDeskSurface ? 'Upcoming week' : week.is_finale ? 'No elimination · ready to complete' : `${week.double_elimination ? 'Double elimination' : 'Standard elimination'} · elimination not set`;
   const weekStatus = [airing, week.is_season_finale ? 'Season finale' : '', completionStatus].filter(Boolean).join(' · ');
   const editable = canManageShow && !week.is_complete;
   const weekEditing = editable && editingWeekId === week.id;
@@ -1025,13 +1164,25 @@ async function loadScoreDesk() {
   const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label>Air date <span class="optional">(optional)</span><input id="weekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label class="check-label"><input id="twoNightAiring" type="checkbox" ${week.second_air_date ? 'checked' : ''}> Two-night airing</label><label id="secondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="weekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label><label class="check-label"><input id="isSeasonFinale" type="checkbox" ${week.is_season_finale ? 'checked' : ''}> Season finale</label></div>`;
   $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canManageShow ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
     ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : !weekEditing ? '<span class="card-chevron" aria-hidden="true">›</span>' : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
+  if (!week.is_complete && !isScoreDeskSurface) {
+    document.querySelectorAll('#scoreDeskContent .dance-score-pending').forEach((item) => item.remove());
+    document.querySelectorAll('#scoreDeskContent .week-summary span').forEach((item) => { if (item.textContent === '0 performances') item.remove(); });
+    const summary = $('#scoreDeskContent .week-summary');
+    if (summary) summary.insertAdjacentHTML('beforeend', '<span class="week-upcoming">Upcoming</span>');
+  }
+  if (editable && !weekEditing) {
+    document.querySelectorAll('#scoreDeskContent [data-dance-detail]').forEach((tile) => {
+      tile.removeAttribute('role'); tile.removeAttribute('tabindex'); tile.removeAttribute('aria-label');
+      tile.querySelector('[data-edit-dance]')?.insertAdjacentHTML('beforebegin', `<button type="button" class="secondary" data-view-dance="${tile.dataset.danceDetail}">View</button>`);
+    });
+  }
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
   $('#editWeek')?.addEventListener('click', () => { editingWeekId = week.id; loadScoreDesk(); });
   $('#cancelWeekEdit')?.addEventListener('click', () => { editingWeekId = null; loadScoreDesk(); });
   $('#twoNightAiring')?.addEventListener('change', (event) => { $('#secondAirDateField').hidden = !event.target.checked; if (!event.target.checked) $('#weekSecondAirDate').value = ''; });
   $('#guestJudgeEnabled')?.addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
   $('#isFinale')?.addEventListener('change', (event) => { $('#doubleElimination').disabled = event.target.checked; if (event.target.checked) $('#doubleElimination').checked = false; });
-  $('#saveWeek')?.addEventListener('click', () => saveInlineWeek(week, dances));
+  $('#saveWeek')?.addEventListener('click', (event) => withBusy(event.currentTarget, 'Saving…', () => saveInlineWeek(week, dances)));
   if (weekEditing) attachDanceReorder();
   $('#completeWeek')?.addEventListener('click', () => openCompleteWeek(week));
   $('#weekLedger')?.addEventListener('click', () => openWeekLedger(week));
@@ -1045,6 +1196,7 @@ async function loadScoreDesk() {
     tile.addEventListener('click', open);
     tile.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
   });
+  document.querySelectorAll('[data-view-dance]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); document.querySelector(`[data-dance-detail="${button.dataset.viewDance}"]`)?.click(); }));
 }
 
 function openDanceDetail(week, dance, index, pairData, scores, cast, context = {}) {
@@ -1079,7 +1231,7 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
   const teamSpotlight = detailRows.length ? `<section class="dance-team-spotlight"><span>Top fantasy team${topTeams.length === 1 ? '' : 's'}</span><strong>${escapeHtml(topTeams.join(' & ') || 'No points recorded')}</strong><small>${topTeamScore ? `${topTeamScore} point${topTeamScore === 1 ? '' : 's'} earned from this dance` : 'Fantasy impact will appear when scoring is available.'}</small></section>` : '';
   const castImpact = `<section class="detail-section"><div class="detail-section-title"><h3>Cast & fantasy impact</h3>${detailRows.length ? `<span>${detailRows.length} cast member${detailRows.length === 1 ? '' : 's'}</span>` : ''}</div>${detailRows.length ? `<div class="dance-cast-impact-list">${sortedRows.map((row) => `<button type="button" data-dance-cast-profile="${row.member.id}"><img src="${escapeHtml(displayImagePath(row.member))}" style="object-position:${row.member.image_position ?? 50}% center" alt=""><span><b>${escapeHtml(row.member.name)}</b><small>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${escapeHtml(row.teamName)}</small></span><strong>${row.points ? `+${row.points}` : '—'}</strong><i aria-hidden="true">›</i></button>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>`;
   openModal(`<div class="dance-detail-head"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${escapeHtml(title)}</h2>${dance.kind === 'competitive' ? `<p class="sub">${escapeHtml(dance.dance_type || 'Dance type not set')}${dance.song ? ` · ${escapeHtml(dance.song)}` : ''}</p>` : ''}</div>${dance.kind === 'competitive' ? `<section class="detail-section dance-score-section"><div class="detail-section-title"><h3>Judges’ scores</h3><strong>${scoreTotal || '—'}</strong></div><div class="detail-judges">${scores.map((score) => `<div><img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}"><span>${escapeHtml(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section>` : ''}${teamSpotlight}${castImpact}`);
-  document.querySelectorAll('[data-dance-cast-profile]').forEach((button) => button.addEventListener('click', () => openCastDetail(button.dataset.danceCastProfile)));
+  document.querySelectorAll('[data-dance-cast-profile]').forEach((button) => button.addEventListener('click', () => openCastDetail(button.dataset.danceCastProfile, null, () => openDanceDetail(week, dance, index, pairData, scores, cast, context))));
 }
 
 async function openWeekLedger(week) {
@@ -1199,8 +1351,10 @@ async function openNewWeek() {
     if (second_air_date && second_air_date < air_date) return alert('The second night cannot be before the first night.');
     if ($('#guestJudgeEnabled').checked && !guest_judge_name) return alert('Enter the guest judge’s name.');
     if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guest_judge_name?.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
+    const createButton = $('#createWeek');
+    createButton.disabled = true;
     const { data: week, error: createError } = await db.from('weeks').insert({ number, theme: theme || null, title, air_date, second_air_date, guest_judge_name, double_elimination: $('#doubleElimination').checked, is_finale: $('#isFinale').checked, is_season_finale: $('#isSeasonFinale').checked }).select().single();
-    if (createError) return alert(`Couldn’t create Week ${number}: ${createError.message}`);
+    if (createError) { createButton.disabled = false; return alert(`Couldn’t create Week ${number}: ${createError.message}`); }
     selectedWeekId = week.id; $('#modal').close(); loadScoreDesk();
   });
 }
@@ -1286,8 +1440,10 @@ async function openCompleteWeek(week) {
     const eliminated = requiredEliminations ? [$('#completeEliminationOne').value, $('#completeEliminationTwo')?.value].filter(Boolean) : [];
     if (eliminated.length !== requiredEliminations) return alert(requiredEliminations === 2 ? 'Choose both eliminated couples.' : 'Choose the eliminated couple.');
     if (new Set(eliminated).size !== eliminated.length) return alert('Choose two different couples.');
+    const completeButton = $('#confirmCompleteWeek');
+    completeButton.disabled = true;
     const { error: completionError } = await db.rpc('complete_week', { p_week_id: week.id, p_eliminated_partnership_ids: eliminated });
-    if (completionError) return alert(`Couldn’t complete the week: ${completionError.message}`);
+    if (completionError) { completeButton.disabled = false; return alert(`Couldn’t complete the week: ${completionError.message}`); }
     $('#modal').close();
     loadScoreDesk(); loadRoster(); loadTeams(); loadStandings(); loadRules();
   });
@@ -1350,12 +1506,7 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
     const migrationHint = missingRpc(atomicSave.error) ? ' Run the current workflow-hardening SQL migration first.' : '';
     alert(`Couldn’t save this dance: ${atomicSave.error.message}${migrationHint}`);
   });
-  $('#deleteDance')?.addEventListener('click', async () => {
-    if (!confirm('Delete this dance and all of its recorded scores and appearances? This cannot be undone.')) return;
-    const { error } = await db.from('dances').delete().eq('id', existingDance.id);
-    if (error) return alert(`Couldn’t delete this dance: ${error.message}`);
-    $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings();
-  });
+  $('#deleteDance')?.addEventListener('click', () => openConfirmation({ title: 'Delete this dance?', message: 'All recorded scores and appearances for this dance will also be deleted. This cannot be undone.', confirmLabel: 'Delete dance', destructive: true, onCancel: () => openNewDance(week, index, existingDance, existingScores, existingAppearanceIds, initialKind, scoresOnly), onConfirm: async () => { const { error } = await db.from('dances').delete().eq('id', existingDance.id); if (!error) { loadScoreDesk(); loadRoster(); loadStandings(); } return error; } }));
 }
 
 async function openEditDance(week, dance, index, scoresOnly = false) {
@@ -1369,9 +1520,13 @@ async function openEditDance(week, dance, index, scoresOnly = false) {
 
 async function loadRules() {
   if (!$('#roleRatesContent')) return;
+  const loadVersion = ++loadVersions.rules;
+  $('#roleRatesContent').innerHTML = loadingMarkup('Loading role rates');
   const { data: roleRows, error } = await db.from('roles').select('name,appearance_points');
+  if (loadVersion !== loadVersions.rules) return;
   if (error) {
-    $('#roleRatesContent').innerHTML = `<div class="card empty error">Couldn’t load role rates: ${escapeHtml(error.message)}</div>`;
+    console.error(error);
+    renderLoadError($('#roleRatesContent'), 'load role rates', loadRules);
     return;
   }
   const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
@@ -1389,10 +1544,13 @@ function openRulesEditor(rates) {
   const editableRates = rates.filter((role) => role.name !== 'Surprise');
   openModal(`<h2>Edit Appearance Rates</h2><p class="sub">These are the default points per recorded dance appearance. Surprise cast keeps a per-person custom rate in the Cast Roster.</p><div class="rate-editor">${editableRates.map((role) => `<label>${escapeHtml(role.name)}<input type="number" min="0" max="99" step="1" inputmode="numeric" data-role-rate="${escapeHtml(role.name)}" value="${Number(role.appearance_points) || 0}"></label>`).join('')}</div><div class="modal-actions"><button id="saveRules">Save rules</button></div>`);
   $('#saveRules').addEventListener('click', async () => {
+    const saveButton = $('#saveRules');
+    if (saveButton.disabled) return;
+    saveButton.disabled = true;
     const edits = [...document.querySelectorAll('[data-role-rate]')].map((input) => ({ name: input.dataset.roleRate, appearance_points: Number(input.value) }));
-    if (edits.some((edit) => !Number.isInteger(edit.appearance_points) || edit.appearance_points < 0 || edit.appearance_points > 99)) return alert('Every appearance rate must be a whole number from 0 to 99.');
+    if (edits.some((edit) => !Number.isInteger(edit.appearance_points) || edit.appearance_points < 0 || edit.appearance_points > 99)) { saveButton.disabled = false; return alert('Every appearance rate must be a whole number from 0 to 99.'); }
     const { error } = await db.rpc('update_role_rates_atomic', { p_rates: edits });
-    if (error) return alert(`Couldn’t save rules: ${error.message}`);
+    if (error) { saveButton.disabled = false; return alert(`Couldn’t save rules: ${error.message}`); }
     $('#modal').close(); loadRules(); loadStandings();
   });
 }
@@ -1457,10 +1615,4 @@ if (isScoreDeskSurface) {
     loadScoreDesk();
     loadRules();
   });
-  loadStandings();
-  loadRoster();
-  loadTeams();
-  loadScoreDesk();
-  loadRules();
-  loadLeagueSettings();
 }

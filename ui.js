@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     navToggle.querySelector('.nav-toggle-label').textContent = mobile ? (collapsed ? 'Menu' : 'Close') : (collapsed ? 'Expand' : 'Collapse');
   };
   setNavCollapsed(storedNavState ? storedNavState === 'collapsed' : defaultNavCollapsed);
+  const mobileNavQuery = window.matchMedia('(max-width: 750px)');
+  mobileNavQuery.addEventListener('change', () => setNavCollapsed(document.body.classList.contains('nav-collapsed')));
   navToggle?.addEventListener('click', () => {
     const collapsed = !document.body.classList.contains('nav-collapsed');
     setNavCollapsed(collapsed);
