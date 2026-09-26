@@ -27,6 +27,43 @@
 .account-menu-link[hidden] { display: none; }
 .account-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .account-profile-hint { margin: 5px 0 8px; color: #786e79; font-size: 11px; line-height: 1.4; }
+.auth-button { display: inline-flex; align-items: center; gap: 7px; }
+.account-button-picture { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.account-menu { width: min(390px, calc(100vw - 20px)); max-height: min(78vh, 720px); overflow-y: auto; padding: 16px; }
+.account-menu h2 { margin: 0; font: 700 16px Georgia, serif; }
+.account-leagues { padding-bottom: 14px; border-bottom: 1px solid #e8e0e7; }
+.account-league-note { margin: 8px 0; color: #786e79; font-size: 12px; }
+.account-menu .workspace-section-head { margin-bottom: 8px; }
+.account-menu .workspace-section-head button { width: auto; margin: 0; }
+.account-menu .workspace-league-list,.account-menu .workspace-invite-list { gap: 6px; }
+.account-menu .workspace-league-link { padding: 9px 10px; border: 1px solid #e8e0e7; border-radius: 8px; }
+.account-menu .workspace-league-link.current { border-color: #7d4e73; background: #f5eef3; }
+.account-menu .workspace-league-link b { font: 750 12px sans-serif; }
+.account-menu .workspace-league-link small { margin-top: 2px; font-size: 10px; }
+.account-menu .workspace-league-link span { margin: 0; }
+.account-menu .workspace-invites-mini { margin-top: 14px; }
+.account-menu .workspace-invite-row { flex-wrap: wrap; padding: 8px 0; }
+.account-menu .workspace-invite-row button { width: auto; }
+.account-menu #accountProfileEditor { padding-top: 14px; }
+.account-menu #accountProfileEditor h2 { margin-bottom: 10px; }
+.account-picture-row { display: flex; align-items: center; gap: 12px; }
+.account-picture-row > img,.account-picture-row > span { width: 64px; height: 64px; flex: 0 0 64px; border-radius: 50%; object-fit: cover; background: #efe8ee; }
+.account-picture-row > span { display: grid; place-items: center; margin: 0; color: #564258; font: 700 25px Georgia, serif; }
+.account-picture-row > div { flex: 1; min-width: 0; }
+.account-picture-row .account-upload-label,.account-picture-row button { display: block; width: 100%; margin: 0 0 4px; padding: 7px; border-radius: 7px; background: #f2ecf1; color: #302638; text-align: center; font-size: 11px; font-weight: 750; cursor: pointer; }
+.account-picture-row .account-upload-label:focus-visible { outline: 2px solid #7d4e73; outline-offset: 2px; }
+.account-picture-row #accountPictureFile { display: none; }
+.account-picture-hint { margin: 5px 0 12px; color: #786e79; font-size: 10px; }
+.account-admin-links { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e8e0e7; }
+.account-picture-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(105px,1fr)); gap: 9px; max-height: 55vh; overflow-y: auto; margin-top: 15px; }
+.account-picture-choice { display: grid; justify-items: center; gap: 5px; padding: 7px; background: #f8f5f7; color: #302638; }
+.account-picture-choice:hover,.account-picture-choice:focus-visible { outline: 2px solid #7d4e73; }
+.account-picture-choice img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; }
+.account-picture-choice span { font-size: 10px; text-align: center; }
+.account-menu .invite-count { display: inline; margin: 0; }
+.account-picture-row > [hidden] { display: none; }
+#joinInviteBanner:not(:empty) { max-width: 760px; margin: 0 0 24px; }
+@media (max-width: 520px) { .account-menu { right: -4px; max-height: calc(100dvh - 90px); } }
 
 /* League workspaces, invitations, and drafting. */
 .league-switcher-label { color: #eee7ec; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
@@ -122,7 +159,8 @@
 .workspace-trade-team-picker button.selected { background: #302638; color: #fff; }
 .workspace-counter-swap > button { padding: 0; background: transparent; color: #302638; text-align: left; }
 .workspace-counter-swap > button.selected .workspace-cast-tile { border-color: #7d4e73; background: #f3eef2; }
-.workspace-counter-swap > button:disabled { opacity: .55; }
+.workspace-counter-swap > button:disabled { opacity: .7; cursor: default; }
+.workspace-counter-swap > button.selected:disabled { opacity: 1; }
 .workspace-counter-swap + button { margin: 10px 0; }
 .workspace-trade-picker h3 { margin: 10px 0 7px; }
 .signin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }

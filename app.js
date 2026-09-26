@@ -1,5 +1,5 @@
 import { db } from './supabase-client.js';
-import { renderLeagueHub, renderSecondaryLeague } from './league-workspace.js?v=20260926-league-read-fix';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-account-menu-avatars';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1671,6 +1671,7 @@ if (isScoreDeskSurface) {
       renderSecondaryLeague(event.detail);
       return;
     }
+    stopSecondaryLeague();
     if (managerTeamId) selectedPublicTeamId = managerTeamId;
     loadLeagueSettings();
     loadStandings();

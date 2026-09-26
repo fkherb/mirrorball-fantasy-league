@@ -7,6 +7,11 @@ const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => (
 const defaultLeagueId = '00000000-0000-4000-8000-000000000001';
 let workspaceVersion = 0;
 let workspaceRefreshTimer = null;
+let workspaceTradeRefreshTimer = null;
+let refreshCurrentWorkspaceTrades = null;
+let tradeRequestVersion = 0;
+let hubVersion = 0;
+let workspaceActionPending = false;
 let selectedDanceWeekId = null;
 let tradeTab = 'active';
 let workspaceRosterFilter = 'all';
@@ -40,17 +45,31 @@ function castTile(member, action = '', tag = 'article') {
   return `<${tag} class="workspace-cast-tile"><img src="${safe(castImage(member))}" alt=""><span><b>${safe(member.name)}</b><small>${safe(member.role === 'DWTS Next Pro' ? 'Next Pro' : member.role)}</small></span>${action}</${tag}>`;
 }
 
-async function runAction(action, success) {
+async function runAction(action, success, button = document.activeElement) {
+  if (workspaceActionPending) return;
+  if (!(button instanceof HTMLButtonElement)) button = null;
+  workspaceActionPending = true;
+  if (button) {
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+  }
   try {
     const { error } = await action();
     if (error) throw error;
     if (success) await success();
   } catch (error) {
     dialog(`<h2>Couldn’t complete that action</h2><p>${safe(errorMessage(error))}</p>`);
+  } finally {
+    workspaceActionPending = false;
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    }
   }
 }
 
 export async function renderLeagueHub(context) {
+  const version = ++hubVersion;
   const container = $('#leagueHubContent');
   const joinBanner = $('#joinInviteBanner');
   if (!container || !joinBanner) return;
@@ -59,6 +78,7 @@ export async function renderLeagueHub(context) {
   let invites = [];
   if (signedIn) {
     const result = await db.rpc('get_my_league_invites');
+    if (version !== hubVersion) return;
     if (!result.error) invites = result.data || [];
     else console.error(result.error);
   }
@@ -66,6 +86,7 @@ export async function renderLeagueHub(context) {
   const token = context.joinToken;
   if (token) {
     const preview = await db.rpc('preview_league_invite_link', { p_token: token });
+    if (version !== hubVersion) return;
     const league = preview.data?.[0];
     joinBanner.innerHTML = league
       ? `<div class="card pad workspace-invite-banner"><p class="eyebrow">League invitation</p><h2>Join ${safe(league.league_name)}</h2><p class="sub">${signedIn ? context.onboardingCompleted ? 'You can join this league now.' : 'Confirm your profile details before joining.' : 'Sign in or create a password account to continue.'}</p><button id="joinSharedLeague" ${signedIn && context.onboardingCompleted ? '' : 'disabled'}>Join league</button>${signedIn ? '' : '<a href="#signin" id="joinSignInLink">Sign in or create account</a>'}</div>`
@@ -73,6 +94,7 @@ export async function renderLeagueHub(context) {
     $('#joinSharedLeague')?.addEventListener('click', () => runAction(
       () => db.rpc('join_league_with_link', { p_token: token }),
       async () => { const id = league.league_id; location.assign(leagueUrl(id)); },
+      $('#joinSharedLeague'),
     ));
     $('#joinSignInLink')?.addEventListener('click', (event) => {
       event.preventDefault();
@@ -81,13 +103,13 @@ export async function renderLeagueHub(context) {
   } else joinBanner.innerHTML = '';
 
   if (!signedIn) {
-    container.innerHTML = '<div class="card pad"><h2>Your leagues appear after sign-in.</h2><p class="sub">Use the account button above to sign in.</p></div>';
+    container.innerHTML = '';
     return;
   }
   const onboarding = !context.onboardingCompleted
-    ? '<div class="card pad workspace-onboarding"><h2>Confirm your profile</h2><p class="sub">Your temporary username is ready. Open the account menu, choose the username and display name you want, then save your profile to join or create leagues.</p><button id="openProfileFromHub">Edit profile</button></div>' : '';
-  container.innerHTML = `${onboarding}<div class="workspace-hub-grid"><section><div class="workspace-section-head"><h2>My Leagues</h2><button id="createLeagueButton" ${context.onboardingCompleted ? '' : 'disabled'}>Create league</button></div><div class="workspace-league-list">${leagues.map((league) => `<a class="card workspace-league-link" href="${safe(leagueUrl(league.league_id))}"><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<div class="card pad">You have not joined a league yet.</div>'}</div></section><section><h2>Invitations ${invites.length ? `<span class="invite-count">${invites.length}</span>` : ''}</h2><div class="workspace-invite-list">${invites.map((invite) => `<article class="card pad workspace-invite-row"><div><b>${safe(invite.league_name)}</b><small>Invited by @${safe(invite.inviter_username)}</small></div><div><button data-invite-accept="${invite.id}" ${context.onboardingCompleted ? '' : 'disabled'}>Join</button><button class="secondary" data-invite-decline="${invite.id}">Decline</button></div></article>`).join('') || '<div class="card pad">No pending invitations.</div>'}</div></section></div>`;
-  $('#openProfileFromHub')?.addEventListener('click', () => $('#auth')?.click());
+    ? '<p class="account-league-note">Save your profile below before creating or joining a league.</p>' : '';
+  container.innerHTML = `${onboarding}<div class="workspace-section-head"><h2>Your leagues</h2><button id="createLeagueButton" type="button" ${!context.onboardingCompleted || context.leaguesError ? 'disabled' : ''}>Create</button></div>${context.leaguesError ? '<p class="account-league-note">Couldn’t load your leagues. Refresh to try again.</p><button id="retryAccountLeagues" type="button">Try again</button>' : `<div class="workspace-league-list">${leagues.map((league) => `<a class="workspace-league-link ${league.league_id === context.leagueId ? 'current' : ''}" href="${safe(leagueUrl(league.league_id))}" ${league.league_id === context.leagueId ? 'aria-current="page"' : ''}><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<p class="account-league-note">No leagues yet. Create one to invite friends.</p>'}</div>`}${invites.length ? `<div class="workspace-invites-mini"><h2>Invitations <span class="invite-count">${invites.length}</span></h2><div class="workspace-invite-list">${invites.map((invite) => `<article class="workspace-invite-row"><div><b>${safe(invite.league_name)}</b><small>From @${safe(invite.inviter_username)}</small></div><div><button data-invite-accept="${invite.id}" ${context.onboardingCompleted ? '' : 'disabled'}>Join</button><button class="secondary" data-invite-decline="${invite.id}">Decline</button></div></article>`).join('')}</div></div>` : ''}`;
+  $('#retryAccountLeagues')?.addEventListener('click', () => location.reload());
   $('#createLeagueButton')?.addEventListener('click', () => {
     dialog('<p class="eyebrow">New league</p><h2>Create a League</h2><p class="sub">Invite managers, choose roster size, then start a snake draft.</p><label>League name<input id="newLeagueName" maxlength="80" placeholder="e.g. Herb Family League"></label><label>Cast members per team<input id="newLeagueRosterSize" type="number" min="1" max="30" value="11"></label><div class="modal-actions"><button id="confirmCreateLeague">Create league</button></div>');
     $('#confirmCreateLeague').addEventListener('click', async () => {
@@ -108,6 +130,7 @@ export async function renderLeagueHub(context) {
         p_accept: Boolean(button.dataset.inviteAccept),
       }),
       async () => { location.reload(); },
+      button,
     ));
   });
 }
@@ -242,7 +265,8 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     dialog(`<p class="eyebrow">Team settings</p><h2>Edit team name</h2><label>Team name<input id="workspaceTeamName" maxlength="80" value="${safe(ownTeam.team_name || '')}"></label><div class="modal-actions"><button id="saveWorkspaceTeamName">Save</button></div>`);
     $('#saveWorkspaceTeamName').addEventListener('click', () => runAction(
       () => db.rpc('update_league_team_name', { p_league_id: context.leagueId, p_team_name: $('#workspaceTeamName').value.trim() }),
-      async () => { $('#modal').close(); refresh(); },
+      async () => { $('#modal').close(); await refresh(); },
+      $('#saveWorkspaceTeamName'),
     ));
   };
   body.querySelectorAll('[data-workspace-claim]').forEach((button) => button.addEventListener('click', () => {
@@ -253,6 +277,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       $('#confirmWorkspaceClaim').addEventListener('click', () => runAction(
         () => db.rpc('claim_league_cast_member', { p_league_id: context.leagueId, p_incoming_cast_member_id: incoming.id }),
         async () => { $('#modal').close(); location.reload(); },
+        $('#confirmWorkspaceClaim'),
       ));
     } else {
       dialog(`<p class="eyebrow">Free-agent claim</p><h2>Claim ${safe(incoming.name)}</h2><p class="sub">Choose one cast member from your roster to release.</p>${castTile(incoming)}<div class="workspace-release-list">${roster.map((member) => `<button class="workspace-release-choice" data-workspace-release="${member.id}">${safe(member.name)}</button>`).join('')}</div><div class="modal-actions"><button id="confirmWorkspaceClaim" disabled>Swap cast</button></div>`);
@@ -265,7 +290,8 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       $('#confirmWorkspaceClaim').addEventListener('click', () => runAction(
         () => db.rpc('claim_league_cast_member', { p_league_id: context.leagueId,
           p_incoming_cast_member_id: incoming.id, p_outgoing_cast_member_id: outgoingId }),
-        async () => { $('#modal').close(); refresh(); },
+        async () => { $('#modal').close(); await refresh(); },
+        $('#confirmWorkspaceClaim'),
       ));
     }
   }));
@@ -274,9 +300,12 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
 async function renderWorkspaceTrades(context, data, assignmentMap, memberByTeam, refresh) {
   const center = $('#workspaceTradeCenter');
   if (!center) return;
+  const requestVersion = ++tradeRequestVersion;
+  const viewVersion = workspaceVersion;
   const result = await db.rpc('get_my_league_trades', { p_league_id: context.leagueId });
-  if (!center.isConnected) return;
+  if (!center.isConnected || requestVersion !== tradeRequestVersion || viewVersion !== workspaceVersion) return;
   if (result.error) {
+    console.error('Could not load league trades', result.error);
     center.innerHTML = `<p>Trades could not load.</p><button id="retryWorkspaceTrades">Try again</button>`;
     center.querySelector('#retryWorkspaceTrades').addEventListener('click', () => renderWorkspaceTrades(context, data, assignmentMap, memberByTeam, refresh));
     return;
@@ -304,6 +333,7 @@ async function renderWorkspaceTrades(context, data, assignmentMap, memberByTeam,
   center.querySelectorAll('[data-dismiss-workspace-trade]').forEach((button) => button.addEventListener('click', () => runAction(
     () => db.rpc('dismiss_league_trade_result', { p_event_id: button.dataset.dismissWorkspaceTrade }),
     async () => renderWorkspaceTrades(context, data, assignmentMap, memberByTeam, refresh),
+    button,
   )));
   center.querySelectorAll('[data-workspace-trade]').forEach((button) => button.addEventListener('click', () => {
     const [action, id] = button.dataset.workspaceTrade.split(':');
@@ -314,7 +344,8 @@ async function renderWorkspaceTrades(context, data, assignmentMap, memberByTeam,
     dialog(`<h2>${label}</h2><p class="sub">${safe(castName(offer.initiator_cast_member_id))} ⇄ ${safe(castName(offer.counterparty_cast_member_id))}</p><button id="confirmWorkspaceTradeAction" class="${action === 'deny' ? 'danger' : ''}">${action === 'accept' ? 'Accept' : action === 'deny' ? 'Deny' : 'Cancel offer'}</button>`);
     $('#confirmWorkspaceTradeAction').addEventListener('click', () => runAction(
       () => db.rpc('respond_to_league_trade', { p_offer_id: id, p_action: action }),
-      async () => { $('#modal').close(); refresh(); },
+      async () => { $('#modal').close(); await refresh(); },
+      $('#confirmWorkspaceTradeAction'),
     ));
   }));
 }
@@ -333,7 +364,8 @@ function openWorkspaceTradeBuilder(context, data, assignmentMap, memberByTeam, r
     $('#sendWorkspaceTrade').addEventListener('click', () => runAction(
       () => db.rpc('request_league_trade', { p_league_id: context.leagueId,
         p_my_cast_member_id: state.mine, p_requested_cast_member_id: state.theirs }),
-      async () => { $('#modal').close(); refresh(); },
+      async () => { $('#modal').close(); await refresh(); },
+      $('#sendWorkspaceTrade'),
     ));
   };
   render();
@@ -346,7 +378,7 @@ function openWorkspaceCounter(context, data, assignmentMap, offer, refresh) {
     const replacementTeamId = state.side === 'initiator' ? offer.initiator_team_id : offer.counterparty_team_id;
     const originalId = state.side === 'initiator' ? offer.initiator_cast_member_id : offer.counterparty_cast_member_id;
     const options = state.side ? data.cast.filter((member) => assignmentMap.get(member.id) === replacementTeamId && member.id !== originalId) : [];
-    const sideCard = (side, castId) => `<button type="button" class="workspace-counter-side ${state.side === side ? 'selected' : ''}" data-counter-side="${side}" ${state.replacement && state.side !== side ? 'disabled' : ''}>${castTile(castById.get(state.side === side && state.replacement ? state.replacement : castId) || { name: 'Cast member', role: '' }, '', 'span')}</button>`;
+    const sideCard = (side, castId) => `<button type="button" class="workspace-counter-side ${state.side === side ? 'selected' : ''}" data-counter-side="${side}" ${state.replacement ? 'disabled' : ''}>${castTile(castById.get(state.side === side && state.replacement ? state.replacement : castId) || { name: 'Cast member', role: '' }, '', 'span')}</button>`;
     dialog(`<p class="eyebrow">Trade response</p><h2>Counter Offer</h2><p class="sub">Select the cast member to replace. Change one side only.</p><div class="workspace-counter-swap">${sideCard('initiator', offer.initiator_cast_member_id)}<span>⇄</span>${sideCard('counterparty', offer.counterparty_cast_member_id)}</div>${state.replacement ? '<button id="clearWorkspaceCounter" class="secondary">× Remove change</button>' : ''}${state.side && !state.replacement ? `<h3>Choose a replacement</h3><div class="workspace-trade-picker">${options.map((member) => `<button data-counter-replacement="${member.id}">${castTile(member, '', 'span')}</button>`).join('')}</div>` : ''}<div class="modal-actions"><button id="sendWorkspaceCounter" ${state.replacement ? '' : 'disabled'}>Send counter</button></div>`);
     $('#modalBody').querySelectorAll('[data-counter-side]').forEach((button) => button.addEventListener('click', () => { state.side = button.dataset.counterSide; render(); }));
     $('#modalBody').querySelectorAll('[data-counter-replacement]').forEach((button) => button.addEventListener('click', () => { state.replacement = button.dataset.counterReplacement; render(); }));
@@ -354,7 +386,8 @@ function openWorkspaceCounter(context, data, assignmentMap, offer, refresh) {
     $('#sendWorkspaceCounter').addEventListener('click', () => runAction(
       () => db.rpc('respond_to_league_trade', { p_offer_id: offer.id, p_action: 'counter',
         p_replace_side: state.side, p_replacement_cast_member_id: state.replacement }),
-      async () => { $('#modal').close(); refresh(); },
+      async () => { $('#modal').close(); await refresh(); },
+      $('#sendWorkspaceCounter'),
     ));
   };
   render();
@@ -377,7 +410,13 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
   const pairById = new Map(data.pairs.map((pair) => [pair.id, pair]));
   const nameFor = (castId) => castById.get(castId)?.name || 'Cast member';
   const teamFor = (castId) => {
-    const teamId = week.is_complete ? score.snapshotByKey.get(`${week.id}:${castId}`)?.fantasy_team_id : assignmentMap.get(castId);
+    if (week.is_complete) {
+      const snapshot = score.snapshotByKey.get(`${week.id}:${castId}`);
+      if (!snapshot) return 'Historical roster unavailable';
+      if (!snapshot.fantasy_team_id) return 'Available cast';
+      return snapshot.team_name || snapshot.manager_name || 'Historical team';
+    }
+    const teamId = assignmentMap.get(castId);
     return memberByTeam.get(teamId)?.team_name || memberByTeam.get(teamId)?.display_name || 'Available cast';
   };
   content.innerHTML = `<div class="card pad workspace-week-head"><p class="eyebrow">Week ${week.number}</p><h2>${safe(week.title || week.theme || `Week ${week.number}`)}</h2><p class="sub">${week.is_complete ? 'Completed show' : 'Upcoming show · scores pending'}</p></div><div class="workspace-dance-list">${weekDances.map((dance) => {
@@ -396,6 +435,7 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
 }
 
 async function renderLeague(context, data, assignmentMap, memberByTeam, score, refresh) {
+  const renderVersion = workspaceVersion;
   $('#leagueName').textContent = context.leagueName;
   $('#leagueTeamCount').textContent = data.teams.length;
   $('#leagueCastCount').textContent = data.cast.length;
@@ -440,7 +480,8 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
     $('#saveWorkspaceRates').addEventListener('click', () => runAction(
       () => db.rpc('update_league_role_rates', { p_league_id: context.leagueId,
         p_rates: [...$('#modalBody').querySelectorAll('[data-workspace-rate]')].map((input) => ({ name: input.dataset.workspaceRate, appearance_points: Number(input.value) })) }),
-      async () => { $('#modal').close(); refresh(); },
+      async () => { $('#modal').close(); await refresh(); },
+      $('#saveWorkspaceRates'),
     ));
   };
   const leaguePane = $('#league');
@@ -456,19 +497,22 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
     dialog(`<h2>Remove ${safe(member?.display_name || 'member')}?</h2><p class="sub">This removes their team from the league before the draft starts.</p><button id="confirmRemoveMember" class="danger">Remove member</button>`);
     $('#confirmRemoveMember').addEventListener('click', () => runAction(
       () => db.rpc('remove_league_member', { p_league_id: context.leagueId, p_user_id: button.dataset.removeMember }),
-      async () => { $('#modal').close(); refresh(); },
+      async () => { $('#modal').close(); await refresh(); },
+      $('#confirmRemoveMember'),
     ));
   }));
   if (context.leagueRole === 'owner') {
     const inviteResult = await db.from('league_invites').select('id,invitee_id,created_at,expires_at')
       .eq('league_id', context.leagueId).eq('status', 'pending');
+    if (renderVersion !== workspaceVersion) return;
     if (!inviteResult.error && inviteResult.data?.length) {
       const ids = inviteResult.data.map((item) => item.invitee_id);
       const people = await db.from('profile_directory').select('user_id,username').in('user_id', ids);
+      if (renderVersion !== workspaceVersion || !section.isConnected) return;
       const nameById = new Map((people.data || []).map((person) => [person.user_id, person.username]));
       $('#workspacePendingInvites').innerHTML = `<h3>Pending invitations</h3>${inviteResult.data.map((invite) => `<div class="workspace-pending-invite"><span>@${safe(nameById.get(invite.invitee_id) || 'member')}</span><button class="secondary" data-cancel-invite="${invite.id}">Cancel</button></div>`).join('')}`;
       $('#workspacePendingInvites').querySelectorAll('[data-cancel-invite]').forEach((button) => button.addEventListener('click', () => runAction(
-        () => db.rpc('cancel_league_invite', { p_invite_id: button.dataset.cancelInvite }), refresh,
+        () => db.rpc('cancel_league_invite', { p_invite_id: button.dataset.cancelInvite }), refresh, button,
       )));
     }
   }
@@ -480,12 +524,14 @@ function openLeagueSettings(context, refresh) {
     () => db.rpc('update_league_workspace', { p_league_id: context.leagueId,
       p_name: $('#workspaceLeagueName').value.trim(), p_roster_size: Number($('#workspaceRosterSize').value) }),
     async () => { $('#modal').close(); location.reload(); },
+    $('#saveWorkspaceSettings'),
   ));
   $('#startWorkspaceDraft')?.addEventListener('click', () => {
     dialog(`<h2>Start the draft?</h2><p class="sub">The order will be randomized once. Each manager will draft ${context.rosterSize} cast members in snake order. New members cannot join after it starts.</p><button id="confirmStartDraft">Start draft</button>`);
     $('#confirmStartDraft').addEventListener('click', () => runAction(
       () => db.rpc('start_league_draft', { p_league_id: context.leagueId }),
       async () => { $('#modal').close(); location.reload(); },
+      $('#confirmStartDraft'),
     ));
   });
 }
@@ -511,24 +557,26 @@ function openInviteManager(context, refresh) {
     if (term.length < 2) { $('#inviteSearchResults').innerHTML = ''; return; }
     const result = await db.from('profile_directory').select('user_id,username,display_name,avatar_url')
       .ilike('username', `${term}%`).limit(8);
-    if (version !== searchVersion) return;
+    if (version !== searchVersion || !search.isConnected || !$('#inviteSearchResults')) return;
     $('#inviteSearchResults').innerHTML = result.error ? '<p class="sub">Search is unavailable.</p>'
       : (result.data || []).map((profile) => `<div class="workspace-profile-result"><span><b>${safe(profile.display_name)}</b><small>@${safe(profile.username)}</small></span><button data-invite-username="${safe(profile.username)}">Invite</button></div>`).join('') || '<p class="sub">No matching usernames.</p>';
     $('#inviteSearchResults').querySelectorAll('[data-invite-username]').forEach((button) => button.addEventListener('click', () => runAction(
       () => db.rpc('invite_username', { p_league_id: context.leagueId, p_username: button.dataset.inviteUsername }),
-      async () => { $('#modal').close(); refresh(); },
+      async () => { $('#modal').close(); await refresh(); },
+      button,
     )));
   });
   $('#generateInviteLink').onclick = async () => {
     const button = $('#generateInviteLink');
     button.disabled = true;
     const { data: token, error } = await db.rpc('regenerate_league_invite_link', { p_league_id: context.leagueId });
+    if (!button.isConnected) return;
     button.disabled = false;
     if (error) return dialog(`<h2>Couldn’t create link</h2><p>${safe(errorMessage(error))}</p>`);
     const url = new URL(location.href);
     url.search = '';
     url.searchParams.set('join', token);
-    url.hash = '#leagues';
+    url.hash = '#standings';
     $('#generatedInviteLink').innerHTML = `<label>Share this link<input id="inviteLinkValue" readonly value="${safe(url.toString())}"></label><button id="copyInviteLink">Copy link</button><p class="sub">Generating another link revokes this one. The link expires in 14 days.</p>`;
     updateLinkStatus();
     $('#copyInviteLink').addEventListener('click', async () => {
@@ -539,12 +587,15 @@ function openInviteManager(context, refresh) {
   $('#revokeInviteLink').addEventListener('click', () => runAction(
     () => db.rpc('revoke_league_invite_link', { p_league_id: context.leagueId }),
     async () => { $('#generatedInviteLink').innerHTML = ''; updateLinkStatus(); },
+    $('#revokeInviteLink'),
   ));
 }
 
 export async function renderSecondaryLeague(context) {
   if (!context.signedIn || context.leagueId === defaultLeagueId) return;
   const version = ++workspaceVersion;
+  ++tradeRequestVersion;
+  refreshCurrentWorkspaceTrades = null;
   const refresh = () => renderSecondaryLeague(context);
   for (const id of ['#standingsContent', '#publicTeamResults', '#commissionerTeamResults', '#scoreDeskContent']) {
     if ($(id)) $(id).innerHTML = '<div class="card pad">Loading league…</div>';
@@ -560,21 +611,48 @@ export async function renderSecondaryLeague(context) {
     const score = scoreLeague(data, liveContext);
     renderStandings(liveContext, data, score, assignmentMap, memberByTeam);
     renderMyTeam(liveContext, data, score, assignmentMap, memberByTeam, refresh);
-    if (liveContext.leagueStatus === 'active') {
-      renderWorkspaceTrades(liveContext, data, assignmentMap, memberByTeam, refresh);
-    }
+    const refreshTrades = () => {
+      if (version === workspaceVersion && !document.hidden && !$('#modal')?.open && $('#workspaceTradeCenter')) {
+        renderWorkspaceTrades(liveContext, data, assignmentMap, memberByTeam, refresh);
+      }
+    };
+    refreshCurrentWorkspaceTrades = liveContext.leagueStatus === 'active' ? refreshTrades : null;
+    if (liveContext.leagueStatus === 'active') refreshTrades();
     renderDances(liveContext, data, score, assignmentMap, memberByTeam);
     await renderLeague(liveContext, data, assignmentMap, memberByTeam, score, refresh);
     if (version !== workspaceVersion) return;
     clearInterval(workspaceRefreshTimer);
+    clearInterval(workspaceTradeRefreshTimer);
     if (['drafting', 'active'].includes(liveContext.leagueStatus)) {
       workspaceRefreshTimer = setInterval(() => { if (!document.hidden) refresh(); }, 30000);
     }
+    if (liveContext.leagueStatus === 'active') {
+      workspaceTradeRefreshTimer = setInterval(refreshTrades, 10000);
+    }
   } catch (error) {
     if (version !== workspaceVersion) return;
-    const message = `<div class="card pad"><b>Couldn’t load this league.</b><p class="sub">${safe(errorMessage(error))}</p><button id="retryWorkspace">Try again</button></div>`;
-    $('#standingsContent').innerHTML = message;
-    $('#publicTeamResults').innerHTML = message;
-    $('#retryWorkspace')?.addEventListener('click', refresh);
+    const message = `<div class="card pad"><b>Couldn’t load this league.</b><p class="sub">${safe(errorMessage(error))}</p><button class="retry-workspace">Try again</button></div>`;
+    for (const id of ['#standingsContent', '#publicTeamResults', '#commissionerTeamResults', '#scoreDeskContent']) {
+      const container = $(id);
+      if (!container) continue;
+      container.innerHTML = message;
+      container.querySelector('.retry-workspace').addEventListener('click', refresh);
+    }
   }
 }
+
+export function stopSecondaryLeague() {
+  ++workspaceVersion;
+  ++tradeRequestVersion;
+  clearInterval(workspaceRefreshTimer);
+  clearInterval(workspaceTradeRefreshTimer);
+  workspaceRefreshTimer = null;
+  workspaceTradeRefreshTimer = null;
+  refreshCurrentWorkspaceTrades = null;
+}
+
+window.addEventListener('focus', () => refreshCurrentWorkspaceTrades?.());
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshCurrentWorkspaceTrades?.();
+});
+$('#modal')?.addEventListener('close', () => refreshCurrentWorkspaceTrades?.());

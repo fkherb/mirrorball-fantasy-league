@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setNavCollapsed(collapsed);
     localStorage.setItem(navStateKey, collapsed ? 'collapsed' : 'expanded');
   });
-  const rememberedViews = new Set(['standings', 'teams', 'score', 'league', 'leagues']);
+  const rememberedViews = new Set(['standings', 'teams', 'score', 'league']);
   const storedView = localStorage.getItem('mirrorball-active-view');
   let requestedView = rememberedViews.has(location.hash.slice(1))
     ? location.hash.slice(1)
@@ -47,13 +47,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const email = document.querySelector('#accountEmail');
   const usernameInput = document.querySelector('#accountUsername');
   const displayNameInput = document.querySelector('#accountDisplayName');
-  const avatarUrlInput = document.querySelector('#accountAvatarUrl');
+  const picturePreview = document.querySelector('#accountPicturePreview');
+  const pictureInitial = document.querySelector('#accountPictureInitial');
+  const pictureFile = document.querySelector('#accountPictureFile');
+  const picturePicker = document.querySelector('#chooseCastPicture');
+  const pictureClear = document.querySelector('#clearAccountPicture');
   const profileHint = document.querySelector('#accountProfileHint');
   const myTeamNav = document.querySelector('#myTeamNav');
   const scoreDeskLink = document.querySelector('#scoreDeskLink');
   const castRosterLink = document.querySelector('#castRosterLink');
-  const leagueSwitcherWrap = document.querySelector('#leagueSwitcherWrap');
-  const leagueSwitcher = document.querySelector('#leagueSwitcher');
   const myLeaguesNav = document.querySelector('#myLeaguesNav');
   const defaultLeagueId = '00000000-0000-4000-8000-000000000001';
   const joinToken = new URLSearchParams(location.search).get('join');
@@ -62,14 +64,92 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentProfile = null;
   let membershipReady = false;
   let accessVersion = 0;
+  let selectedAvatarUrl = '';
+  let pendingPicture = null;
+  let previewObjectUrl = null;
 
-  leagueSwitcher.addEventListener('change', () => {
-    localStorage.setItem('mirrorball-active-league', leagueSwitcher.value);
-    const url = new URL(location.href);
-    url.searchParams.set('league', leagueSwitcher.value);
-    url.searchParams.delete('join');
-    url.hash = '#standings';
-    location.assign(url.toString());
+  const updatePicturePreview = (url, name = '') => {
+    picturePreview.hidden = !url;
+    pictureInitial.hidden = Boolean(url);
+    if (url) picturePreview.src = url;
+    else picturePreview.removeAttribute('src');
+    pictureInitial.textContent = (name.trim()[0] || '?').toUpperCase();
+  };
+  const releasePreview = () => {
+    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = null;
+  };
+
+  document.querySelector('main').prepend(document.querySelector('#joinInviteBanner'));
+
+  pictureFile.addEventListener('change', () => {
+    const file = pictureFile.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
+      pictureFile.value = '';
+      alert('Choose a JPEG, PNG, or WebP image under 2 MB.');
+      return;
+    }
+    releasePreview();
+    pendingPicture = file;
+    selectedAvatarUrl = '';
+    previewObjectUrl = URL.createObjectURL(file);
+    updatePicturePreview(previewObjectUrl, displayNameInput.value);
+  });
+  const uploadLabel = document.querySelector('.account-upload-label');
+  uploadLabel.tabIndex = 0;
+  uploadLabel.setAttribute('role', 'button');
+  uploadLabel.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      pictureFile.click();
+    }
+  });
+  pictureClear.addEventListener('click', () => {
+    releasePreview();
+    pendingPicture = null;
+    pictureFile.value = '';
+    selectedAvatarUrl = '';
+    updatePicturePreview('', displayNameInput.value);
+  });
+  picturePicker.addEventListener('click', async () => {
+    picturePicker.disabled = true;
+    const { data, error } = await db.from('cast_members').select('name,image_path').order('name');
+    picturePicker.disabled = false;
+    if (error) return alert('Couldn’t load cast photos. Please try again.');
+    const modal = document.querySelector('#modal');
+    const body = document.querySelector('#modalBody');
+    body.replaceChildren();
+    const heading = document.createElement('h2');
+    heading.textContent = 'Choose a cast photo';
+    const grid = document.createElement('div');
+    grid.className = 'account-picture-grid';
+    for (const member of data || []) {
+      const path = member.image_path || `Images/${member.name.replace(/[.,'’]/g, '')}.jpg`;
+      const url = new URL(path.replace(/^\.\//, ''), location.href).toString();
+      if (!url.startsWith('https://')) continue;
+      const choice = document.createElement('button');
+      choice.type = 'button';
+      choice.className = 'account-picture-choice';
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = '';
+      image.addEventListener('error', () => choice.remove());
+      const label = document.createElement('span');
+      label.textContent = member.name;
+      choice.append(image, label);
+      choice.addEventListener('click', () => {
+        releasePreview();
+        pendingPicture = null;
+        pictureFile.value = '';
+        selectedAvatarUrl = url;
+        updatePicturePreview(url, displayNameInput.value);
+        modal.close();
+      });
+      grid.append(choice);
+    }
+    body.append(heading, grid);
+    if (!modal.open) modal.showModal();
   });
 
   async function showAccess(session) {
@@ -83,6 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isPlatformAdmin = false;
     let teamName = '';
     let leagues = [];
+    let leaguesError = false;
     if (session?.user) {
       const [contextResult, platformResult, leaguesResult] = await Promise.all([
         db.rpc('get_my_account_context'),
@@ -91,6 +172,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       ]);
       if (version !== accessVersion) return;
       leagues = leaguesResult.data || [];
+      leaguesError = Boolean(leaguesResult.error);
+      if (leaguesResult.error) console.error('Could not load account leagues', leaguesResult.error);
       if (!contextResult.error) {
         currentProfile = contextResult.data?.profile || null;
         currentMember = contextResult.data?.membership || null;
@@ -100,6 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Allows the site to stay usable while the profile migration is being deployed.
         const membershipResult = await db.from('league_members').select('*')
           .eq('league_id', defaultLeagueId).eq('user_id', session.user.id).maybeSingle();
+        if (version !== accessVersion) return;
         membershipReady = !membershipResult.error;
         currentMember = membershipResult.data || null;
       }
@@ -122,25 +206,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     const [firstName = '', ...remainingNames] = displayName.trim().split(/\s+/).filter(Boolean);
     const lastName = remainingNames.join(' ');
     if (!teamName && currentMember?.fantasy_team_id) {
-      const { data: team } = await db.from('fantasy_teams').select('team_name').eq('id', currentMember.fantasy_team_id).maybeSingle();
+      const { data: team } = await db.from('fantasy_teams').select('team_name')
+        .eq('league_id', leagueId).eq('id', currentMember.fantasy_team_id).maybeSingle();
+      if (version !== accessVersion) return;
       teamName = team?.team_name || '';
     }
     const isCommissioner = selectedLeague ? selectedLeague.member_role === 'owner' : Boolean(currentMember?.is_commissioner);
-    auth.textContent = signedInEmail ? firstName || displayName || 'Signed in' : 'Sign in';
+    auth.replaceChildren();
+    if (signedInEmail && currentProfile?.avatar_url) {
+      const image = document.createElement('img');
+      image.src = currentProfile.avatar_url;
+      image.alt = '';
+      image.className = 'account-button-picture';
+      auth.append(image);
+    }
+    auth.append(document.createTextNode(signedInEmail ? firstName || displayName || 'Signed in' : 'Sign in'));
     email.textContent = signedInEmail || '';
     usernameInput.value = currentProfile?.username || '';
     displayNameInput.value = displayName;
-    avatarUrlInput.value = currentProfile?.avatar_url || '';
+    releasePreview();
+    pendingPicture = null;
+    pictureFile.value = '';
+    selectedAvatarUrl = currentProfile?.avatar_url || '';
+    updatePicturePreview(selectedAvatarUrl, displayName);
     profileHint.hidden = currentProfile?.onboarding_completed !== false;
-    myLeaguesNav.hidden = !signedInEmail && !joinToken;
-    leagueSwitcherWrap.hidden = !signedInEmail || leagues.length < 2;
-    leagueSwitcher.replaceChildren(...leagues.map((league) => {
-      const option = document.createElement('option');
-      option.value = league.league_id;
-      option.textContent = league.name;
-      return option;
-    }));
-    if (selectedLeague) leagueSwitcher.value = leagueId;
+    myLeaguesNav.hidden = true;
     const labelMode = currentMember?.team_nav_label_mode || 'default';
     const teamNavLabel = labelMode === 'custom' && currentMember?.custom_team_nav_label
       ? currentMember.custom_team_nav_label
@@ -150,11 +240,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
     scoreDeskLink.hidden = !isPlatformAdmin;
     castRosterLink.hidden = !isPlatformAdmin;
-    if (joinToken) openView('leagues', false);
-    else if (requestedView === 'teams' && myTeamNav.hidden) openView('standings', false);
+    if (requestedView === 'teams' && myTeamNav.hidden) openView('standings', false);
     else openView(requestedView, false);
     menu.hidden = true;
-    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, joinToken } }));
+    auth.setAttribute('aria-expanded', 'false');
+    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, leaguesError, joinToken } }));
   }
 
   const { data: { session } } = await db.auth.getSession();
@@ -172,23 +262,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     const signedIn = Boolean(currentSession);
     if (!signedIn) return openView('signin');
     menu.hidden = !menu.hidden;
+    auth.setAttribute('aria-expanded', String(!menu.hidden));
+  });
+  document.addEventListener('click', (event) => {
+    if (!menu.hidden && !document.querySelector('#modal').open && !event.target.closest('.account')) {
+      menu.hidden = true;
+      auth.setAttribute('aria-expanded', 'false');
+    }
   });
   document.querySelector('#saveAccountProfile').addEventListener('click', async () => {
     const button = document.querySelector('#saveAccountProfile');
     const username = usernameInput.value.trim().toLowerCase();
     const displayName = displayNameInput.value.trim();
-    const avatarUrl = avatarUrlInput.value.trim();
+    let avatarUrl = selectedAvatarUrl;
     usernameInput.value = username;
     if (!/^[a-z0-9_]{3,20}$/.test(username)) return alert('Username must be 3–20 characters using lowercase letters, numbers, or underscores.');
     if (!displayName || displayName.length > 80) return alert('Enter a display name of 80 characters or fewer.');
-    if (avatarUrl && !/^https:\/\//i.test(avatarUrl)) return alert('Avatar URL must start with https://');
     button.disabled = true;
     button.textContent = 'Saving…';
+    if (pendingPicture) {
+      const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[pendingPicture.type];
+      const path = `${currentSession.user.id}/${crypto.randomUUID()}.${extension}`;
+      const upload = await db.storage.from('profile-pictures').upload(path, pendingPicture, {
+        contentType: pendingPicture.type, upsert: false,
+      });
+      if (upload.error) {
+        button.disabled = false;
+        button.textContent = 'Save profile';
+        return alert('Couldn’t upload your picture. Please try again.');
+      }
+      avatarUrl = db.storage.from('profile-pictures').getPublicUrl(path).data.publicUrl;
+    }
     const { error } = await db.rpc('update_my_profile', { p_username: username, p_display_name: displayName, p_avatar_url: avatarUrl || null });
     button.disabled = false;
     button.textContent = 'Save profile';
     if (error) return alert(error.message.includes('already taken') ? 'That username is already taken.' : `Couldn’t save your profile: ${error.message}`);
     await showAccess(currentSession);
+    menu.hidden = false;
+    auth.setAttribute('aria-expanded', 'true');
   });
   document.querySelector('#magic').addEventListener('click', async () => {
     const button = document.querySelector('#magic');
@@ -196,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { error } = await db.auth.signInWithPassword({ email: document.querySelector('#email').value.trim(), password: document.querySelector('#password').value });
     button.disabled = false; button.textContent = 'Sign in';
     if (error) return alert(error.message);
-    openView(joinToken ? 'leagues' : 'standings');
+    openView('standings');
   });
   document.querySelector('#signUpPassword').addEventListener('click', async () => {
     const button = document.querySelector('#signUpPassword');
