@@ -19,6 +19,9 @@ let workspaceRosterFilter = 'all';
 function dialog(markup) {
   const modal = $('#modal');
   $('#modalBody').innerHTML = `<div class="modal">${markup}</div>`;
+  modal.dataset.dirty = 'false';
+  $('#modalClose').onclick = () => modal.close();
+  modal.oncancel = null;
   if (!modal.open) modal.showModal();
 }
 

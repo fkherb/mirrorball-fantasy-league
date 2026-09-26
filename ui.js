@@ -150,6 +150,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       grid.append(choice);
     }
     body.append(heading, grid);
+    modal.dataset.dirty = 'false';
+    document.querySelector('#modalClose').onclick = () => modal.close();
+    modal.oncancel = null;
     if (!modal.open) modal.showModal();
   });
 
@@ -267,10 +270,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   auth.addEventListener('click', () => {
     const signedIn = currentAccessDetail?.signedIn === true;
-    console.debug('Account toggle', { signedIn, before: menu.hidden });
     if (!signedIn) return openView('signin');
     menu.hidden = !menu.hidden;
-    console.debug('Account toggled', { after: menu.hidden });
     auth.setAttribute('aria-expanded', String(!menu.hidden));
     if (!menu.hidden && currentAccessDetail) {
       window.dispatchEvent(new CustomEvent('mirrorball-account-open', { detail: currentAccessDetail }));
@@ -278,7 +279,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   document.addEventListener('click', (event) => {
     if (!menu.hidden && !document.querySelector('#modal').open && !event.target.closest('.account')) {
-      console.debug('Account dismissed by outside click');
       menu.hidden = true;
       auth.setAttribute('aria-expanded', 'false');
     }
