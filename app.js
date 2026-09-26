@@ -1,5 +1,6 @@
 import { db } from './supabase-client.js';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-league-parity-v16';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-league-parity-v17';
+import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, castRosterRow, danceCard, teamPage } from './postdraft-view.js?v=20260926-league-parity-v17';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -225,11 +226,9 @@ async function loadRoster() {
   const { players: allPlayers, partnerships, weeks, teams } = rosterData;
   const players = allPlayers.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()) && (rosterFilter === 'all' || castCategory(player) === rosterFilter));
   if (!players.length) return showRosterMessage(canManageCast ? 'No cast members yet. Add the first one here.' : 'No cast members match this view.');
-  $('#rosterResults').innerHTML = players.map((player) => `
-    <div class="row cast-roster-row" data-cast-detail="${player.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(player.name)} profile"><img class="player-photo" style="object-position:${player.image_position ?? 50}% center" src="${escapeHtml(displayImagePath(player))}" alt="">
-      <span><b>${escapeHtml(player.name)}</b><small>${rosterDetail(player, partnerships, allPlayers, weeks, teams)}</small></span>
-      ${canManageCast ? `<button data-player-id="${player.id}">Edit</button>` : '<span class="row-chevron" aria-hidden="true">›</span>'}
-    </div>`).join('');
+  $('#rosterResults').innerHTML = players.map((player) => castRosterRow({ id: player.id, name: player.name,
+    roleDetailsHtml: rosterDetail(player, partnerships, allPlayers, weeks, teams),
+    image: displayImagePath(player), position: player.image_position ?? 50, editButton: canManageCast })).join('');
   document.querySelectorAll('[data-player-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); editPlayer(button.dataset.playerId); }));
   document.querySelectorAll('[data-cast-detail]').forEach((row) => {
     const open = () => canManageCast ? editPlayer(row.dataset.castDetail) : openCastDetail(row.dataset.castDetail);
@@ -411,10 +410,8 @@ async function loadTeams() {
     const managerName = managerNameFor(team, managerMap);
     const displayName = team.team_name || defaultTeamName(managerName);
     const rosterPreview = roster;
-    return `<article class="card team-card" data-team-card-id="${team.id}" data-team-detail="${team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2></div>${canEdit ? `<button class="secondary team-edit-button" data-edit-team-id="${team.id}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>
-      <p class="team-mobile-hint">Tap to view lineup</p>
-      ${roster.length ? `<ul class="team-roster">${rosterPreview.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}
-    </article>`;
+    return teamCard({ id: team.id, manager: managerName, name: displayName,
+      roster: rosterPreview.map((member) => ({ name: member.name, role: displayRole(member) })), editButton: canEdit });
   }).join('');
   if (canEdit) {
     document.querySelectorAll('[data-team-detail]').forEach((card) => {
@@ -636,7 +633,9 @@ async function loadStandings() {
     const tiedLeader = isFirstPlaceTie && row.total === leaderTotal;
     const rank = teamRows.findIndex((item) => item.total === row.total) + 1;
     const displayName = row.team.team_name || defaultTeamName(row.team.manager_name);
-    return `<article class="card standing-card ${tiedLeader || index === 0 ? 'leader' : ''} ${tiedLeader ? 'tied-leader' : ''} ${row.team.id === selectedOverviewTeamId ? 'selected' : ''}" data-standing-team="${row.team.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(displayName)} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${escapeHtml(row.team.manager_name)}</p><h2>${escapeHtml(displayName)}</h2>${tiedLeader ? '<p class="tie-note">Tied for first</p>' : ''}<div class="standing-contributors">${contributors.slice(0, 4).map((member) => `<span>${escapeHtml(member.name)} <b>${teamMemberPoints.get(row.team.id)?.get(member.id) || 0}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${row.total}</strong><span>points</span></div><span class="card-chevron standing-chevron" aria-hidden="true">›</span></article>`;
+    return standingCard({ id: row.team.id, rank, manager: row.team.manager_name, name: displayName,
+      contributors: contributors.map((member) => ({ name: member.name, points: teamMemberPoints.get(row.team.id)?.get(member.id) || 0 })),
+      total: row.total, selected: row.team.id === selectedOverviewTeamId, leader: index === 0, tied: tiedLeader });
   }).join('')}</div>`;
   document.querySelectorAll('[data-standing-team]').forEach((card) => {
     const open = () => {
@@ -677,8 +676,8 @@ function teamScoreBreakdown(teamId, weekId = 'all') {
 }
 
 function scoreBreakdownMarkup(rows, limit = null, withImages = false, includeHistoricalJudgeScores = false) {
-  const visible = limit ? rows.slice(0, limit) : rows;
-  return `<div class="league-score-list">${visible.map((row) => { const hasJudgeScores = row.role === 'Star' || row.role === 'Pro' || (includeHistoricalJudgeScores && ['Eliminated Star', 'Eliminated Pro'].includes(row.role)); return `<div class="league-score-row ${withImages ? 'with-photo' : ''}" data-score-cast-detail="${row.member.id}" tabindex="0" role="button">${withImages ? `<img class="score-member-photo" src="${escapeHtml(displayImagePath(row.member))}" style="object-position:${row.member.image_position ?? 50}% center" alt="">` : ''}<div class="league-score-member"><strong>${escapeHtml(row.member.name)}</strong><span class="role-rate-pill">${escapeHtml(displayRole({ ...row.member, role: row.role }))} <b>+${row.appearanceRate}</b></span></div><div class="league-score-parts">${hasJudgeScores ? `<span>Judges Total <b>${row.official}</b></span>` : ''}<span class="appearance-part">Appearances <b>${row.appearances}</b></span></div><strong class="league-score-total">${row.total}</strong></div>`; }).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>`;
+  return scoreRows(rows.map((row) => ({ ...row, displayRole: displayRole({ ...row.member, role: row.role }) })),
+    { limit, withImages, imageFor: displayImagePath, historicalJudges: includeHistoricalJudgeScores });
 }
 
 function bindScoreCastDetails(container = document) {
@@ -692,7 +691,8 @@ function bindScoreCastDetails(container = document) {
 function overviewTeamDetailMarkup(row) {
   const breakdown = teamScoreBreakdown(row.team.id);
   const displayName = row.team.team_name || defaultTeamName(row.team.manager_name);
-  return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Managed by ${escapeHtml(row.team.manager_name)}</p></div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>season points</span></div></div><p class="top-cast-label">Top Five Cast Members</p>${scoreBreakdownMarkup(breakdown.rows, 5, false, true)}`;
+  return overviewTeamDetail({ name: displayName, manager: row.team.manager_name, total: breakdown.total,
+    castRows: breakdown.rows.map((castRow) => ({ ...castRow, displayRole: displayRole({ ...castRow.member, role: castRow.role }) })) });
 }
 
 function overviewUsesSplitLayout() {
@@ -754,7 +754,11 @@ function renderLeagueHighlights() {
   const mvpNames = compactNames(castMVPs, ({ member }) => member.name, 'cast');
   const appearanceNames = compactNames(appearanceLeaders, ({ member }) => member.name, 'appearances');
   $('#highlightWeek').textContent = weekTitle(week);
-  $('#leagueHighlightCards').innerHTML = `<article class="card"><small>Team of the week</small>${bestTeamScore ? `<strong class="highlight-value">${bestTeamScore}</strong><p>fantasy points${winningTeams.length > 1 ? ' each' : ''}</p>${teamNames}` : '<p>No fantasy-team points were recorded.</p>'}</article><article class="card"><small>Top cast score</small>${bestCastScore ? `<strong class="highlight-value">${bestCastScore}</strong><p>points${castMVPs.length > 1 ? ' each' : ''}</p>${mvpNames}` : '<p>No cast points were recorded.</p>'}</article><article class="card"><small>Most appearances</small>${mostAppearances ? `<strong class="highlight-value">${mostAppearances}</strong><p>dance${mostAppearances === 1 ? '' : 's'}${appearanceLeaders.length > 1 ? ' each' : ''}</p>${appearanceNames}` : '<p>No appearances were recorded.</p>'}</article>`;
+  $('#leagueHighlightCards').innerHTML = highlightCards({ teamScore: bestTeamScore,
+    teamNames: winningTeams.map(({ team }) => team.team_name || defaultTeamName(team.manager_name)), teamNamesHtml: teamNames,
+    castScore: bestCastScore, castNames: castMVPs.map(({ member }) => member.name), castNamesHtml: mvpNames,
+    appearances: mostAppearances, appearanceNames: appearanceLeaders.map(({ member }) => member.name),
+    appearanceNamesHtml: appearanceNames });
   document.querySelectorAll('[data-highlight-detail]').forEach((button) => button.addEventListener('click', () => {
     const names = highlightDetails.get(button.dataset.highlightDetail) || [];
     openModal(`<p class="eyebrow">${escapeHtml(weekTitle(week))}</p><h2>Tied leaders</h2><div class="highlight-detail-list">${names.map((name) => `<span>${escapeHtml(name)}</span>`).join('')}</div>`);
@@ -793,7 +797,10 @@ function renderPublicTeams() {
   const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || defaultTeamName(row.team.manager_name))}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
   $('#editMyTeam').hidden = !canEditThisTeam;
   $('#editMyTeam').onclick = canEditThisTeam ? () => openMyTeamEditor(selected.team) : null;
-  $('#publicTeamResults').innerHTML = `${switcher}<section class="card public-team-detail"><div class="team-summary-strip"><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="league-detail-total"><strong>${breakdown.total}</strong><span>${selectedPublicWeekId === 'all' ? 'season' : 'week'} points</span></div></div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Team Roster</h3></div></div>${scoreBreakdownMarkup(breakdown.rows, null, true, selectedPublicWeekId === 'all')}</section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">Cast members not currently assigned to a fantasy team.</p><div class="league-cast-grid available-grid">${peopleMarkup(available) || '<div class="empty compact-empty">Every cast member is currently assigned.</div>'}</div></section><section id="tradeCenter" class="trade-center card"><div class="trade-center-loading">Loading trades…</div></section></div></div></section>`;
+  $('#publicTeamResults').innerHTML = switcher + teamPage({ weekHistory, total: breakdown.total,
+    period: selectedPublicWeekId === 'all' ? 'season' : 'week',
+    rosterRows: scoreBreakdownMarkup(breakdown.rows, null, true, selectedPublicWeekId === 'all'),
+    available: available.length, availableMarkup: peopleMarkup(available) });
   document.querySelectorAll('[data-public-team]').forEach((button) => button.addEventListener('click', () => { selectedPublicTeamId = button.dataset.publicTeam; selectedPublicWeekId = 'all'; renderPublicTeams(); }));
   document.querySelectorAll('[data-public-week]').forEach((button) => button.addEventListener('click', () => { selectedPublicWeekId = selectedPublicWeekId === button.dataset.publicWeek ? 'all' : button.dataset.publicWeek; renderPublicTeams(); }));
   bindScoreCastDetails($('#publicTeamResults'));
@@ -1228,8 +1235,13 @@ async function loadScoreDesk() {
   const weekEditing = editable && editingWeekId === week.id;
   if (!editable) editingWeekId = null;
   const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label>Air date <span class="optional">(optional)</span><input id="weekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label class="check-label"><input id="twoNightAiring" type="checkbox" ${week.second_air_date ? 'checked' : ''}> Two-night airing</label><label id="secondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="weekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label><label class="check-label"><input id="isSeasonFinale" type="checkbox" ${week.is_season_finale ? 'checked' : ''}> Season finale</label></div>`;
+  const readOnlyCards = dances.map((dance, index) => danceCard({ id: dance.id, kind: dance.kind,
+    title: labelForDance(dance, index), danceType: dance.dance_type, song: dance.song,
+    scores: scoresForDance(dance.id), castNames: dancers(dance.id).map((member) => member.name),
+    scoreImage: judgeScoreImage,
+    pending: dance.kind === 'competitive' && scoresForDance(dance.id).length < 3 + (week.guest_judge_name ? 1 : 0) })).join('');
   $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canManageShow ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
-    ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : !weekEditing ? '<span class="card-chevron" aria-hidden="true">›</span>' : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
+    ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? (!editable && !weekEditing ? readOnlyCards : dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : !weekEditing ? '<span class="card-chevron" aria-hidden="true">›</span>' : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('')) : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   if (!week.is_complete && !isScoreDeskSurface) {
     document.querySelectorAll('#scoreDeskContent .dance-score-pending').forEach((item) => item.remove());
     document.querySelectorAll('#scoreDeskContent .week-summary span').forEach((item) => { if (item.textContent === '0 performances') item.remove(); });
