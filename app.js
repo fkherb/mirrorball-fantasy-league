@@ -1,6 +1,6 @@
 import { db } from './supabase-client.js';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-league-parity-v17';
-import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, castRosterRow, danceCard, teamPage } from './postdraft-view.js?v=20260926-league-parity-v17';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-league-parity-v18';
+import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260926-league-parity-v18';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -260,12 +260,13 @@ async function openCastDetail(castMemberId, returnTeamId = null, returnAction = 
     return total;
   }, { official: 0, appearances: 0, appearanceCount: 0 }) : { official: 0, appearances: 0, appearanceCount: 0 };
   const fantasyPoints = Number(scoreEntry.official || 0) + Number(scoreEntry.appearances || 0);
-  const details = member.profile_details && typeof member.profile_details === 'object'
-    ? Object.entries(member.profile_details).filter(([, value]) => value).map(([label, value]) => `<div><small>${escapeHtml(label.replaceAll('_', ' '))}</small><strong>${escapeHtml(value)}</strong></div>`).join('')
-    : '';
-  openModal(`${returnTeamId || returnAction ? `<button class="profile-back-button secondary" id="profileBack" type="button">← Back to ${returnAction ? 'dance' : 'team'}</button>` : ''}<div class="cast-profile-hero"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt="${escapeHtml(member.name)}"><div><p class="eyebrow">${escapeHtml(displayRole(member))}</p><h2>${escapeHtml(member.name)}</h2><p class="sub">${partner ? `Partnered with ${escapeHtml(partner.name)}` : 'Current season cast'}</p>${team ? `<span class="cast-team-pill">${escapeHtml(team.team_name || defaultTeamName(team.manager_name))}</span>` : '<span class="cast-team-pill">Available cast</span>'}</div></div>
-    <div class="cast-profile-stats"><div><strong>${fantasyPoints}</strong><span>Fantasy points</span></div>${isAnyPairRole(member.role) ? `<div><strong>${Number(scoreEntry.official || 0)}</strong><span>Judges total</span></div>` : ''}<div><strong>${Number(scoreEntry.appearanceCount || 0)}</strong><span>Appearances</span></div>${canHaveMirrorballWins(member.role, member.is_hough) ? `<div><strong>${Number(member.mirrorball_wins || 0)}</strong><span>Past wins</span></div>` : ''}</div>
-    <section class="cast-profile-copy"><h3>About ${escapeHtml(member.name.split(' ')[0])}</h3><p>${escapeHtml(member.bio || 'Biography details have not been added yet.')}</p>${member.career_highlights ? `<h3>Career highlights</h3><p>${escapeHtml(member.career_highlights)}</p>` : ''}</section>${details ? `<div class="cast-profile-details">${details}</div>` : ''}`);
+  openModal(castProfile({ member, image: displayImagePath(member), role: displayRole(member),
+    partner: partner?.name, teamName: team?.team_name || (team ? defaultTeamName(team.manager_name) : 'Available cast'),
+    fantasyPoints, judgesTotal: scoreEntry.official, appearanceCount: scoreEntry.appearanceCount,
+    showJudges: isAnyPairRole(member.role), showWins: canHaveMirrorballWins(member.role, member.is_hough),
+    details: member.profile_details && typeof member.profile_details === 'object'
+      ? Object.entries(member.profile_details).filter(([, value]) => value) : [],
+    backLabel: returnAction ? 'dance' : returnTeamId ? 'team' : '' }));
   $('#profileBack')?.addEventListener('click', () => returnAction ? returnAction() : openTeamDetail(returnTeamId));
 }
 
@@ -413,13 +414,6 @@ async function loadTeams() {
     return teamCard({ id: team.id, manager: managerName, name: displayName,
       roster: rosterPreview.map((member) => ({ name: member.name, role: displayRole(member) })), editButton: canEdit });
   }).join('');
-  if (canEdit) {
-    document.querySelectorAll('[data-team-detail]').forEach((card) => {
-      card.removeAttribute('role'); card.removeAttribute('tabindex'); card.removeAttribute('aria-label');
-      const editButton = card.querySelector('[data-edit-team-id]');
-      editButton?.insertAdjacentHTML('beforebegin', `<button type="button" class="secondary team-view-button" data-view-team-id="${card.dataset.teamDetail}">View</button>`);
-    });
-  }
   document.querySelectorAll('[data-edit-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); editTeamCard(button.dataset.editTeamId); }));
   document.querySelectorAll('[data-team-detail]').forEach((card) => {
     const open = () => { if (!card.classList.contains('editing')) openTeamDetail(card.dataset.teamDetail); };
@@ -429,7 +423,6 @@ async function loadTeams() {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
     });
   });
-  document.querySelectorAll('[data-view-team-id]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); openTeamDetail(button.dataset.viewTeamId); }));
 }
 
 async function openTeamDetail(teamId) {
@@ -442,8 +435,8 @@ async function openTeamDetail(teamId) {
   if (error) return alert(`Couldn’t load this team: ${error.message}`);
   const managerName = managerNameFor(team, managerMap);
   const displayName = team.team_name || defaultTeamName(managerName);
-  openModal(`<div class="team-detail-head"><div><p class="eyebrow">${escapeHtml(managerName)}</p><h2>${escapeHtml(displayName)}</h2><p class="sub">Current roster</p></div></div>
-    ${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member" data-team-cast-detail="${member.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(member.name)} profile"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><div><b>${escapeHtml(member.name)}</b><span>${escapeHtml(displayRole(member))}</span></div><i aria-hidden="true">›</i></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
+  openModal(teamDetail({ manager: managerName, name: displayName,
+    roster: roster.map((member) => ({ ...member, displayRole: displayRole(member) })), imageFor: displayImagePath }));
   document.querySelectorAll('[data-team-cast-detail]').forEach((tile) => {
     const open = () => openCastDetail(tile.dataset.teamCastDetail, teamId);
     tile.addEventListener('click', open);
@@ -1303,12 +1296,12 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
   const teamTotals = new Map();
   detailRows.forEach((row) => { if (row.teamId) teamTotals.set(row.teamName, (teamTotals.get(row.teamName) || 0) + row.points); });
   const teamLeaders = [...teamTotals].sort((a, b) => b[1] - a[1]);
-  const topTeamScore = teamLeaders[0]?.[1] || 0;
-  const topTeams = topTeamScore > 0 ? teamLeaders.filter(([, points]) => points === topTeamScore).map(([name]) => name) : [];
   const sortedRows = [...detailRows].sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
-  const teamSpotlight = detailRows.length ? `<section class="dance-team-spotlight"><span>Top fantasy team${topTeams.length === 1 ? '' : 's'}</span><strong>${escapeHtml(topTeams.join(' & ') || 'No points recorded')}</strong><small>${topTeamScore ? `${topTeamScore} point${topTeamScore === 1 ? '' : 's'} earned from this dance` : 'Fantasy impact will appear when scoring is available.'}</small></section>` : '';
-  const castImpact = `<section class="detail-section"><div class="detail-section-title"><h3>Cast & fantasy impact</h3>${detailRows.length ? `<span>${detailRows.length} cast member${detailRows.length === 1 ? '' : 's'}</span>` : ''}</div>${detailRows.length ? `<div class="dance-cast-impact-list">${sortedRows.map((row) => `<button type="button" data-dance-cast-profile="${row.member.id}"><img src="${escapeHtml(displayImagePath(row.member))}" style="object-position:${row.member.image_position ?? 50}% center" alt=""><span><b>${escapeHtml(row.member.name)}</b><small>${escapeHtml(displayRole({ ...row.member, role: row.role }))} · ${escapeHtml(row.teamName)}</small></span><strong>${row.points ? `+${row.points}` : '—'}</strong><i aria-hidden="true">›</i></button>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>`;
-  openModal(`<div class="dance-detail-head"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${escapeHtml(title)}</h2>${dance.kind === 'competitive' ? `<p class="sub">${escapeHtml(dance.dance_type || 'Dance type not set')}${dance.song ? ` · ${escapeHtml(dance.song)}` : ''}</p>` : ''}</div>${dance.kind === 'competitive' ? `<section class="detail-section dance-score-section"><div class="detail-section-title"><h3>Judges’ scores</h3><strong>${scoreTotal || '—'}</strong></div><div class="detail-judges">${scores.map((score) => `<div><img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}"><span>${escapeHtml(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section>` : ''}${teamSpotlight}${castImpact}`);
+  openModal(danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
+    scores, scoreImage: judgeScoreImage,
+    teams: teamLeaders.map(([name, points]) => ({ name, points })),
+    castRows: sortedRows.map((row) => ({ ...row, role: displayRole({ ...row.member, role: row.role }) })),
+    imageFor: displayImagePath }));
   document.querySelectorAll('[data-dance-cast-profile]').forEach((button) => button.addEventListener('click', () => openCastDetail(button.dataset.danceCastProfile, null, () => openDanceDetail(week, dance, index, pairData, scores, cast, context))));
 }
 
@@ -1609,7 +1602,7 @@ async function loadRules() {
   }
   const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
   const rates = [...roleRows].sort((a, b) => (roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)) || a.name.localeCompare(b.name));
-  $('#roleRatesContent').innerHTML = `<div class="role-rate-grid">${rates.map((role) => `<div class="card role-rate-item"><span>${escapeHtml(role.name === 'Judges + Hosts' ? 'Judge / Host' : displayRole(role.name))}${role.name === 'Surprise' ? ' *' : ''}</span><strong>${role.name === 'Surprise' ? 'Varies' : `+${Number(role.appearance_points) || 0}`}</strong></div>`).join('')}</div><p class="surprise-rate-note">* Surprise cast is added as seen on the show. Its custom rate is set on that cast member.</p>`;
+  $('#roleRatesContent').innerHTML = roleRatesTable(rates);
   $('#editRules').hidden = !canEdit || !supportsDatabaseHardening;
   $('#editRules').onclick = () => openRulesEditor(rates);
 }

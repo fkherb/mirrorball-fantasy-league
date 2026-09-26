@@ -1,5 +1,5 @@
 import { db } from './supabase-client.js';
-import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, castRosterRow, danceCard, teamPage } from './postdraft-view.js?v=20260926-league-parity-v17';
+import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260926-league-parity-v18';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -22,6 +22,7 @@ let selectedDanceWeekId = null;
 let tradeTab = 'active';
 let workspaceRosterFilter = 'all';
 let selectedWorkspaceOverviewTeamId = null;
+let activeWorkspaceDetail = null;
 
 function dialog(markup) {
   const modal = $('#modal');
@@ -55,8 +56,33 @@ function castTile(member, action = '', tag = 'article') {
   return `<${tag} class="workspace-cast-tile"><img src="${safe(castImage(member))}" alt=""><span><b>${safe(member.name)}</b><small>${safe(member.role === 'DWTS Next Pro' ? 'Next Pro' : member.role)}</small></span>${action}</${tag}>`;
 }
 
-function openWorkspaceCastProfile(cast, teamName = 'Available cast') {
-  dialog(`<div class="workspace-profile-modal"><img src="${safe(castImage(cast))}" alt=""><div><p class="eyebrow">${safe(cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role)}</p><h2>${safe(cast.name)}</h2><p class="sub">${safe(teamName)}</p>${cast.bio ? `<p>${safe(cast.bio)}</p>` : ''}${cast.career_highlights ? `<p><b>Career highlights</b><br>${safe(cast.career_highlights)}</p>` : ''}${cast.mirrorball_wins ? `<p><b>Past Mirrorball wins:</b> ${Number(cast.mirrorball_wins) || 0}</p>` : ''}</div></div>`);
+function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction = null, backLabel = 'team') {
+  if (!cast) return;
+  const state = activeWorkspaceDetail;
+  const pair = state?.data.pairs.find((item) => item.star_id === cast.id || item.pro_id === cast.id);
+  const partnerId = pair?.star_id === cast.id ? pair.pro_id : pair?.star_id;
+  const partner = state?.data.cast.find((item) => item.id === partnerId);
+  const scoringWeeks = new Set(state?.score.scoringWeeks.map((week) => week.id) || []);
+  const totals = [...(state?.score.pointsByWeekCast || new Map())].reduce((sum, [key, value]) => {
+    if (!key.endsWith(`:${cast.id}`)) return sum;
+    sum.official += value.official || 0;
+    sum.appearances += value.appearances || 0;
+    return sum;
+  }, { official: 0, appearances: 0 });
+  const appearanceCount = state?.data.appearances.filter((appearance) => {
+    if (appearance.cast_member_id !== cast.id) return false;
+    const weekId = state.data.dances.find((dance) => dance.id === appearance.dance_id)?.week_id;
+    return scoringWeeks.has(weekId) && state.score.snapshotByKey.get(`${weekId}:${cast.id}`)?.fantasy_team_id;
+  }).length || 0;
+  dialog(castProfile({ member: cast, image: castImage(cast),
+    role: cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role, partner: partner?.name, teamName,
+    fantasyPoints: totals.official + totals.appearances, judgesTotal: totals.official, appearanceCount,
+    showJudges: ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(cast.role),
+    showWins: ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(cast.role) || cast.is_hough,
+    details: cast.profile_details && typeof cast.profile_details === 'object'
+      ? Object.entries(cast.profile_details).filter(([, value]) => value) : [],
+    backLabel: backAction ? backLabel : '' }));
+  $('#profileBack')?.addEventListener('click', backAction);
 }
 
 async function runAction(action, success, button = document.activeElement) {
@@ -673,6 +699,43 @@ function openWorkspaceCounter(context, data, assignmentMap, offer, refresh) {
   render();
 }
 
+function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week, dance) {
+  const castById = new Map(data.cast.map((cast) => [cast.id, cast]));
+  const pair = data.pairs.find((item) => item.id === dance.partnership_id);
+  const star = castById.get(pair?.star_id);
+  const pro = castById.get(pair?.pro_id);
+  const scores = data.scores.filter((item) => item.dance_id === dance.id);
+  const appearances = data.appearances.filter((item) => item.dance_id === dance.id);
+  const scoreTotal = scores.reduce((sum, item) => sum + Number(item.score || 0), 0);
+  const participants = [...new Map([star, pro, ...appearances.map((item) => castById.get(item.cast_member_id))]
+    .filter(Boolean).map((cast) => [cast.id, cast])).values()];
+  const rows = participants.map((cast) => {
+    const snapshot = week.is_complete ? score.snapshotByKey.get(`${week.id}:${cast.id}`) : null;
+    const teamId = snapshot?.fantasy_team_id ?? assignmentMap.get(cast.id);
+    const team = memberByTeam.get(teamId);
+    const role = snapshot?.cast_role || cast.role;
+    const rate = snapshot?.appearance_points ?? (cast.is_hough ? score.rateByName.get('Hough')
+      : role === 'Surprise' ? cast.custom_appearance_points : score.rateByName.get(role)) ?? 0;
+    const appearanceCount = appearances.filter((item) => item.cast_member_id === cast.id).length;
+    return { member: cast, role: role === 'DWTS Next Pro' ? 'Next Pro' : role,
+      teamId, teamName: snapshot?.team_name || team?.team_name || team?.display_name || 'Available cast',
+      points: ((cast.id === star?.id || cast.id === pro?.id) && dance.kind === 'competitive' ? scoreTotal : 0)
+        + appearanceCount * Number(rate || 0) };
+  }).sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
+  const totals = new Map();
+  rows.forEach((row) => { if (row.teamId) totals.set(row.teamName, (totals.get(row.teamName) || 0) + row.points); });
+  const title = star && pro ? `${star.name} & ${pro.name}` : dance.name || 'Performance';
+  dialog(danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
+    scores, scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
+    teams: [...totals].sort((a, b) => b[1] - a[1]).map(([name, points]) => ({ name, points })),
+    castRows: rows, imageFor: castImage }));
+  $('#modalBody').querySelectorAll('[data-dance-cast-profile]').forEach((button) => button.addEventListener('click', () => {
+    const row = rows.find((item) => item.member.id === button.dataset.danceCastProfile);
+    if (row) openWorkspaceCastProfile(row.member, row.teamName,
+      () => openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week, dance), 'dance');
+  }));
+}
+
 function renderDances(context, data, score, assignmentMap, memberByTeam) {
   const visibleWeeks = data.weeks.filter((week) => week.is_complete || week.number <= (data.weeks.findLast((item) => item.is_complete)?.number || 0) + 1);
   const tabs = $('#weekTabs');
@@ -689,18 +752,10 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
   const castById = new Map(data.cast.map((member) => [member.id, member]));
   const pairById = new Map(data.pairs.map((pair) => [pair.id, pair]));
   const nameFor = (castId) => castById.get(castId)?.name || 'Cast member';
-  const teamFor = (castId) => {
-    if (week.is_complete) {
-      const snapshot = score.snapshotByKey.get(`${week.id}:${castId}`);
-      if (!snapshot) return 'Historical roster unavailable';
-      if (!snapshot.fantasy_team_id) return 'Available cast';
-      return snapshot.team_name || snapshot.manager_name || 'Historical team';
-    }
-    const teamId = assignmentMap.get(castId);
-    return memberByTeam.get(teamId)?.team_name || memberByTeam.get(teamId)?.display_name || 'Available cast';
-  };
   const competitiveCount = weekDances.filter((dance) => dance.kind === 'competitive').length;
-  content.innerHTML = `<div class="score-week-head card"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${safe(week.title || (week.theme ? `${week.theme} Week` : `Week ${week.number}`))}</h2></div><p class="sub">${week.is_complete ? 'Completed show' : 'Upcoming show · scores pending'}</p></div><div class="week-summary"><span>${competitiveCount} competitive</span>${weekDances.length > competitiveCount ? `<span>${weekDances.length - competitiveCount} performances</span>` : ''}<span class="${week.is_complete ? 'week-complete' : ''}">${week.is_complete ? 'Complete' : 'Upcoming'}</span></div></div><div class="dance-list">${weekDances.map((dance) => {
+  const airDate = week.air_date ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+    .format(new Date(`${week.air_date}T00:00:00Z`)) : '';
+  content.innerHTML = `<div class="score-week-head card"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${safe(week.title || (week.theme ? `${week.theme} Week` : `Week ${week.number}`))}</h2></div><p class="sub">${safe([airDate, week.is_complete ? 'Week complete' : 'Upcoming week'].filter(Boolean).join(' · '))}</p></div><div class="week-summary"><span>${competitiveCount} competitive</span>${weekDances.length > competitiveCount ? `<span>${weekDances.length - competitiveCount} performances</span>` : ''}<span class="${week.is_complete ? 'week-complete' : 'week-upcoming'}">${week.is_complete ? 'Complete' : 'Upcoming'}</span></div></div><div class="dance-list">${weekDances.map((dance) => {
     const pair = pairById.get(dance.partnership_id);
     const names = pair ? `${nameFor(pair.star_id)} & ${nameFor(pair.pro_id)}` : dance.name || 'Performance';
     const judges = data.scores.filter((item) => item.dance_id === dance.id);
@@ -709,16 +764,11 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
     return danceCard({ id: dance.id, kind: dance.kind, title: names,
       danceType: dance.dance_type, song: dance.song, scores: judges, castNames,
       scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
-      pending: !week.is_complete && !judges.length });
+      pending: false });
   }).join('') || '<div class="card pad">No dances recorded for this week.</div>'}</div>`;
   content.querySelectorAll('[data-dance-detail]').forEach((button) => {
-    const open = () => {
-    const dance = weekDances.find((item) => item.id === button.dataset.danceDetail);
-    const pair = pairById.get(dance.partnership_id);
-    const involved = pair ? [pair.star_id, pair.pro_id] : data.appearances.filter((item) => item.dance_id === dance.id).map((item) => item.cast_member_id);
-    const judges = data.scores.filter((item) => item.dance_id === dance.id);
-    dialog(`<p class="eyebrow">Week ${week.number} · ${safe(dance.dance_type || dance.kind)}</p><h2>${safe(pair ? `${nameFor(pair.star_id)} & ${nameFor(pair.pro_id)}` : dance.name || 'Performance')}</h2><p class="sub">${safe(dance.song || 'Song not set')}</p><div class="workspace-dance-judges">${judges.map((judge) => `<span>${safe(judge.judge_name)} <b>${judge.score}</b></span>`).join('') || '<p>Scores pending.</p>'}</div><h3>Cast and fantasy teams</h3>${involved.map((id) => `<p>${safe(nameFor(id))} · ${safe(teamFor(id))}</p>`).join('')}${data.appearances.filter((item) => item.dance_id === dance.id && !involved.includes(item.cast_member_id)).map((item) => `<p>${safe(nameFor(item.cast_member_id))} · ${safe(teamFor(item.cast_member_id))}</p>`).join('')}`);
-    };
+    const open = () => openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week,
+      weekDances.find((item) => item.id === button.dataset.danceDetail));
     button.addEventListener('click', open);
     button.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
   });
@@ -767,9 +817,11 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
       const managerName = memberByTeam.get(team.id)?.display_name || team.manager_name;
       const teamName = team.team_name || `${managerName.split(' ')[0]}'s Team`;
       const roster = data.cast.filter((cast) => assignmentMap.get(cast.id) === team.id);
-      dialog(`<div class="team-detail-head"><div><p class="eyebrow">${safe(managerName)}</p><h2>${safe(teamName)}</h2><p class="sub">Current roster</p></div></div>${roster.length ? `<div class="team-detail-grid">${roster.map((cast) => `<article class="team-detail-member" data-workspace-team-cast="${cast.id}" tabindex="0" role="button"><img src="${safe(castImage(cast))}" alt=""><div><b>${safe(cast.name)}</b><span>${safe(cast.role)}</span></div><i aria-hidden="true">›</i></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`);
-      $('#modalBody').querySelectorAll('[data-workspace-team-cast]').forEach((tile) => {
-        const show = () => openWorkspaceCastProfile(data.cast.find((cast) => cast.id === tile.dataset.workspaceTeamCast), teamName);
+      dialog(teamDetail({ manager: managerName, name: teamName,
+        roster: roster.map((cast) => ({ ...cast, displayRole: cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role })),
+        imageFor: castImage }));
+      $('#modalBody').querySelectorAll('[data-team-cast-detail]').forEach((tile) => {
+        const show = () => openWorkspaceCastProfile(data.cast.find((cast) => cast.id === tile.dataset.teamCastDetail), teamName, open);
         tile.addEventListener('click', show);
         tile.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); show(); } });
       });
@@ -814,10 +866,11 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   });
   drawCast();
   const rateByRole = new Map(data.roles.map((role) => [role.id, role]));
-  $('#roleRatesContent').innerHTML = `<div class="card role-rate-table"><div class="role-rate-heading"><span>Cast role</span><span>Appearance points</span></div>${data.rates.map((rate) => `<div class="role-rate-row"><span>${safe(rateByRole.get(rate.role_id)?.name || 'Role')}</span><strong>${rate.appearance_points == null ? 'Varies' : `+${rate.appearance_points}`}</strong></div>`).join('')}</div>`;
+  $('#roleRatesContent').innerHTML = roleRatesTable(data.rates.map((rate) => ({
+    name: rateByRole.get(rate.role_id)?.name || 'Role', appearance_points: rate.appearance_points })));
   $('#editRules').hidden = context.leagueRole !== 'owner';
   $('#editRules').onclick = () => {
-    dialog(`<h2>Appearance rates</h2><p class="sub">These rates belong only to ${safe(context.leagueName)}.</p>${data.rates.filter((rate) => rate.appearance_points != null).map((rate) => `<label>${safe(rateByRole.get(rate.role_id)?.name || 'Role')}<input type="number" min="0" max="99" data-workspace-rate="${safe(rateByRole.get(rate.role_id)?.name || '')}" value="${rate.appearance_points}"></label>`).join('')}<button id="saveWorkspaceRates">Save rates</button>`);
+    dialog(`<h2>Edit Appearance Rates</h2><p class="sub">These points per recorded dance appearance belong only to ${safe(context.leagueName)}. Surprise cast keeps a custom rate set on each cast member.</p><div class="rate-editor">${data.rates.filter((rate) => rate.appearance_points != null).map((rate) => `<label>${safe(rateByRole.get(rate.role_id)?.name || 'Role')}<input type="number" min="0" max="99" step="1" inputmode="numeric" data-workspace-rate="${safe(rateByRole.get(rate.role_id)?.name || '')}" value="${rate.appearance_points}"></label>`).join('')}</div><div class="modal-actions"><button id="saveWorkspaceRates">Save rules</button></div>`);
     $('#saveWorkspaceRates').addEventListener('click', () => runAction(
       () => db.rpc('update_league_role_rates', { p_league_id: context.leagueId,
         p_rates: [...$('#modalBody').querySelectorAll('[data-workspace-rate]')].map((input) => ({ name: input.dataset.workspaceRate, appearance_points: Number(input.value) })) }),
@@ -889,14 +942,9 @@ function openLeagueSettings(context, refresh) {
     $('#saveWorkspaceSettings'),
   ));
   $('#deleteWorkspaceLeague')?.addEventListener('click', () => {
-    dialog(`<h2>Delete ${safe(context.leagueName)}?</h2><p class="sub">This permanently removes the league for every manager. To enable Delete, type <strong>${safe(context.leagueName)}</strong> exactly as shown.</p><label>Type ${safe(context.leagueName)} to confirm<input id="confirmDeleteLeagueName" autocomplete="off" aria-describedby="deleteLeagueHint"></label><p id="deleteLeagueHint" class="sub" role="status">Delete is unavailable until the name matches.</p><div class="modal-actions"><button id="cancelDeleteLeague" type="button" class="secondary">Cancel</button><button id="confirmDeleteLeague" class="danger" disabled>Delete league permanently</button></div>`);
-    $('#confirmDeleteLeagueName').focus();
+    dialog(`<h2>Delete ${safe(context.leagueName)}?</h2><p class="sub">This permanently removes the league for every manager, including its teams, invitations, draft, trades, and scoring history. This cannot be undone.</p><div class="modal-actions"><button id="cancelDeleteLeague" type="button" class="secondary">Cancel</button><button id="confirmDeleteLeague" type="button" class="danger">Delete league permanently</button></div>`);
+    $('#cancelDeleteLeague').focus();
     $('#cancelDeleteLeague').addEventListener('click', () => $('#modal').close());
-    $('#confirmDeleteLeagueName').addEventListener('input', () => {
-      const matches = $('#confirmDeleteLeagueName').value.trim() === context.leagueName;
-      $('#confirmDeleteLeague').disabled = !matches;
-      $('#deleteLeagueHint').textContent = matches ? 'Name matched. You can now delete this league.' : 'Delete is unavailable until the name matches.';
-    });
     $('#confirmDeleteLeague').addEventListener('click', () => runAction(
       () => db.rpc('delete_fantasy_league', { p_league_id: context.leagueId }),
       async () => {
@@ -1003,6 +1051,7 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
     const assignmentMap = new Map(data.assignments.map((assignment) => [assignment.cast_member_id, assignment.fantasy_team_id]));
     const memberByTeam = new Map(data.members.map((member) => [member.fantasy_team_id, member]));
     const score = scoreLeague(data, liveContext);
+    activeWorkspaceDetail = { data, score, assignmentMap, memberByTeam };
     renderStandings(liveContext, data, score, assignmentMap, memberByTeam, refresh);
     renderMyTeam(liveContext, data, score, assignmentMap, memberByTeam, refresh);
     const refreshTrades = () => {
@@ -1079,6 +1128,7 @@ export function stopSecondaryLeague() {
   selectedDraftRound = null;
   selectedTeamWeekId = 'all';
   selectedWorkspaceOverviewTeamId = null;
+  activeWorkspaceDetail = null;
   window.removeEventListener('resize', window.workspaceOverviewResize);
   window.workspaceOverviewResize = null;
 }
