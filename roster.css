@@ -147,6 +147,26 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-draft-strip { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 14px; margin-bottom: 17px; background: #f3eef2; border-radius: 10px; }
 .workspace-draft-strip small { display: block; margin-bottom: 7px; color: #786e79; text-transform: uppercase; font-size: 10px; font-weight: 850; letter-spacing: .07em; }
 .workspace-draft-strip > strong { white-space: nowrap; color: #7d4e73; }
+.workspace-draft-status { align-items: stretch; background: linear-gradient(110deg,#f3eef2,#fbf7f0); }
+.workspace-draft-status > div:first-child { min-width: 0; }
+.workspace-draft-status > div:first-child > strong { display: block; font: 650 clamp(17px,2vw,23px) Georgia,serif; }
+.workspace-draft-status .sub { margin: 6px 0 0; font-size: 11px; }
+.workspace-draft-timer { display: grid; align-content: center; justify-items: center; min-width: 106px; padding: 8px 12px; border-radius: 9px; background: #fff; }
+.workspace-draft-timer strong { color: #302638; font: 750 24px sans-serif; font-variant-numeric: tabular-nums; }
+.workspace-draft-timer strong.urgent { color: #ab2d5f; }
+.workspace-draft-rounds { margin: 0 0 18px; padding: 0 0 18px; border-bottom: 1px solid #e8e0e7; }
+.workspace-draft-rounds .public-section-head { margin-bottom: 9px; }
+.workspace-round-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 2px 1px 9px; }
+.workspace-round-tabs button { flex: 0 0 auto; padding: 7px 10px; background: #f1ecf0; color: #514653; font-size: 11px; }
+.workspace-round-tabs button.selected { background: #302638; color: #fff; }
+.workspace-round-picks { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 7px; }
+.workspace-round-pick { display: flex; gap: 9px; align-items: flex-start; min-width: 0; padding: 9px 10px; border: 1px solid #e8e0e7; border-radius: 8px; background: #fbf9fa; }
+.workspace-round-pick.on-clock { border-color: #aa789b; background: #f7eff5; }
+.workspace-round-pick > span { color: #8a7386; font-size: 10px; font-weight: 800; }
+.workspace-round-pick > div { min-width: 0; }
+.workspace-round-pick b,.workspace-round-pick small { display: block; overflow-wrap: anywhere; }
+.workspace-round-pick b { font-size: 11px; }
+.workspace-round-pick small { margin-top: 3px; color: #786e79; font-size: 10px; }
 .workspace-draft-order,.workspace-week-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .workspace-draft-order span,.workspace-week-pills span { padding: 5px 8px; border-radius: 7px; background: #fff; font-size: 11px; }
 .workspace-draft-order span.current { background: #302638; color: #fff; }
@@ -234,6 +254,7 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .signin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 @media (max-width: 900px) { .workspace-hub-grid { grid-template-columns: 1fr; } .workspace-standing-card b { font-size: 18px; } }
 @media (max-width: 600px) { .league-switcher-label select { width: min(140px, 32vw); } .workspace-standing-card { grid-template-columns: 30px minmax(0,1fr); } .workspace-standing-card > strong { grid-column: 2; } .workspace-draft-strip { align-items: flex-start; flex-direction: column; } .workspace-invite-row { align-items: flex-start; flex-direction: column; } .workspace-league-team > div { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .workspace-draft-status { flex-direction: row; align-items: stretch; } .workspace-draft-timer { min-width: 88px; padding: 7px; } .workspace-draft-timer strong { font-size: 20px; } .workspace-round-picks { grid-template-columns: 1fr; } }
 .account-menu [hidden] { display: none; }
 .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
 .team-card { padding: 20px; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }

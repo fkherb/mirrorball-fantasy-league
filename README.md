@@ -248,6 +248,13 @@ their drafted secondary league and its league-specific records. Deletion is
 permanent; the original league is protected. Existing managers with backfilled
 profiles are marked onboarded, while new accounts still confirm their profile.
 
+For live drafts, run `supabase/live-draft-clock.sql` after the league-limits
+migration. It starts a two-minute server-side turn clock, records automatic
+random picks, and gives drafts already underway a fresh two-minute turn when
+installed. Signed-in league members keep the clock moving while the draft is
+open; if `pg_cron` is installed, a scheduled job also advances expired turns
+when nobody has the site open.
+
 Google and Apple sign-in use the existing Supabase Auth users and profile
 trigger. New users finish onboarding by choosing a username and display name;
 existing password users can connect either provider without changing their

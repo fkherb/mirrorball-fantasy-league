@@ -7,6 +7,10 @@ const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => (
 const defaultLeagueId = '00000000-0000-4000-8000-000000000001';
 let workspaceVersion = 0;
 let workspaceRefreshTimer = null;
+let workspaceDraftTimer = null;
+let refreshCurrentWorkspaceDraft = null;
+let workspaceDraftPollInFlight = false;
+let selectedDraftRound = null;
 let workspaceTradeRefreshTimer = null;
 let refreshCurrentWorkspaceTrades = null;
 let tradeRequestVersion = 0;
@@ -166,6 +170,27 @@ function draftTurn(order, picks, rosterSize) {
     pickNumber: picks.length + 1 };
 }
 
+function updateDraftClock(deadline, serverNow = null) {
+  const clock = $('#workspaceDraftClock');
+  if (!clock || !deadline) return;
+  const offset = serverNow ? Date.parse(serverNow) - Date.now() : 0;
+  clock.dataset.deadline = deadline;
+  clock.dataset.offset = String(offset);
+  const tick = () => {
+    if (!clock.isConnected) return;
+    const seconds = Math.max(0, Math.ceil((Date.parse(clock.dataset.deadline) - Date.now() - Number(clock.dataset.offset)) / 1000));
+    clock.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    clock.classList.toggle('urgent', seconds <= 30);
+    if (seconds === 0) {
+      clock.closest('.workspace-team-detail')?.querySelectorAll('[data-workspace-claim]')
+        .forEach((button) => { button.disabled = true; });
+    }
+  };
+  tick();
+  clearInterval(workspaceDraftTimer);
+  workspaceDraftTimer = setInterval(tick, 1000);
+}
+
 function scoreLeague(data, context) {
   const teams = data.teams;
   const castById = new Map(data.cast.map((member) => [member.id, member]));
@@ -225,7 +250,7 @@ function scoreLeague(data, context) {
 async function loadWorkspaceData(context) {
   const leagueId = context.leagueId;
   const queries = {
-    league: db.from('leagues').select('id,name,status,roster_size,roster_size_overridden,scoring_starts_after_week').eq('id', leagueId).single(),
+    league: db.from('leagues').select('id,name,status,roster_size,roster_size_overridden,scoring_starts_after_week,draft_pick_deadline_at').eq('id', leagueId).single(),
     teams: db.from('fantasy_teams').select('id,league_id,manager_name,team_name').eq('league_id', leagueId),
     assignments: db.from('league_roster_assignments').select('cast_member_id,fantasy_team_id').eq('league_id', leagueId),
     cast: db.from('cast_members').select('*').order('name'),
@@ -239,7 +264,7 @@ async function loadWorkspaceData(context) {
     appearances: db.from('dance_appearances').select('dance_id,cast_member_id'),
     snapshots: db.from('league_weekly_roster_snapshots').select('*').eq('league_id', leagueId),
     order: db.from('league_draft_order').select('draft_position,fantasy_team_id').eq('league_id', leagueId).order('draft_position'),
-    picks: db.from('league_draft_picks').select('pick_number,round_number,fantasy_team_id,cast_member_id,picked_at').eq('league_id', leagueId).order('pick_number'),
+    picks: db.from('league_draft_picks').select('pick_number,round_number,fantasy_team_id,cast_member_id,picked_at,is_auto_pick').eq('league_id', leagueId).order('pick_number'),
   };
   const results = await Promise.all(Object.values(queries));
   const failure = results.find((result) => result.error)?.error;
@@ -283,6 +308,17 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   const available = data.cast.filter((member) => !assignmentMap.has(member.id));
   const turn = draftTurn(data.order, data.picks, context.rosterSize);
   const isYourTurn = context.leagueStatus === 'drafting' && turn?.teamId === ownTeam.id;
+  const currentRound = turn?.round || context.rosterSize;
+  if (!selectedDraftRound || selectedDraftRound > context.rosterSize) selectedDraftRound = currentRound;
+  const draftRound = selectedDraftRound;
+  const roundSlots = data.order.length ? data.order.map((slot, index) => {
+    const roundPosition = draftRound % 2 ? index : data.order.length - index - 1;
+    const teamSlot = data.order[roundPosition];
+    const pickNumber = (draftRound - 1) * data.order.length + index + 1;
+    const pick = data.picks.find((item) => item.pick_number === pickNumber);
+    const cast = pick && data.cast.find((member) => member.id === pick.cast_member_id);
+    return `<div class="workspace-round-pick ${turn?.pickNumber === pickNumber ? 'on-clock' : ''}"><span>#${pickNumber}</span><div><b>${safe(memberByTeam.get(teamSlot.fantasy_team_id)?.display_name || 'Manager')}</b><small>${cast ? `${safe(cast.name)}${pick.is_auto_pick ? ' · Auto pick' : ''}` : turn?.pickNumber === pickNumber ? 'On the clock' : 'Waiting to pick'}</small></div></div>`;
+  }).join('') : '';
   $('#myTeamTitle').textContent = context.leagueStatus === 'active' ? ownTeam.team_name || 'My Team' : 'Draft';
   $('#myTeamEyebrow').textContent = `${context.displayName || 'Your'} · ${context.leagueName}`;
   $('#myTeamSubtitle').textContent = context.leagueStatus === 'setup'
@@ -292,10 +328,17 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   const draftStrip = context.leagueStatus === 'setup'
     ? `<div class="workspace-draft-strip"><div><small>Draft setup</small><strong>${data.members.length} of 3–6 managers joined</strong><p class="sub">${context.rosterSize} rounds · ${context.rosterSizeOverridden ? 'custom' : 'automatic'} roster size</p></div>${context.leagueRole === 'owner' ? `<button id="startDraftFromTeam" ${data.members.length >= 3 && data.members.length <= 6 ? '' : 'disabled'}>Start draft</button>` : ''}</div>`
     : context.leagueStatus === 'drafting'
-      ? `<div class="workspace-draft-strip"><div><small>Draft order · Round ${turn?.round || context.rosterSize}</small><div class="workspace-draft-order">${data.order.map((slot) => `<span class="${turn?.teamId === slot.fantasy_team_id ? 'current' : ''}">${slot.draft_position}. ${safe(memberByTeam.get(slot.fantasy_team_id)?.display_name || 'Manager')}</span>`).join('')}</div></div><strong>${isYourTurn ? 'Your pick' : `Pick ${turn?.pickNumber || '—'}`}</strong></div>`
+      ? `<div class="workspace-draft-strip workspace-draft-status"><div><small>Round ${currentRound} of ${context.rosterSize} · Pick ${turn?.pickNumber || '—'}</small><strong>${isYourTurn ? 'You are on the clock' : `${safe(memberByTeam.get(turn?.teamId)?.display_name || 'Next manager')} is on the clock`}</strong><p class="sub">Each manager has two minutes to pick before the draft selects a random available cast member.</p></div><div class="workspace-draft-timer"><small>Time left</small><strong id="workspaceDraftClock" aria-live="off">02:00</strong></div></div>`
       : `<div class="workspace-draft-strip"><div><small>Season points</small><strong>${score.totalByTeam.get(ownTeam.id) || 0}</strong></div><div class="workspace-week-pills">${score.scoringWeeks.map((week) => `<span>Week ${week.number} · ${score.pointsByWeekTeam.get(`${week.id}:${ownTeam.id}`) || 0}</span>`).join('')}</div></div>`;
   const canClaim = isYourTurn || context.leagueStatus === 'active';
-  body.innerHTML = `<section class="card public-team-detail workspace-team-detail">${draftStrip}<div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? `Round ${turn?.round || 1} of ${context.rosterSize}` : 'Roster'}</p><h3>Team Roster · ${roster.length}/${context.rosterSize}</h3></div></div><div class="workspace-cast-list">${roster.map((member) => castTile(member, context.leagueStatus === 'active' ? `<strong class="workspace-points">${score.pointsByTeamCast.get(ownTeam.id)?.get(member.id) || 0} pts</strong>` : '')).join('') || '<p class="sub">Your picks will appear here.</p>'}</div></section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? 'Draft pool' : 'Free agents'}</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">${isYourTurn ? 'It is your turn. Claim one cast member below.' : context.leagueStatus === 'drafting' ? 'Claims open when it is your turn.' : context.leagueStatus === 'active' ? 'Claim a cast member by releasing one from your roster.' : 'Claims open after the draft starts.'}</p><div class="workspace-available-list">${available.map((member) => castTile(member, canClaim ? `<button data-workspace-claim="${member.id}">Claim</button>` : '')).join('') || '<p class="sub">No cast members are available.</p>'}</div></section>${context.leagueStatus === 'active' ? '<section id="workspaceTradeCenter" class="card pad workspace-trades">Loading trades…</section>' : `<section class="card pad workspace-draft-history"><p class="eyebrow">Draft</p><h3>Recent picks</h3>${data.picks.slice(-6).reverse().map((pick) => `<p><b>#${pick.pick_number}</b> ${safe(data.cast.find((member) => member.id === pick.cast_member_id)?.name || 'Cast member')} · ${safe(memberByTeam.get(pick.fantasy_team_id)?.display_name || 'Manager')}</p>`).join('') || '<p class="sub">No picks yet.</p>'}</section>`}</div></div></section>`;
+  const castScrollTop = body.querySelector('.workspace-available-list')?.scrollTop || 0;
+  body.innerHTML = `<section class="card public-team-detail workspace-team-detail">${draftStrip}${context.leagueStatus === 'drafting' ? `<section class="workspace-draft-rounds"><div class="public-section-head"><div><p class="eyebrow">Draft board</p><h3>Round ${draftRound} picks</h3></div><span>${data.picks.length} of ${data.order.length * context.rosterSize} picked</span></div><div class="workspace-round-tabs" role="group" aria-label="Draft rounds">${Array.from({ length: context.rosterSize }, (_, index) => `<button type="button" data-draft-round="${index + 1}" class="${draftRound === index + 1 ? 'selected' : ''}" aria-pressed="${draftRound === index + 1}">Round ${index + 1}</button>`).join('')}</div><div class="workspace-round-picks">${roundSlots}</div></section>` : ''}<div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Roster</p><h3>Team Roster · ${roster.length}/${context.rosterSize}</h3></div></div><div class="workspace-cast-list">${roster.map((member) => castTile(member, context.leagueStatus === 'active' ? `<strong class="workspace-points">${score.pointsByTeamCast.get(ownTeam.id)?.get(member.id) || 0} pts</strong>` : '')).join('') || '<p class="sub">Your picks will appear here.</p>'}</div></section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? 'Draft pool' : 'Free agents'}</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">${isYourTurn ? 'It is your turn. Claim one cast member below.' : context.leagueStatus === 'drafting' ? 'Claims open when it is your turn.' : context.leagueStatus === 'active' ? 'Claim a cast member by releasing one from your roster.' : 'Claims open after the draft starts.'}</p><div class="workspace-available-list">${available.map((member) => castTile(member, canClaim ? `<button data-workspace-claim="${member.id}">Claim</button>` : '')).join('') || '<p class="sub">No cast members are available.</p>'}</div></section>${context.leagueStatus === 'active' ? '<section id="workspaceTradeCenter" class="card pad workspace-trades">Loading trades…</section>' : ''}</div></div></section>`;
+  body.querySelector('.workspace-available-list').scrollTop = castScrollTop;
+  body.querySelectorAll('[data-draft-round]').forEach((button) => button.addEventListener('click', () => {
+    selectedDraftRound = Number(button.dataset.draftRound);
+    renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh);
+  }));
+  if (context.leagueStatus === 'drafting') updateDraftClock(data.league.draft_pick_deadline_at);
   $('#startDraftFromTeam')?.addEventListener('click', () => confirmStartDraft(context));
   $('#editMyTeam').hidden = false;
   $('#editMyTeam').onclick = () => {
@@ -313,7 +356,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       dialog(`<p class="eyebrow">Draft pick #${turn.pickNumber}</p><h2>Claim ${safe(incoming.name)}?</h2>${castTile(incoming)}<p class="sub">This pick is final and will fill one of your ${context.rosterSize} roster spots.</p><div class="modal-actions"><button id="confirmWorkspaceClaim">Claim cast member</button></div>`);
       $('#confirmWorkspaceClaim').addEventListener('click', () => runAction(
         () => db.rpc('claim_league_cast_member', { p_league_id: context.leagueId, p_incoming_cast_member_id: incoming.id }),
-        async () => { $('#modal').close(); location.reload(); },
+        async () => { $('#modal').close(); selectedDraftRound = null; await refresh(); },
         $('#confirmWorkspaceClaim'),
       ));
     } else {
@@ -491,7 +534,7 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   $('#commissionerTeamResults').innerHTML = data.teams.map((team) => {
     const member = memberByTeam.get(team.id);
     const roster = data.cast.filter((cast) => assignmentMap.get(cast.id) === team.id);
-    return `<article class="card pad workspace-league-team"><p class="eyebrow">${safe(member?.display_name || team.manager_name)}</p><h3>${safe(team.team_name || `${(member?.display_name || team.manager_name).split(' ')[0]}'s Team`)}</h3><small>${roster.length}/${context.rosterSize} cast · ${score.totalByTeam.get(team.id) || 0} points</small><div>${roster.map((cast) => `<span>${safe(cast.name)}</span>`).join('') || '<span>Draft not started</span>'}</div>${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member?.member_role === 'member' ? `<button class="secondary workspace-remove-manager" data-remove-member="${member.user_id}">Remove manager</button>` : ''}</article>`;
+    return `<article class="card pad workspace-league-team"><p class="eyebrow">${safe(member?.display_name || team.manager_name)}</p><h3>${safe(team.team_name || `${(member?.display_name || team.manager_name).split(' ')[0]}'s Team`)}</h3><small>${roster.length}/${context.rosterSize} cast · ${score.totalByTeam.get(team.id) || 0} points</small><div>${roster.map((cast) => `<span>${safe(cast.name)}</span>`).join('') || `<span>${context.leagueStatus === 'setup' ? 'Draft not started' : context.leagueStatus === 'drafting' ? 'Waiting for first pick' : 'No cast on this team'}</span>`}</div>${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member?.member_role === 'member' ? `<button class="secondary workspace-remove-manager" data-remove-member="${member.user_id}">Remove manager</button>` : ''}</article>`;
   }).join('');
   $('#rosterSearch').value = '';
   const rosterResults = $('#rosterResults');
@@ -563,7 +606,7 @@ function confirmStartDraft(context) {
   dialog(`<h2>Start the draft?</h2><p class="sub">The order will be randomized once. ${context.memberCount} managers will each draft ${context.rosterSize} cast members in snake order. New members cannot join after it starts.</p><button id="confirmStartDraft">Start draft</button>`);
   $('#confirmStartDraft').addEventListener('click', () => runAction(
     () => db.rpc('start_league_draft', { p_league_id: context.leagueId }),
-    async () => { $('#modal').close(); location.reload(); },
+    async () => { $('#modal').close(); selectedDraftRound = 1; await renderSecondaryLeague(context, { silent: true }); },
     $('#confirmStartDraft'),
   ));
 }
@@ -663,14 +706,16 @@ function openInviteManager(context, refresh) {
   ));
 }
 
-export async function renderSecondaryLeague(context) {
+export async function renderSecondaryLeague(context, { silent = false } = {}) {
   if (!context.signedIn || context.leagueId === defaultLeagueId) return;
   const version = ++workspaceVersion;
   ++tradeRequestVersion;
   refreshCurrentWorkspaceTrades = null;
-  const refresh = () => renderSecondaryLeague(context);
-  for (const id of ['#standingsContent', '#publicTeamResults', '#commissionerTeamResults', '#scoreDeskContent']) {
-    if ($(id)) $(id).innerHTML = '<div class="card pad">Loading league…</div>';
+  const refresh = () => renderSecondaryLeague(context, { silent: true });
+  if (!silent) {
+    for (const id of ['#standingsContent', '#publicTeamResults', '#commissionerTeamResults', '#scoreDeskContent']) {
+      if ($(id)) $(id).innerHTML = '<div class="card pad">Loading league…</div>';
+    }
   }
   try {
     const data = await loadWorkspaceData(context);
@@ -680,6 +725,12 @@ export async function renderSecondaryLeague(context) {
       rosterSizeOverridden: data.league.roster_size_overridden,
       memberCount: data.members.length, castCount: data.cast.length,
       scoringStartsAfterWeek: data.league.scoring_starts_after_week };
+    const teamNav = $('#myTeamNav');
+    const teamNavLabel = liveContext.leagueStatus === 'active' ? 'My Team' : 'Draft';
+    teamNav.querySelector('.nav-label').textContent = teamNavLabel;
+    teamNav.setAttribute('aria-label', teamNavLabel);
+    const dancesNav = document.querySelector('[data-view="score"]');
+    if (dancesNav) dancesNav.hidden = liveContext.leagueStatus !== 'active';
     const assignmentMap = new Map(data.assignments.map((assignment) => [assignment.cast_member_id, assignment.fantasy_team_id]));
     const memberByTeam = new Map(data.members.map((member) => [member.fantasy_team_id, member]));
     const score = scoreLeague(data, liveContext);
@@ -698,7 +749,33 @@ export async function renderSecondaryLeague(context) {
     if (version !== workspaceVersion) return;
     clearInterval(workspaceRefreshTimer);
     clearInterval(workspaceTradeRefreshTimer);
-    if (['drafting', 'active'].includes(liveContext.leagueStatus)) {
+    refreshCurrentWorkspaceDraft = null;
+    if (liveContext.leagueStatus === 'setup' || liveContext.leagueStatus === 'drafting') {
+      const knownStatus = liveContext.leagueStatus;
+      const knownPickCount = data.picks.length;
+      const pollDraft = async () => {
+        if (document.hidden || workspaceDraftPollInFlight || version !== workspaceVersion) return;
+        workspaceDraftPollInFlight = true;
+        try {
+          const { data: state, error } = await db.rpc('advance_league_draft_clock', { p_league_id: liveContext.leagueId });
+          if (error) throw error;
+          if (version !== workspaceVersion) return;
+          if (state.status !== knownStatus || state.pick_count !== knownPickCount) {
+            if (state.pick_count !== knownPickCount) selectedDraftRound = null;
+            await refresh();
+          } else if (state.status === 'drafting') updateDraftClock(state.deadline_at, state.server_now);
+        } catch (error) {
+          console.warn('Draft update unavailable', error);
+        } finally {
+          workspaceDraftPollInFlight = false;
+        }
+      };
+      refreshCurrentWorkspaceDraft = pollDraft;
+      workspaceRefreshTimer = setInterval(pollDraft, 4000);
+      if (liveContext.leagueStatus === 'drafting') pollDraft();
+    } else {
+      clearInterval(workspaceDraftTimer);
+      workspaceDraftTimer = null;
       workspaceRefreshTimer = setInterval(() => { if (!document.hidden) refresh(); }, 30000);
     }
     if (liveContext.leagueStatus === 'active') {
@@ -706,6 +783,7 @@ export async function renderSecondaryLeague(context) {
     }
   } catch (error) {
     if (version !== workspaceVersion) return;
+    if (silent) { console.warn('League refresh unavailable', error); return; }
     const message = `<div class="card pad"><b>Couldn’t load this league.</b><p class="sub">${safe(errorMessage(error))}</p><button class="retry-workspace">Try again</button></div>`;
     for (const id of ['#standingsContent', '#publicTeamResults', '#commissionerTeamResults', '#scoreDeskContent']) {
       const container = $(id);
@@ -720,14 +798,18 @@ export function stopSecondaryLeague() {
   ++workspaceVersion;
   ++tradeRequestVersion;
   clearInterval(workspaceRefreshTimer);
+  clearInterval(workspaceDraftTimer);
   clearInterval(workspaceTradeRefreshTimer);
   workspaceRefreshTimer = null;
+  workspaceDraftTimer = null;
   workspaceTradeRefreshTimer = null;
+  refreshCurrentWorkspaceDraft = null;
   refreshCurrentWorkspaceTrades = null;
+  selectedDraftRound = null;
 }
 
-window.addEventListener('focus', () => refreshCurrentWorkspaceTrades?.());
+window.addEventListener('focus', () => { refreshCurrentWorkspaceTrades?.(); refreshCurrentWorkspaceDraft?.(); });
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refreshCurrentWorkspaceTrades?.();
+  if (!document.hidden) { refreshCurrentWorkspaceTrades?.(); refreshCurrentWorkspaceDraft?.(); }
 });
 $('#modal')?.addEventListener('close', () => refreshCurrentWorkspaceTrades?.());
