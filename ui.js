@@ -45,14 +45,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const auth = document.querySelector('#auth');
   const menu = document.querySelector('#accountMenu');
   const email = document.querySelector('#accountEmail');
-  const firstNameInput = document.querySelector('#accountFirstName');
-  const lastNameInput = document.querySelector('#accountLastName');
-  const nameEditor = document.querySelector('#accountNameEditor');
+  const usernameInput = document.querySelector('#accountUsername');
+  const displayNameInput = document.querySelector('#accountDisplayName');
+  const avatarUrlInput = document.querySelector('#accountAvatarUrl');
+  const profileHint = document.querySelector('#accountProfileHint');
   const myTeamNav = document.querySelector('#myTeamNav');
   const scoreDeskLink = document.querySelector('#scoreDeskLink');
   const castRosterLink = document.querySelector('#castRosterLink');
   let currentSession = null;
   let currentMember = null;
+  let currentProfile = null;
   let membershipReady = false;
 
   const missingMembershipTable = (error) => ['42P01', 'PGRST205'].includes(error?.code) || /league_members/i.test(error?.message || '') && /not find|does not exist/i.test(error.message);
@@ -62,24 +64,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     const signedInEmail = session?.user?.email;
     const metadata = session?.user?.user_metadata || {};
     currentMember = null;
+    currentProfile = null;
     membershipReady = false;
     let membershipError = null;
     let isPlatformAdmin = false;
+    let teamName = '';
     if (session?.user) {
-      const [membershipResult, platformResult] = await Promise.all([
-        db.from('league_members').select('*').eq('user_id', session.user.id).maybeSingle(),
+      const [contextResult, platformResult] = await Promise.all([
+        db.rpc('get_my_account_context'),
         db.rpc('is_platform_admin'),
       ]);
-      membershipError = membershipResult.error;
-      membershipReady = !membershipResult.error;
-      currentMember = membershipResult.data || null;
+      if (!contextResult.error) {
+        currentProfile = contextResult.data?.profile || null;
+        currentMember = contextResult.data?.membership || null;
+        teamName = contextResult.data?.team_name || '';
+        membershipReady = true;
+      } else {
+        // Allows the site to stay usable while the profile migration is being deployed.
+        const membershipResult = await db.from('league_members').select('*').eq('user_id', session.user.id).maybeSingle();
+        membershipError = membershipResult.error;
+        membershipReady = !membershipResult.error;
+        currentMember = membershipResult.data || null;
+      }
       isPlatformAdmin = platformResult.data === true;
     }
-    const firstName = currentMember?.first_name || metadata.first_name || '';
-    const lastName = currentMember?.last_name || metadata.last_name || '';
-    const displayName = [firstName, lastName].filter(Boolean).join(' ') || metadata.display_name || metadata.full_name || metadata.name;
-    let teamName = '';
-    if (currentMember?.fantasy_team_id) {
+    const legacyName = [currentMember?.first_name, currentMember?.last_name].filter(Boolean).join(' ') || metadata.display_name || metadata.full_name || metadata.name || '';
+    const displayName = currentProfile?.display_name || legacyName;
+    const [firstName = '', ...remainingNames] = displayName.trim().split(/\s+/).filter(Boolean);
+    const lastName = remainingNames.join(' ');
+    if (!teamName && currentMember?.fantasy_team_id) {
       const { data: team } = await db.from('fantasy_teams').select('team_name').eq('id', currentMember.fantasy_team_id).maybeSingle();
       teamName = team?.team_name || '';
     }
@@ -87,9 +100,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isCommissioner = Boolean(currentMember?.is_commissioner) || legacyCommissioner;
     auth.textContent = signedInEmail ? firstName || displayName || 'Signed in' : 'Sign in';
     email.textContent = signedInEmail || '';
-    firstNameInput.value = firstName;
-    lastNameInput.value = lastName;
-    nameEditor.hidden = Boolean(firstName && lastName);
+    usernameInput.value = currentProfile?.username || '';
+    displayNameInput.value = displayName;
+    avatarUrlInput.value = currentProfile?.avatar_url || '';
+    profileHint.hidden = currentProfile?.onboarding_completed !== false;
     const labelMode = currentMember?.team_nav_label_mode || 'default';
     const teamNavLabel = labelMode === 'custom' && currentMember?.custom_team_nav_label
       ? currentMember.custom_team_nav_label
@@ -102,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (requestedView === 'teams' && myTeamNav.hidden) openView('standings', false);
     else openView(requestedView, false);
     menu.hidden = true;
-    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, firstName, lastName, displayName, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
+    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
   }
 
   const { data: { session } } = await db.auth.getSession();
@@ -121,18 +135,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!signedIn) return openView('signin');
     menu.hidden = !menu.hidden;
   });
-  document.querySelector('#saveAccountName').addEventListener('click', async () => {
-    const firstName = firstNameInput.value.trim();
-    const lastName = lastNameInput.value.trim();
-    if (!firstName || !lastName) return alert('Enter both your first and last name.');
-    const displayName = `${firstName} ${lastName}`;
-    const { data, error } = await db.auth.updateUser({ data: { first_name: firstName, last_name: lastName, display_name: displayName } });
-    if (error) return alert(`Couldn’t save your name: ${error.message}`);
-    if (membershipReady && currentMember) {
-      const { error: memberError } = await db.rpc('update_my_league_name', { p_first_name: firstName, p_last_name: lastName });
-      if (memberError) return alert(`Your sign-in name was saved, but the league profile could not be updated: ${memberError.message}`);
-    }
-    await showAccess({ ...currentSession, user: data.user });
+  document.querySelector('#saveAccountProfile').addEventListener('click', async () => {
+    const button = document.querySelector('#saveAccountProfile');
+    const username = usernameInput.value.trim().toLowerCase();
+    const displayName = displayNameInput.value.trim();
+    const avatarUrl = avatarUrlInput.value.trim();
+    usernameInput.value = username;
+    if (!/^[a-z0-9_]{3,20}$/.test(username)) return alert('Username must be 3–20 characters using lowercase letters, numbers, or underscores.');
+    if (!displayName || displayName.length > 80) return alert('Enter a display name of 80 characters or fewer.');
+    if (avatarUrl && !/^https:\/\//i.test(avatarUrl)) return alert('Avatar URL must start with https://');
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    const { error } = await db.rpc('update_my_profile', { p_username: username, p_display_name: displayName, p_avatar_url: avatarUrl || null });
+    button.disabled = false;
+    button.textContent = 'Save profile';
+    if (error) return alert(error.message.includes('already taken') ? 'That username is already taken.' : `Couldn’t save your profile: ${error.message}`);
+    await showAccess(currentSession);
   });
   document.querySelector('#magic').addEventListener('click', async () => {
     const button = document.querySelector('#magic');

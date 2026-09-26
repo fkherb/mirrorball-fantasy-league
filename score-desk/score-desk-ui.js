@@ -13,18 +13,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function showAccess(session) {
     currentSession = session;
     const signedInEmail = session?.user?.email || '';
-    let firstName = session?.user?.user_metadata?.first_name || '';
+    let displayName = session?.user?.user_metadata?.display_name || session?.user?.user_metadata?.first_name || '';
     let isPlatformAdmin = false;
     if (session?.user) {
-      const [memberResult, platformResult] = await Promise.all([
-        db.from('league_members').select('first_name').eq('user_id', session.user.id).maybeSingle(),
+      const [contextResult, platformResult] = await Promise.all([
+        db.rpc('get_my_account_context'),
         db.rpc('is_platform_admin'),
       ]);
-      firstName = memberResult.data?.first_name || firstName;
+      displayName = contextResult.data?.profile?.display_name || displayName;
       isPlatformAdmin = platformResult.data === true;
     }
 
-    authButton.textContent = signedInEmail ? firstName || 'Signed in' : 'Sign in';
+    authButton.textContent = signedInEmail ? displayName.split(/\s+/)[0] || 'Signed in' : 'Sign in';
     emailLabel.textContent = signedInEmail;
     menu.hidden = true;
     signInForm.hidden = Boolean(signedInEmail);

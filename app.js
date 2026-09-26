@@ -41,6 +41,7 @@ let selectedPublicWeekId = 'all';
 let managerTeamId = null;
 let managerFirstName = '';
 let managerLastName = '';
+let managerDisplayName = '';
 let managerTeamName = '';
 let managerNavLabelMode = 'default';
 let managerCustomNavLabel = '';
@@ -116,7 +117,7 @@ function displayRole(memberOrRole) {
 async function getTeamManagerMap() {
   const { data, error } = await db.rpc('get_league_team_managers');
   if (error) { console.error(error); return new Map(); }
-  return new Map((data || []).map((person) => [person.fantasy_team_id, { ...person, name: [person.first_name, person.last_name].filter(Boolean).join(' ') }]));
+  return new Map((data || []).map((person) => [person.fantasy_team_id, { ...person, name: person.display_name || [person.first_name, person.last_name].filter(Boolean).join(' ') }]));
 }
 
 function managerNameFor(team, managerMap) {
@@ -450,17 +451,18 @@ async function openTeamDetail(teamId) {
 }
 
 async function editTeamCard(teamId) {
-  const [{ data: team, error: teamError }, { data: roster, error: rosterError }, { data: manager }] = await Promise.all([
+  const [{ data: team, error: teamError }, { data: roster, error: rosterError }, managerMap] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
     db.from('cast_members').select('*').eq('fantasy_team_id', teamId).order('name'),
-    db.from('league_members').select('user_id,first_name,last_name').eq('fantasy_team_id', teamId).maybeSingle(),
+    getTeamManagerMap(),
   ]);
   const error = teamError || rosterError;
   if (error) return alert(`Couldn’t edit this team: ${error.message}`);
   const card = document.querySelector(`[data-team-card-id="${teamId}"]`);
   if (!card) return;
+  const manager = managerMap.get(teamId);
   card.classList.add('editing');
-  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>First name<input id="teamManagerFirst-${teamId}" value="${escapeHtml(manager?.first_name || team.manager_name.split(' ')[0] || '')}" ${manager ? '' : 'disabled'}></label><label>Last name<input id="teamManagerLast-${teamId}" value="${escapeHtml(manager?.last_name || team.manager_name.split(' ').slice(1).join(' '))}" ${manager ? '' : 'disabled'}></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div></div>
+  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>Manager display name<input id="teamManagerDisplay-${teamId}" maxlength="80" value="${escapeHtml(manager?.display_name || team.manager_name || '')}" ${manager ? '' : 'disabled'}></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div></div>
     ${!manager ? '<p class="sub compact-note">Connect an account to this team before editing its manager name.</p>' : ''}${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
   document.querySelector(`[data-cancel-team-id="${teamId}"]`).addEventListener('click', loadTeams);
   document.querySelector(`[data-save-team-id="${teamId}"]`).addEventListener('click', async () => {
@@ -468,10 +470,9 @@ async function editTeamCard(teamId) {
     if (saveButton.disabled) return;
     saveButton.disabled = true;
     const team_name = $(`#teamName-${teamId}`).value.trim();
-    const firstName = $(`#teamManagerFirst-${teamId}`).value.trim();
-    const lastName = $(`#teamManagerLast-${teamId}`).value.trim();
-    if (manager && (!firstName || !lastName)) { saveButton.disabled = false; return alert('Enter both the first and last name.'); }
-    const { error: saveError } = await db.rpc('update_team_profile_atomic', { p_team_id: teamId, p_team_name: team_name || null, p_manager_user_id: manager?.user_id || null, p_first_name: manager ? firstName : null, p_last_name: manager ? lastName : null });
+    const displayName = $(`#teamManagerDisplay-${teamId}`).value.trim();
+    if (manager && !displayName) { saveButton.disabled = false; return alert('Enter a manager display name.'); }
+    const { error: saveError } = await db.rpc('update_team_profile_from_profile', { p_team_id: teamId, p_team_name: team_name || null, p_manager_user_id: manager?.user_id || null, p_display_name: manager ? displayName : null });
     if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save this team: ${saveError.message}`); }
     loadTeams(); loadStandings();
   });
@@ -1075,7 +1076,7 @@ function openCounterTrade(trade) {
 function openMyTeamEditor(team) {
   const replacing = managerNavLabelMode !== 'default';
   const selectedMode = managerNavLabelMode === 'custom' ? 'custom' : 'team';
-  openModal(`<p class="eyebrow">Manager settings</p><h2>Edit My Team</h2><p class="sub">Update your manager name, fantasy team name, and how this page appears in navigation.</p><div class="profile-name-fields"><label>First name<input id="myFirstName" value="${escapeHtml(managerFirstName)}" autocomplete="given-name"></label><label>Last name<input id="myLastName" value="${escapeHtml(managerLastName)}" autocomplete="family-name"></label></div><label>Team name <span class="optional">(optional)</span><input id="myTeamName" value="${escapeHtml(team.team_name || '')}"></label><label class="check-row"><input id="replaceMyTeamLabel" type="checkbox" ${replacing ? 'checked' : ''}> Replace “My Team” in the navigation</label><div id="myTeamLabelOptions" class="nav-label-options" ${replacing ? '' : 'hidden'}><label>Use<select id="myTeamLabelMode"><option value="team" ${selectedMode === 'team' ? 'selected' : ''}>Team name</option><option value="custom" ${selectedMode === 'custom' ? 'selected' : ''}>Custom label</option></select></label><label id="customTeamLabelField" ${selectedMode === 'custom' ? '' : 'hidden'}>Custom label<input id="customTeamLabel" maxlength="24" value="${escapeHtml(managerCustomNavLabel)}" placeholder="e.g., Freddy’s Team"></label></div><div class="modal-actions"><button id="saveMyTeamProfile">Save changes</button></div>`);
+  openModal(`<p class="eyebrow">Manager settings</p><h2>Edit My Team</h2><p class="sub">Update your display name, fantasy team name, and how this page appears in navigation.</p><label>Display name<input id="myDisplayName" maxlength="80" value="${escapeHtml(managerDisplayName || [managerFirstName, managerLastName].filter(Boolean).join(' '))}" autocomplete="name"></label><label>Team name <span class="optional">(optional)</span><input id="myTeamName" value="${escapeHtml(team.team_name || '')}"></label><label class="check-row"><input id="replaceMyTeamLabel" type="checkbox" ${replacing ? 'checked' : ''}> Replace “My Team” in the navigation</label><div id="myTeamLabelOptions" class="nav-label-options" ${replacing ? '' : 'hidden'}><label>Use<select id="myTeamLabelMode"><option value="team" ${selectedMode === 'team' ? 'selected' : ''}>Team name</option><option value="custom" ${selectedMode === 'custom' ? 'selected' : ''}>Custom label</option></select></label><label id="customTeamLabelField" ${selectedMode === 'custom' ? '' : 'hidden'}>Custom label<input id="customTeamLabel" maxlength="24" value="${escapeHtml(managerCustomNavLabel)}" placeholder="e.g., Freddy’s Team"></label></div><div class="modal-actions"><button id="saveMyTeamProfile">Save changes</button></div>`);
   const syncOptions = () => {
     $('#myTeamLabelOptions').hidden = !$('#replaceMyTeamLabel').checked;
     $('#customTeamLabelField').hidden = $('#myTeamLabelMode').value !== 'custom';
@@ -1083,22 +1084,22 @@ function openMyTeamEditor(team) {
   $('#replaceMyTeamLabel').addEventListener('change', syncOptions);
   $('#myTeamLabelMode').addEventListener('change', syncOptions);
   $('#saveMyTeamProfile').addEventListener('click', async () => {
-    const firstName = $('#myFirstName').value.trim();
-    const lastName = $('#myLastName').value.trim();
+    const displayName = $('#myDisplayName').value.trim();
     const teamName = $('#myTeamName').value.trim();
     const navMode = $('#replaceMyTeamLabel').checked ? $('#myTeamLabelMode').value : 'default';
     const customLabel = navMode === 'custom' ? $('#customTeamLabel').value.trim() : null;
-    if (!firstName || !lastName) return alert('Enter both your first and last name.');
+    if (!displayName) return alert('Enter your display name.');
     if (navMode === 'team' && !teamName) return alert('Add a team name before using it in the navigation.');
     if (navMode === 'custom' && !customLabel) return alert('Enter a custom navigation label.');
     const saveButton = $('#saveMyTeamProfile');
     saveButton.disabled = true;
-    const { error } = await db.rpc('update_my_team_profile', { p_first_name: firstName, p_last_name: lastName, p_team_name: teamName || null, p_nav_label_mode: navMode, p_custom_nav_label: customLabel });
+    const { error } = await db.rpc('update_my_team_settings', { p_display_name: displayName, p_team_name: teamName || null, p_nav_label_mode: navMode, p_custom_nav_label: customLabel });
     if (error) { saveButton.disabled = false; return alert(`Couldn’t save your team profile: ${error.message}`); }
-    const { error: authError } = await db.auth.updateUser({ data: { first_name: firstName, last_name: lastName, display_name: `${firstName} ${lastName}` } });
-    if (authError) { saveButton.disabled = false; return alert('Your league profile saved, but your sign-in profile could not be updated. Please try again.'); }
-    managerFirstName = firstName; managerLastName = lastName; managerTeamName = teamName; managerNavLabelMode = navMode; managerCustomNavLabel = customLabel || '';
-    $('#auth').textContent = firstName;
+    managerDisplayName = displayName;
+    managerFirstName = displayName.split(/\s+/)[0] || '';
+    managerLastName = displayName.split(/\s+/).slice(1).join(' ');
+    managerTeamName = teamName; managerNavLabelMode = navMode; managerCustomNavLabel = customLabel || '';
+    $('#auth').textContent = managerFirstName || displayName;
     const teamNavLabel = navMode === 'custom' ? customLabel : navMode === 'team' ? teamName : 'My Team';
     $('#myTeamNav .nav-label').textContent = teamNavLabel;
     $('#myTeamNav').setAttribute('aria-label', teamNavLabel);
@@ -1655,6 +1656,7 @@ if (isScoreDeskSurface) {
     managerTeamId = event.detail.fantasyTeamId;
     managerFirstName = event.detail.firstName || '';
     managerLastName = event.detail.lastName || '';
+    managerDisplayName = event.detail.displayName || [managerFirstName, managerLastName].filter(Boolean).join(' ');
     managerTeamName = event.detail.teamName || '';
     managerNavLabelMode = event.detail.teamNavLabelMode || 'default';
     managerCustomNavLabel = event.detail.customTeamNavLabel || '';

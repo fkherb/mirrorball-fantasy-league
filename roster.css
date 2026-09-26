@@ -18,7 +18,7 @@
 .header-actions { display: flex; align-items: center; gap: 7px; }
 .auth-button { padding: 7px 10px; background: #fff; color: #302638; font-size: 12px; }
 .header-rules { padding: 7px 9px; border: 1px solid #ffffff38; background: transparent; color: #fff; font-size: 12px; }
-.account-menu { position: absolute; z-index: 5; right: 0; top: calc(100% + 8px); min-width: 220px; padding: 12px; border: 1px solid #e8e0e7; border-radius: 10px; background: #fff; box-shadow: 0 12px 30px #1f132433; color: #302638; }
+.account-menu { position: absolute; z-index: 5; right: 0; top: calc(100% + 8px); width: min(310px, calc(100vw - 24px)); min-width: 220px; padding: 12px; border: 1px solid #e8e0e7; border-radius: 10px; background: #fff; box-shadow: 0 12px 30px #1f132433; color: #302638; }
 .account-menu span { display: block; margin-bottom: 10px; color: #786e79; }
 .account-menu label { display: block; margin: 0 0 8px; }
 .account-menu input { margin-top: 4px; padding: 8px; }
@@ -26,6 +26,7 @@
 .account-menu-link { display: block; margin: 0 0 9px; padding: 8px 9px; border-radius: 7px; background: #302638; color: #fff; font-size: 11px; font-weight: 800; text-align: center; text-decoration: none; }
 .account-menu-link[hidden] { display: none; }
 .account-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.account-profile-hint { margin: 5px 0 8px; color: #786e79; font-size: 11px; line-height: 1.4; }
 .account-menu [hidden] { display: none; }
 .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
 .team-card { padding: 20px; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }

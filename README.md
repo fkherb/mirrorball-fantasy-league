@@ -175,6 +175,26 @@ accepted or denied trade in the sending manager's Active tab until they dismiss
 the result. Dismissal moves it into the normal private History view and never
 deletes the historical record.
 
+Then run `supabase/add-user-profiles.sql`. It creates a canonical profile for
+every existing Supabase Auth account without changing any Auth UUID or login
+method, generates deterministic temporary usernames, and installs the signup
+trigger for future accounts. Profile display names become the identity source;
+legacy names on `league_members` and `fantasy_teams` remain synchronized for
+older cached clients, while completed-week snapshot names remain deliberately
+historical. Users can update their own username, display name, and avatar URL,
+and only the safe public directory fields are available for league discovery.
+
+Identity ownership after this migration:
+
+- `auth.users` owns authentication and keeps every existing UUID unchanged.
+- `profiles` owns username, display name, avatar, and onboarding state.
+- `league_members` owns per-league membership, team connection, commissioner
+  access, and navigation preferences—not account identity.
+- `fantasy_teams` owns league-specific team names. Its `manager_name` column is
+  a temporary compatibility mirror and is no longer independently edited.
+- `weekly_roster_snapshots.manager_name` remains a frozen historical label so
+  later profile changes cannot rewrite completed-week history.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast
