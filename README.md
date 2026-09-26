@@ -164,6 +164,11 @@ also a commissioner, records competing trade offers as Superseded before an
 accepted trade removes them, and enforces manager/team/navigation text limits
 at the database boundary.
 
+Then run `supabase/add-trade-result-notifications.sql`. It keeps a newly
+accepted or denied trade in the sending manager's Active tab until they dismiss
+the result. Dismissal moves it into the normal private History view and never
+deletes the historical record.
+
 ## Operational reminders
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast

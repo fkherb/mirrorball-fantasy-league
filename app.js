@@ -906,13 +906,14 @@ async function loadTrades() {
     container.innerHTML = '<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub">Connect a manager account to a fantasy team to trade.</p>';
     return;
   }
-  const [offersResult, historyResult] = await Promise.all([
+  const [offersResult, historyResult, notificationsResult] = await Promise.all([
     db.rpc('get_my_trade_offers'),
     db.rpc('get_my_trade_history'),
+    db.rpc('get_my_trade_result_notifications'),
   ]);
   if (loadVersion !== tradeLoadVersion || !container.isConnected) return;
-  if (offersResult.error || historyResult.error) {
-    const error = offersResult.error || historyResult.error;
+  if (offersResult.error || historyResult.error || notificationsResult.error) {
+    const error = offersResult.error || historyResult.error || notificationsResult.error;
     const setupMissing = ['42P01', 'PGRST202'].includes(error.code) || /trade|function/i.test(error.message || '');
     console.error(error);
     container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub ${setupMissing ? '' : 'error'}">${setupMissing ? 'Run the latest trade database update to enable timers and history.' : friendlyError('load trades')}</p>${setupMissing ? '' : '<button type="button" class="secondary" id="retryTrades">Try again</button>'}`;
@@ -921,6 +922,7 @@ async function loadTrades() {
   }
   const trades = offersResult.data || [];
   const history = historyResult.data || [];
+  const notifications = notificationsResult.data || [];
   const tradeCards = (trades || []).map((trade) => {
     const context = tradeContext(trade);
     const isInitiator = trade.initiator_team_id === managerTeamId;
@@ -933,6 +935,14 @@ async function loadTrades() {
     return `<article class="trade-offer ${awaitingMe ? 'needs-action' : ''}"><div class="trade-offer-top"><span>${trade.status === 'countered' ? 'Counter offer' : 'Trade offer'}</span><small>${awaitingMe ? 'Your response' : `Waiting for ${escapeHtml(otherTeamName)}`}</small></div>${tradeSwapMarkup(mine, theirs)}<div class="trade-expiry"><span data-trade-expires="${escapeHtml(trade.expires_at)}">${escapeHtml(tradeTimeRemaining(trade.expires_at))}</span><small>Offer closes automatically</small></div>${awaitingMe ? `<div class="trade-actions"><button data-accept-trade="${trade.id}">Accept</button>${mayCounter ? `<button class="secondary" data-counter-trade="${trade.id}">Counter</button>` : ''}<button class="secondary trade-deny" data-deny-trade="${trade.id}">Deny</button></div>` : canCancel ? `<div class="trade-actions"><button class="secondary trade-deny" data-cancel-trade="${trade.id}">Cancel offer</button></div>` : ''}</article>`;
   }).join('');
   const statusLabels = { countered: 'Countered', accepted: 'Accepted', denied: 'Denied', expired: 'Expired', cancelled: 'Cancelled', invalidated: 'Superseded' };
+  const resultCards = notifications.map((entry) => {
+    const context = historyTradeContext(entry);
+    const isInitiator = entry.initiator_team_id === managerTeamId;
+    const mine = isInitiator ? context.initiatorMember : context.counterpartyMember;
+    const theirs = isInitiator ? context.counterpartyMember : context.initiatorMember;
+    const accepted = entry.event_type === 'accepted';
+    return `<article class="trade-offer trade-result ${accepted ? 'accepted' : 'denied'}"><div class="trade-offer-top"><span>Trade ${accepted ? 'accepted' : 'denied'}</span><small>New result</small></div><p class="trade-result-message">${accepted ? 'Your offer was accepted and the cast members switched teams.' : 'The other manager denied your offer.'}</p>${tradeSwapMarkup(mine, theirs)}<div class="trade-actions"><button type="button" class="secondary" data-dismiss-trade-result="${entry.id}">Dismiss</button></div></article>`;
+  }).join('');
   const historyCards = history.map((entry) => {
     const context = historyTradeContext(entry);
     const isInitiator = entry.initiator_team_id === managerTeamId;
@@ -941,7 +951,8 @@ async function loadTrades() {
     const date = new Date(entry.event_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     return `<article class="trade-history-item"><div class="trade-history-head"><span class="trade-status trade-status-${entry.event_type}">${statusLabels[entry.event_type] || entry.event_type}</span><small>${escapeHtml(date)}</small></div>${tradeSwapMarkup(mine, theirs)}</article>`;
   }).join('');
-  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary">Propose trade</button></div><p class="sub">Swap one cast member with another manager.</p><div class="trade-view-tabs" role="tablist" aria-label="Trade activity"><button type="button" role="tab" aria-selected="${tradeViewMode === 'active'}" data-trade-view="active" class="${tradeViewMode === 'active' ? 'selected' : ''}">Active <span>${trades.length}</span></button><button type="button" role="tab" aria-selected="${tradeViewMode === 'history'}" data-trade-view="history" class="${tradeViewMode === 'history' ? 'selected' : ''}">History</button></div><div class="trade-list" role="tabpanel" ${tradeViewMode === 'active' ? '' : 'hidden'}>${tradeCards || '<div class="trade-empty">No active trade offers.</div>'}</div><div class="trade-history-list" role="tabpanel" ${tradeViewMode === 'history' ? '' : 'hidden'}>${historyCards || '<div class="trade-empty">No past trade activity yet.</div>'}</div>`;
+  const activeCards = `${resultCards}${tradeCards}`;
+  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary">Propose trade</button></div><p class="sub">Swap one cast member with another manager.</p><div class="trade-view-tabs" role="tablist" aria-label="Trade activity"><button type="button" role="tab" aria-selected="${tradeViewMode === 'active'}" data-trade-view="active" class="${tradeViewMode === 'active' ? 'selected' : ''}">Active <span>${trades.length + notifications.length}</span></button><button type="button" role="tab" aria-selected="${tradeViewMode === 'history'}" data-trade-view="history" class="${tradeViewMode === 'history' ? 'selected' : ''}">History</button></div><div class="trade-list" role="tabpanel" ${tradeViewMode === 'active' ? '' : 'hidden'}>${activeCards || '<div class="trade-empty">No active trade offers or new results.</div>'}</div><div class="trade-history-list" role="tabpanel" ${tradeViewMode === 'history' ? '' : 'hidden'}>${historyCards || '<div class="trade-empty">No past trade activity yet.</div>'}</div>`;
   $('#newTrade')?.addEventListener('click', openNewTrade);
   document.querySelectorAll('[data-trade-view]').forEach((button) => button.addEventListener('click', () => { tradeViewMode = button.dataset.tradeView; loadTrades(); }));
   document.querySelectorAll('[data-accept-trade]').forEach((button) => button.addEventListener('click', async () => {
@@ -972,6 +983,17 @@ async function loadTrades() {
       await loadTrades();
       return error;
     } });
+  }));
+  document.querySelectorAll('[data-dismiss-trade-result]').forEach((button) => button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = 'Dismissing…';
+    tradeLoadVersion += 1;
+    const { error } = await db.rpc('dismiss_trade_result', { p_history_id: button.dataset.dismissTradeResult });
+    await loadTrades();
+    if (error) {
+      console.error(error);
+      showNotice(friendlyError('dismiss this trade result'));
+    }
   }));
   refreshTradeCountdowns();
   tradeCountdownTimer = setInterval(() => document.hidden ? refreshTradeCountdowns() : loadTrades(), 60000);
