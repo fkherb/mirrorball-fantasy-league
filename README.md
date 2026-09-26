@@ -240,6 +240,20 @@ Identity ownership after this migration:
 
 ## Operational reminders
 
+For the updated invite and sign-in flow, run `supabase/delete-setup-league.sql`
+after `supabase/finish-league-draft-setup.sql`. It adds an owner-only deletion
+function for secondary leagues that have not started a draft. The confirmation
+requires the league name; started drafts and the original league cannot be
+deleted through it.
+
+Google and Apple sign-in use the existing Supabase Auth users and profile
+trigger. New users finish onboarding by choosing a username and display name;
+existing password users can connect either provider without changing their
+Auth UUID. Configure both providers and the deployed site's redirect URL in
+Supabase Auth. Enable manual identity linking for the profile's Connect
+buttons; keep email/password login enabled until existing members have linked
+an identity. The website no longer offers new email/password registration.
+
 - Score Desk is the source of truth for dances, judges’ scores, and cast
   appearances.
 - Create a competitive dance ahead of the show with its couple, dance type,

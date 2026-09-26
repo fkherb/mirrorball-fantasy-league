@@ -92,7 +92,7 @@ export async function renderLeagueHub(context) {
     if (version !== hubVersion) return;
     const league = preview.data?.[0];
     joinBanner.innerHTML = league
-      ? `<div class="card pad workspace-invite-banner"><p class="eyebrow">League invitation</p><h2>Join ${safe(league.league_name)}</h2><p class="sub">${signedIn ? context.onboardingCompleted ? 'You can join this league now.' : 'Confirm your profile details before joining.' : 'Sign in or create a password account to continue.'}</p><button id="joinSharedLeague" ${signedIn && context.onboardingCompleted ? '' : 'disabled'}>Join league</button>${signedIn ? '' : '<a href="#signin" id="joinSignInLink">Sign in or create account</a>'}</div>`
+      ? `<div class="card pad workspace-invite-banner"><p class="eyebrow">League invitation</p><h2>Join ${safe(league.league_name)}</h2><p class="sub">${signedIn ? context.onboardingCompleted ? 'You can join this league now.' : 'Confirm your profile details before joining.' : 'Continue with Google or Apple to join.'}</p><button id="joinSharedLeague" ${signedIn && context.onboardingCompleted ? '' : 'disabled'}>Join league</button>${signedIn ? '' : '<a href="#signin" id="joinSignInLink">Sign in</a>'}</div>`
       : '<div class="card pad">This invitation link has expired or was revoked.</div>';
     $('#joinSharedLeague')?.addEventListener('click', () => runAction(
       () => db.rpc('join_league_with_link', { p_token: token }),
@@ -239,7 +239,7 @@ function renderStandings(context, data, score, assignmentMap, memberByTeam, refr
   const turn = draftTurn(data.order, data.picks, context.rosterSize);
   const setupPanel = isSetup ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">Before the draft</p><h2>Build your league</h2><p class="sub">${data.members.length} of 3–6 managers joined. ${data.members.length < 3 ? `Invite ${3 - data.members.length} more to start.` : 'Your league can start its draft whenever the owner is ready.'} Roster size is currently ${context.rosterSize} cast per team${context.rosterSizeOverridden ? ' (custom)' : ' (automatic)'}.</p><div class="workspace-setup-facts"><span><b>${data.members.length}</b> managers</span><span><b>${context.rosterSize}</b> draft rounds</span><span><b>${data.cast.length}</b> cast in pool</span></div>${context.leagueRole === 'owner' ? `<div class="modal-actions">${data.members.length < 6 ? '<button id="overviewInvitePlayers">Invite players</button>' : ''}<button id="overviewLeagueSettings" class="secondary">League settings</button></div>` : '<p class="sub">The league owner can invite managers and start the draft when at least three have joined.</p>'}</section>` : isDrafting ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">Draft in progress</p><h2>Round ${turn?.round || context.rosterSize} of ${context.rosterSize}</h2><p class="sub">${data.picks.length} of ${data.order.length * context.rosterSize} picks complete. ${turn ? `${safe(memberByTeam.get(turn.teamId)?.display_name || 'The next manager')} is on the clock.` : 'Every roster is filled.'}</p><a class="workspace-inline-link" href="#teams" id="overviewOpenDraft">View the draft</a></section>` : !score.scoringWeeks.length ? '<section class="card pad workspace-setup-panel"><p class="eyebrow">Season ready</p><h2>Waiting for the first completed show</h2><p class="sub">Your draft teams are set. Weekly points and highlights will appear after a show is completed.</p></section>' : '';
   $('#standingsContent').innerHTML = `${setupPanel}${rows.length ? `<div class="workspace-standings-list">${rows.map((team, index) => `<button type="button" class="card workspace-standing-card" data-workspace-standing="${team.id}" aria-label="View ${safe(team.team_name || team.manager)} roster"><span class="workspace-rank">${isSetup || isDrafting ? '•' : index + 1}</span><span><small>${safe(team.manager)}</small><b>${safe(team.team_name || `${team.manager.split(' ')[0]}'s Team`)}</b></span><strong>${context.leagueStatus === 'active' ? `${team.points} pts` : `${[...assignmentMap.values()].filter((id) => id === team.id).length}/${context.rosterSize} cast`}</strong></button>`).join('')}</div>` : '<div class="card pad">No teams yet.</div>'}`;
-  $('#overviewInvitePlayers')?.addEventListener('click', () => openInviteManager(context, refresh));
+  $('#overviewInvitePlayers')?.remove();
   $('#overviewLeagueSettings')?.addEventListener('click', () => openLeagueSettings(context, refresh));
   $('#overviewOpenDraft')?.addEventListener('click', (event) => { event.preventDefault(); $('#myTeamNav').click(); });
   $('#standingsContent').querySelectorAll('[data-workspace-standing]').forEach((button) => button.addEventListener('click', () => {
@@ -269,12 +269,13 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     : context.leagueStatus === 'drafting' ? 'Follow the draft order and claim cast members when it is your turn.'
       : 'View your roster, weekly scores, and the available cast.';
   const draftStrip = context.leagueStatus === 'setup'
-    ? `<div class="workspace-draft-strip"><div><small>Draft setup</small><strong>${data.members.length} of 3–6 managers joined</strong><p class="sub">${context.rosterSize} rounds · ${context.rosterSizeOverridden ? 'custom' : 'automatic'} roster size</p></div></div>`
+    ? `<div class="workspace-draft-strip"><div><small>Draft setup</small><strong>${data.members.length} of 3–6 managers joined</strong><p class="sub">${context.rosterSize} rounds · ${context.rosterSizeOverridden ? 'custom' : 'automatic'} roster size</p></div>${context.leagueRole === 'owner' ? `<button id="startDraftFromTeam" ${data.members.length >= 3 && data.members.length <= 6 ? '' : 'disabled'}>Start draft</button>` : ''}</div>`
     : context.leagueStatus === 'drafting'
       ? `<div class="workspace-draft-strip"><div><small>Draft order · Round ${turn?.round || context.rosterSize}</small><div class="workspace-draft-order">${data.order.map((slot) => `<span class="${turn?.teamId === slot.fantasy_team_id ? 'current' : ''}">${slot.draft_position}. ${safe(memberByTeam.get(slot.fantasy_team_id)?.display_name || 'Manager')}</span>`).join('')}</div></div><strong>${isYourTurn ? 'Your pick' : `Pick ${turn?.pickNumber || '—'}`}</strong></div>`
       : `<div class="workspace-draft-strip"><div><small>Season points</small><strong>${score.totalByTeam.get(ownTeam.id) || 0}</strong></div><div class="workspace-week-pills">${score.scoringWeeks.map((week) => `<span>Week ${week.number} · ${score.pointsByWeekTeam.get(`${week.id}:${ownTeam.id}`) || 0}</span>`).join('')}</div></div>`;
   const canClaim = isYourTurn || context.leagueStatus === 'active';
   body.innerHTML = `<section class="card public-team-detail workspace-team-detail">${draftStrip}<div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? `Round ${turn?.round || 1} of ${context.rosterSize}` : 'Roster'}</p><h3>Team Roster · ${roster.length}/${context.rosterSize}</h3></div></div><div class="workspace-cast-list">${roster.map((member) => castTile(member, context.leagueStatus === 'active' ? `<strong class="workspace-points">${score.pointsByTeamCast.get(ownTeam.id)?.get(member.id) || 0} pts</strong>` : '')).join('') || '<p class="sub">Your picks will appear here.</p>'}</div></section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? 'Draft pool' : 'Free agents'}</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">${isYourTurn ? 'It is your turn. Claim one cast member below.' : context.leagueStatus === 'drafting' ? 'Claims open when it is your turn.' : context.leagueStatus === 'active' ? 'Claim a cast member by releasing one from your roster.' : 'Claims open after the draft starts.'}</p><div class="workspace-available-list">${available.map((member) => castTile(member, canClaim ? `<button data-workspace-claim="${member.id}">Claim</button>` : '')).join('') || '<p class="sub">No cast members are available.</p>'}</div></section>${context.leagueStatus === 'active' ? '<section id="workspaceTradeCenter" class="card pad workspace-trades">Loading trades…</section>' : `<section class="card pad workspace-draft-history"><p class="eyebrow">Draft</p><h3>Recent picks</h3>${data.picks.slice(-6).reverse().map((pick) => `<p><b>#${pick.pick_number}</b> ${safe(data.cast.find((member) => member.id === pick.cast_member_id)?.name || 'Cast member')} · ${safe(memberByTeam.get(pick.fantasy_team_id)?.display_name || 'Manager')}</p>`).join('') || '<p class="sub">No picks yet.</p>'}</section>`}</div></div></section>`;
+  $('#startDraftFromTeam')?.addEventListener('click', () => confirmStartDraft(context));
   $('#editMyTeam').hidden = false;
   $('#editMyTeam').onclick = () => {
     dialog(`<p class="eyebrow">Team settings</p><h2>Edit team name</h2><label>Team name<input id="workspaceTeamName" maxlength="80" value="${safe(ownTeam.team_name || '')}"></label><div class="modal-actions"><button id="saveWorkspaceTeamName">Save</button></div>`);
@@ -457,6 +458,15 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   $('#leagueAvailableCount').textContent = data.cast.length - assignmentMap.size;
   $('#editLeagueName').hidden = context.leagueRole !== 'owner';
   $('#editLeagueName').onclick = () => openLeagueSettings(context, refresh);
+  const teamsHeading = $('#leagueTeamsPane .splithead');
+  teamsHeading.querySelector('#manageLeagueInvites')?.remove();
+  if (context.leagueRole === 'owner' && context.leagueStatus === 'setup') {
+    const inviteButton = document.createElement('button');
+    inviteButton.id = 'manageLeagueInvites';
+    inviteButton.textContent = 'Invite';
+    inviteButton.addEventListener('click', () => openInviteManager(context, refresh));
+    teamsHeading.append(inviteButton);
+  }
   $('#commissionerTeamResults').innerHTML = data.teams.map((team) => {
     const member = memberByTeam.get(team.id);
     const roster = data.cast.filter((cast) => assignmentMap.get(cast.id) === team.id);
@@ -504,9 +514,8 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   const section = document.createElement('section');
   section.id = 'workspacePeople';
   section.className = 'workspace-people';
-  section.innerHTML = `<div class="workspace-section-head"><div><p class="eyebrow">League community</p><h2>Members & Invitations</h2></div>${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && data.members.length < 6 ? '<button id="inviteLeagueMember">Invite players</button>' : ''}</div><div class="workspace-member-grid">${data.members.map((member) => `<article class="card pad"><b>${safe(member.display_name)}</b><small>@${safe(member.username)} · ${safe(member.member_role)}</small>${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member.member_role === 'member' ? `<button class="secondary" data-remove-member="${member.user_id}">Remove</button>` : ''}</article>`).join('')}</div><div id="workspacePendingInvites"></div>`;
+  section.innerHTML = `<div class="workspace-section-head"><div><p class="eyebrow">League community</p><h2>Members</h2></div></div><div class="workspace-member-grid">${data.members.map((member) => `<article class="card pad"><b>${safe(member.display_name)}</b><small>@${safe(member.username)} · ${safe(member.member_role)}</small>${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member.member_role === 'member' ? `<button class="secondary" data-remove-member="${member.user_id}">Remove</button>` : ''}</article>`).join('')}</div>`;
   leaguePane.append(section);
-  $('#inviteLeagueMember')?.addEventListener('click', () => openInviteManager(context, refresh));
   section.querySelectorAll('[data-remove-member]').forEach((button) => button.addEventListener('click', () => {
     const member = data.members.find((item) => item.user_id === button.dataset.removeMember);
     dialog(`<h2>Remove ${safe(member?.display_name || 'member')}?</h2><p class="sub">This removes their team from the league before the draft starts.</p><button id="confirmRemoveMember" class="danger">Remove member</button>`);
@@ -516,26 +525,36 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
       $('#confirmRemoveMember'),
     ));
   }));
-  if (context.leagueRole === 'owner') {
-    const inviteResult = await db.from('league_invites').select('id,invitee_id,created_at,expires_at')
-      .eq('league_id', context.leagueId).eq('status', 'pending');
-    if (renderVersion !== workspaceVersion) return;
-    if (!inviteResult.error && inviteResult.data?.length) {
-      const ids = inviteResult.data.map((item) => item.invitee_id);
-      const people = await db.from('profile_directory').select('user_id,username').in('user_id', ids);
-      if (renderVersion !== workspaceVersion || !section.isConnected) return;
-      const nameById = new Map((people.data || []).map((person) => [person.user_id, person.username]));
-      $('#workspacePendingInvites').innerHTML = `<h3>Pending invitations</h3>${inviteResult.data.map((invite) => `<div class="workspace-pending-invite"><span>@${safe(nameById.get(invite.invitee_id) || 'member')}</span><button class="secondary" data-cancel-invite="${invite.id}">Cancel</button></div>`).join('')}`;
-      $('#workspacePendingInvites').querySelectorAll('[data-cancel-invite]').forEach((button) => button.addEventListener('click', () => runAction(
-        () => db.rpc('cancel_league_invite', { p_invite_id: button.dataset.cancelInvite }), refresh, button,
-      )));
+  if (context.leagueRole === 'owner' && context.leagueStatus === 'setup') {
+    const pending = await loadPendingInvites(context.leagueId);
+    if (renderVersion === workspaceVersion && $('#manageLeagueInvites')) {
+      $('#manageLeagueInvites').textContent = pending.length ? 'Manage Invites' : 'Invite';
     }
   }
 }
 
+async function loadPendingInvites(leagueId) {
+  const result = await db.from('league_invites').select('id,invitee_id,expires_at')
+    .eq('league_id', leagueId).eq('status', 'pending').gt('expires_at', new Date().toISOString());
+  if (result.error) { console.error(result.error); return []; }
+  const pending = result.data || [];
+  if (!pending.length) return pending;
+  const people = await db.from('profile_directory').select('user_id,username').in('user_id', pending.map((item) => item.invitee_id));
+  const nameById = new Map((people.data || []).map((person) => [person.user_id, person.username]));
+  return pending.map((item) => ({ ...item, username: nameById.get(item.invitee_id) || 'member' }));
+}
+
+function confirmStartDraft(context) {
+  dialog(`<h2>Start the draft?</h2><p class="sub">The order will be randomized once. ${context.memberCount} managers will each draft ${context.rosterSize} cast members in snake order. New members cannot join after it starts.</p><button id="confirmStartDraft">Start draft</button>`);
+  $('#confirmStartDraft').addEventListener('click', () => runAction(
+    () => db.rpc('start_league_draft', { p_league_id: context.leagueId }),
+    async () => { $('#modal').close(); location.reload(); },
+    $('#confirmStartDraft'),
+  ));
+}
+
 function openLeagueSettings(context, refresh) {
-  const canDraft = context.memberCount >= 3 && context.memberCount <= 6;
-  dialog(`<p class="eyebrow">League settings</p><h2>Edit ${safe(context.leagueName)}</h2><label>League name<input id="workspaceLeagueName" maxlength="80" value="${safe(context.leagueName)}"></label><label class="workspace-auto-size"><input id="workspaceAutoRoster" type="checkbox" ${context.rosterSizeOverridden ? '' : 'checked'} ${context.leagueStatus === 'setup' ? '' : 'disabled'}> Set roster size automatically as managers join</label><label>Cast members per team / draft rounds<input id="workspaceRosterSize" type="number" min="1" max="30" value="${context.rosterSize}" ${context.leagueStatus === 'setup' && context.rosterSizeOverridden ? '' : 'disabled'}></label><p class="sub">${context.leagueStatus === 'setup' ? `Current plan: ${context.memberCount} manager${context.memberCount === 1 ? '' : 's'} · ${context.rosterSize} rounds. Manual roster size × managers cannot exceed ${context.castCount} cast members. The size locks when the draft begins.` : 'The draft has started, so roster size is locked.'}</p><div class="modal-actions"><button id="saveWorkspaceSettings">Save settings</button>${context.leagueStatus === 'setup' ? `<button id="startWorkspaceDraft" class="secondary" ${canDraft ? '' : 'disabled'}>Start draft</button>` : ''}</div>${context.leagueStatus === 'setup' && !canDraft ? '<p class="sub">Invite at least three managers to start a draft.</p>' : ''}`);
+  dialog(`<p class="eyebrow">League settings</p><h2>Edit ${safe(context.leagueName)}</h2><label>League name<input id="workspaceLeagueName" maxlength="80" value="${safe(context.leagueName)}"></label><label class="workspace-auto-size"><input id="workspaceAutoRoster" type="checkbox" ${context.rosterSizeOverridden ? '' : 'checked'} ${context.leagueStatus === 'setup' ? '' : 'disabled'}> Set roster size automatically as managers join</label><label>Cast members per team / draft rounds<input id="workspaceRosterSize" type="number" min="1" max="30" value="${context.rosterSize}" ${context.leagueStatus === 'setup' && context.rosterSizeOverridden ? '' : 'disabled'}></label><p class="sub">${context.leagueStatus === 'setup' ? `Current plan: ${context.memberCount} manager${context.memberCount === 1 ? '' : 's'} · ${context.rosterSize} rounds. Manual roster size × managers cannot exceed ${context.castCount} cast members. The size locks when the draft begins.` : 'The draft has started, so roster size is locked.'}</p><div class="modal-actions"><button id="saveWorkspaceSettings">Save settings</button></div>${context.leagueStatus === 'setup' ? '<div class="workspace-danger-zone"><h3>Delete league</h3><p class="sub">Permanently remove this league, its teams, and any invitations. This cannot be undone.</p><button id="deleteWorkspaceLeague" class="danger">Delete league</button></div>' : ''}`);
   $('#workspaceAutoRoster').addEventListener('change', () => {
     $('#workspaceRosterSize').disabled = $('#workspaceAutoRoster').checked;
   });
@@ -547,18 +566,35 @@ function openLeagueSettings(context, refresh) {
     async () => { $('#modal').close(); location.reload(); },
     $('#saveWorkspaceSettings'),
   ));
-  $('#startWorkspaceDraft')?.addEventListener('click', () => {
-    dialog(`<h2>Start the draft?</h2><p class="sub">The order will be randomized once. ${context.memberCount} managers will each draft ${context.rosterSize} cast members in snake order. New members cannot join after it starts.</p><button id="confirmStartDraft">Start draft</button>`);
-    $('#confirmStartDraft').addEventListener('click', () => runAction(
-      () => db.rpc('start_league_draft', { p_league_id: context.leagueId }),
-      async () => { $('#modal').close(); location.reload(); },
-      $('#confirmStartDraft'),
+  $('#deleteWorkspaceLeague')?.addEventListener('click', () => {
+    dialog(`<h2>Delete ${safe(context.leagueName)}?</h2><p class="sub">This permanently removes the league for every manager. Type its name to confirm.</p><label>League name<input id="confirmDeleteLeagueName" autocomplete="off"></label><button id="confirmDeleteLeague" class="danger" disabled>Delete league permanently</button>`);
+    $('#confirmDeleteLeagueName').addEventListener('input', () => {
+      $('#confirmDeleteLeague').disabled = $('#confirmDeleteLeagueName').value.trim() !== context.leagueName;
+    });
+    $('#confirmDeleteLeague').addEventListener('click', () => runAction(
+      () => db.rpc('delete_fantasy_league', { p_league_id: context.leagueId }),
+      async () => {
+        localStorage.removeItem('mirrorball-active-league');
+        location.assign(`${location.pathname}#standings`);
+      }, $('#confirmDeleteLeague'),
     ));
   });
 }
 
 function openInviteManager(context, refresh) {
-  dialog(`<p class="eyebrow">${safe(context.leagueName)}</p><h2>Invite Players</h2><p class="sub">Search by username or create a link for someone who does not have an account yet.</p><label>Search username<input id="inviteUsernameSearch" autocomplete="off" placeholder="Search @username"></label><div id="inviteSearchResults"></div><div class="workspace-invite-link-actions"><button id="generateInviteLink" class="secondary">Generate / replace invite link</button><button id="revokeInviteLink" class="secondary" hidden>Revoke link</button></div><div id="generatedInviteLink"></div><p id="inviteLinkStatus" class="sub"></p>`);
+  dialog(`<p class="eyebrow">${safe(context.leagueName)}</p><h2>Invite Players</h2><p class="sub">${context.memberCount >= 6 ? 'This league is full. You can still review or cancel pending invitations.' : 'Search by username or create a link for someone who does not have an account yet.'}</p><label>Search username<input id="inviteUsernameSearch" autocomplete="off" placeholder="Search @username" ${context.memberCount >= 6 ? 'disabled' : ''}></label><div id="inviteSearchResults"></div><div class="workspace-invite-link-actions"><button id="generateInviteLink" class="secondary" ${context.memberCount >= 6 ? 'disabled' : ''}>Generate / replace invite link</button><button id="revokeInviteLink" class="secondary" hidden>Revoke link</button></div><div id="generatedInviteLink"></div><p id="inviteLinkStatus" class="sub"></p><div id="pendingLeagueInvites"></div>`);
+  const drawPending = async () => {
+    const pending = await loadPendingInvites(context.leagueId);
+    const container = $('#pendingLeagueInvites');
+    if (!container) return;
+    container.innerHTML = pending.length ? `<h3>Pending invites</h3>${pending.map((invite) => `<div class="workspace-pending-invite"><span>@${safe(invite.username)}</span><button class="secondary" data-cancel-invite="${invite.id}">Cancel</button></div>`).join('')}` : '';
+    $('#manageLeagueInvites') && ($('#manageLeagueInvites').textContent = pending.length ? 'Manage Invites' : 'Invite');
+    container.querySelectorAll('[data-cancel-invite]').forEach((button) => button.addEventListener('click', () => runAction(
+      () => db.rpc('cancel_league_invite', { p_invite_id: button.dataset.cancelInvite }),
+      drawPending, button,
+    )));
+  };
+  drawPending();
   const updateLinkStatus = async () => {
     const result = await db.from('league_invite_links').select('id,expires_at')
       .eq('league_id', context.leagueId).is('revoked_at', null).maybeSingle();
@@ -583,7 +619,7 @@ function openInviteManager(context, refresh) {
       : (result.data || []).map((profile) => `<div class="workspace-profile-result"><span><b>${safe(profile.display_name)}</b><small>@${safe(profile.username)}</small></span><button data-invite-username="${safe(profile.username)}">Invite</button></div>`).join('') || '<p class="sub">No matching usernames.</p>';
     $('#inviteSearchResults').querySelectorAll('[data-invite-username]').forEach((button) => button.addEventListener('click', () => runAction(
       () => db.rpc('invite_username', { p_league_id: context.leagueId, p_username: button.dataset.inviteUsername }),
-      async () => { $('#modal').close(); await refresh(); },
+      async () => { search.value = ''; $('#inviteSearchResults').innerHTML = ''; await drawPending(); },
       button,
     )));
   });

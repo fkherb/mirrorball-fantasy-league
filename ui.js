@@ -44,6 +44,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const auth = document.querySelector('#auth');
   const menu = document.querySelector('#accountMenu');
+  const providerLinks = document.createElement('div');
+  providerLinks.className = 'account-provider-links';
+  providerLinks.innerHTML = '<p class="eyebrow">Sign-in methods</p><button id="connectGoogle" type="button" class="secondary">Connect Google</button><button id="connectApple" type="button" class="secondary">Connect Apple</button><p id="providerLinkMessage" class="account-profile-hint" role="status"></p>';
+  menu.querySelector('.account-admin-links').before(providerLinks);
   const email = document.querySelector('#accountEmail');
   const usernameInput = document.querySelector('#accountUsername');
   const displayNameInput = document.querySelector('#accountDisplayName');
@@ -307,8 +311,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     castRosterLink.hidden = !isPlatformAdmin;
     if ((requestedView === 'teams' && myTeamNav.hidden) || (requestedView === 'score' && dancesNav.hidden)) openView('standings', false);
     else openView(requestedView, false);
-    if (previousUserId !== session?.user?.id) menu.hidden = true;
+    if (previousUserId !== session?.user?.id) menu.hidden = currentProfile?.onboarding_completed !== false;
     auth.setAttribute('aria-expanded', String(!menu.hidden));
+    providerLinks.hidden = !session?.user;
+    if (session?.user) {
+      const identitiesResult = await db.auth.getUserIdentities();
+      if (version !== accessVersion) return;
+      const providers = new Set((identitiesResult.data?.identities || []).map((identity) => identity.provider));
+      for (const provider of ['google', 'apple']) {
+        const button = document.querySelector(`#connect${provider === 'google' ? 'Google' : 'Apple'}`);
+        button.textContent = providers.has(provider) ? `${provider === 'google' ? 'Google' : 'Apple'} connected` : `Connect ${provider === 'google' ? 'Google' : 'Apple'}`;
+        button.disabled = providers.has(provider);
+      }
+    }
     currentAccessDetail = { signedIn: Boolean(signedInEmail), userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, leaguesError, joinToken };
     window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: currentAccessDetail }));
   }
@@ -378,27 +393,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const button = document.querySelector('#magic');
     button.disabled = true; button.textContent = 'Signing in…';
     const { error } = await db.auth.signInWithPassword({ email: document.querySelector('#email').value.trim(), password: document.querySelector('#password').value });
-    button.disabled = false; button.textContent = 'Sign in';
+    button.disabled = false; button.textContent = 'Sign in with email';
     if (error) return alert(error.message);
     openView('standings');
   });
-  document.querySelector('#signUpPassword').addEventListener('click', async () => {
-    const button = document.querySelector('#signUpPassword');
-    const emailAddress = document.querySelector('#email').value.trim();
-    const password = document.querySelector('#password').value;
-    if (!emailAddress || password.length < 6) {
-      document.querySelector('#signInMessage').textContent = 'Enter your email and a password of at least six characters.';
-      return;
-    }
-    button.disabled = true;
-    button.textContent = 'Creating…';
-    const { data, error } = await db.auth.signUp({ email: emailAddress, password });
-    button.disabled = false;
-    button.textContent = 'Create account';
-    document.querySelector('#signInMessage').textContent = error
-      ? error.message
-      : data.session ? 'Account created. Open your profile to choose a username.' : 'Check your email to confirm your new account, then sign in.';
-  });
+  for (const provider of ['google', 'apple']) {
+    const label = provider === 'google' ? 'Google' : 'Apple';
+    const redirectTo = `${location.origin}${location.pathname}${location.search}`;
+    document.querySelector(`#signIn${label}`).addEventListener('click', async () => {
+      const button = document.querySelector(`#signIn${label}`);
+      button.disabled = true;
+      const { error } = await db.auth.signInWithOAuth({ provider, options: { redirectTo } });
+      if (error) {
+        button.disabled = false;
+        document.querySelector('#signInMessage').textContent = `Couldn’t continue with ${label}: ${error.message}`;
+      }
+    });
+    document.querySelector(`#connect${label}`).addEventListener('click', async () => {
+      const button = document.querySelector(`#connect${label}`);
+      button.disabled = true;
+      const { error } = await db.auth.linkIdentity({ provider, options: { redirectTo } });
+      if (error) {
+        button.disabled = false;
+        document.querySelector('#providerLinkMessage').textContent = `Couldn’t connect ${label}: ${error.message}. Check that manual identity linking is enabled in Supabase.`;
+      }
+    });
+  }
   document.querySelector('#signOut').addEventListener('click', async () => { await db.auth.signOut(); });
   const { data: { session } } = await db.auth.getSession();
   await showAccess(session);

@@ -169,6 +169,13 @@
 .workspace-profile-modal > img { width: 100%; max-height: 390px; object-fit: cover; border-radius: 12px; }
 @media (max-width: 520px) { .workspace-profile-modal { grid-template-columns: 1fr; } .workspace-profile-modal > img { max-height: 280px; } }
 .workspace-pending-invite { max-width: 450px; }
+.workspace-danger-zone { margin-top: 22px; padding-top: 16px; border-top: 1px solid #e8d9df; }
+.workspace-danger-zone h3 { margin: 0 0 5px; }
+.account-provider-links { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e8e0e7; }
+.account-provider-links .eyebrow { margin: 0 0 5px; }
+.account-provider-links button:disabled { opacity: .7; }
+.legacy-signin { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e8e0e7; }
+.legacy-signin .sub { margin-top: 0; }
 .workspace-invite-link-actions { margin: 15px 0; }
 .workspace-trades h3 { margin: 0; }
 .workspace-trade-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px; margin: 12px 0; border-radius: 8px; background: #f1ecf0; }
