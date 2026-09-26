@@ -341,6 +341,15 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   body.innerHTML = `<section class="card public-team-detail workspace-team-detail">${draftStrip}${context.leagueStatus === 'drafting' ? `<section class="workspace-draft-rounds"><div class="public-section-head"><div><p class="eyebrow">Draft board</p><h3>Round ${draftRound} picks</h3></div><span>${data.picks.length} of ${data.order.length * context.rosterSize} picked</span></div><div class="workspace-round-tabs" role="group" aria-label="Draft rounds">${Array.from({ length: context.rosterSize }, (_, index) => `<button type="button" data-draft-round="${index + 1}" class="${draftRound === index + 1 ? 'selected' : ''}" aria-pressed="${draftRound === index + 1}">Round ${index + 1}</button>`).join('')}</div><div class="workspace-round-picks">${roundSlots}</div></section>` : ''}<div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Roster</p><h3>Team Roster · ${roster.length}/${context.rosterSize}</h3></div></div><div class="workspace-cast-list">${roster.map((member) => castTile(member, context.leagueStatus === 'active' ? `<strong class="workspace-points">${score.pointsByTeamCast.get(ownTeam.id)?.get(member.id) || 0} pts</strong>` : '')).join('') || '<p class="sub">Your picks will appear here.</p>'}</div></section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? 'Draft pool' : 'Free agents'}</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">${isYourTurn ? 'It is your turn. Claim one cast member below.' : context.draftPaused ? 'The draft is paused. Claims reopen when the owner resumes.' : context.leagueStatus === 'drafting' ? 'Claims open when it is your turn.' : context.leagueStatus === 'active' ? 'Claim a cast member by releasing one from your roster.' : 'Claims open after the draft starts.'}</p><div class="workspace-available-list">${available.map((member) => castTile(member, canClaim ? `<button data-workspace-claim="${member.id}">Claim</button>` : '')).join('') || '<p class="sub">No cast members are available.</p>'}</div></section>${context.leagueStatus === 'active' ? '<section id="workspaceTradeCenter" class="card pad workspace-trades">Loading trades…</section>' : ''}</div></div></section>`;
   body.firstElementChild.classList.toggle('is-drafting', context.leagueStatus === 'drafting');
   body.querySelector('.workspace-available-list').scrollTop = castScrollTop;
+  if (context.leagueStatus !== 'active') {
+    const rosterHeading = body.querySelector('.public-team-columns > section:first-child .public-section-head');
+    rosterHeading.querySelector('h3').textContent = `${ownTeam.team_name || 'My Team'} · ${roster.length}/${context.rosterSize}`;
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'secondary workspace-roster-edit';
+    editButton.textContent = 'Edit team name';
+    rosterHeading.append(editButton);
+  }
   body.querySelectorAll('[data-draft-round]').forEach((button) => button.addEventListener('click', () => {
     selectedDraftRound = Number(button.dataset.draftRound);
     renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh);
@@ -352,8 +361,8 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     $('#toggleDraftPause'),
   ));
   $('#startDraftFromTeam')?.addEventListener('click', () => confirmStartDraft(context));
-  $('#editMyTeam').hidden = false;
-  $('#editMyTeam').onclick = () => {
+  $('#editMyTeam').hidden = context.leagueStatus !== 'active';
+  const openTeamNameEditor = () => {
     dialog(`<p class="eyebrow">Team settings</p><h2>Edit team name</h2><label>Team name<input id="workspaceTeamName" maxlength="80" value="${safe(ownTeam.team_name || '')}"></label><div class="modal-actions"><button id="saveWorkspaceTeamName">Save</button></div>`);
     $('#saveWorkspaceTeamName').addEventListener('click', () => runAction(
       () => db.rpc('update_league_team_name', { p_league_id: context.leagueId, p_team_name: $('#workspaceTeamName').value.trim() }),
@@ -361,6 +370,8 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       $('#saveWorkspaceTeamName'),
     ));
   };
+  $('#editMyTeam').onclick = context.leagueStatus === 'active' ? openTeamNameEditor : null;
+  body.querySelector('.workspace-roster-edit')?.addEventListener('click', openTeamNameEditor);
   body.querySelectorAll('[data-workspace-claim]').forEach((button) => button.addEventListener('click', () => {
     const incoming = data.cast.find((member) => member.id === button.dataset.workspaceClaim);
     if (!incoming) return;

@@ -152,6 +152,7 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-draft-status > div:first-child > strong { display: block; font: 650 clamp(17px,2vw,23px) Georgia,serif; }
 .workspace-draft-status .sub { margin: 6px 0 0; font-size: 11px; }
 .workspace-draft-status #toggleDraftPause { margin-top: 12px; }
+.workspace-roster-edit { flex: 0 0 auto; margin: 0; padding: 7px 10px; font-size: 11px; }
 .workspace-draft-timer { display: grid; align-content: center; justify-items: center; min-width: 106px; padding: 8px 12px; border-radius: 9px; background: #fff; }
 .workspace-draft-timer strong { color: #302638; font: 750 24px sans-serif; font-variant-numeric: tabular-nums; }
 .workspace-draft-timer strong.urgent { color: #ab2d5f; }
