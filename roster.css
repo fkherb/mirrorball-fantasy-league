@@ -134,8 +134,20 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-setup-facts span { padding: 9px 12px; border-radius: 8px; background: #f3eef2; font-size: 12px; }
 .workspace-setup-facts b { font-size: 17px; }
 .workspace-inline-link { display: inline-block; margin-top: 8px; color: #593751; font-weight: 800; }
-.workspace-auto-size { display: flex; align-items: center; gap: 9px; }
-.workspace-auto-size input { width: auto !important; margin: 0 !important; }
+.workspace-roster-setting { display: flex; align-items: end; gap: 14px; margin: 16px 0 8px; }
+.workspace-roster-size { flex: 0 0 112px; }
+.workspace-roster-size input { width: 100%; text-align: center; }
+.workspace-roster-size input:disabled { background: #f0ecf0; color: #8c828d; opacity: 1; cursor: default; }
+.workspace-auto-size { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; white-space: nowrap; }
+.workspace-auto-size input { width: 16px !important; height: 16px; margin: 0 !important; accent-color: #49364b; }
+.workspace-roster-help { line-height: 1.45; }
+.workspace-create-league .sub { line-height: 1.45; }
+.workspace-create-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 17px; }
+.workspace-create-facts span { padding: 11px; border: 1px solid #e8e0e7; border-radius: 9px; background: #faf7f9; }
+.workspace-create-facts b,.workspace-create-facts small { display: block; }
+.workspace-create-facts b { font-size: 12px; }
+.workspace-create-facts small { margin-top: 4px; color: #786e79; font-size: 10px; }
+@media (max-width: 420px) { .workspace-create-facts { grid-template-columns: 1fr; } }
 .workspace-standing-card { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 14px 17px; background: #fff; color: #302638; text-align: left; }
 .workspace-standing-card:hover,.workspace-standing-card:focus-visible { border-color: #9d7795; background: #fbf8fa; }
 .workspace-standing-card small,.workspace-standing-card b { display: block; }

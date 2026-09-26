@@ -137,7 +137,7 @@ export async function renderLeagueHub(context) {
   container.innerHTML = `${onboarding}<div class="workspace-section-head"><h2>Your leagues</h2><button id="createLeagueButton" type="button" ${createDisabled ? 'disabled' : ''}>Create</button></div>${context.leaguesError ? '<p class="account-league-note">Couldn’t load your leagues. Refresh to try again.</p><button id="retryAccountLeagues" type="button">Try again</button>' : `<div class="workspace-league-list">${leagues.map((league) => `<a class="workspace-league-link ${league.league_id === context.leagueId ? 'current' : ''}" href="${safe(leagueUrl(league.league_id))}" ${league.league_id === context.leagueId ? 'aria-current="page"' : ''}><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<p class="account-league-note">No leagues yet. Create one to invite friends.</p>'}</div><p class="account-league-limits">${leagues.length} of 5 joined · ${ownedCount} of 2 created</p>`}${invites.length ? `<section class="workspace-invites-mini"><div class="workspace-inbox-head"><h2>Invitations</h2><span>${invites.length}</span></div><div class="workspace-invite-list">${invites.map((invite) => `<article class="workspace-invite-row"><span class="workspace-invite-mark" aria-hidden="true">${safe(invite.league_name.charAt(0).toUpperCase())}</span><div class="workspace-invite-copy"><b>${safe(invite.league_name)}</b><small>Invited by @${safe(invite.inviter_username)}</small></div><div class="workspace-invite-actions"><button data-invite-accept="${invite.id}" ${membershipLimitReached || context.leaguesError ? 'disabled' : ''}>Join</button><button class="secondary" data-invite-decline="${invite.id}">Decline</button></div></article>`).join('')}</div></section>` : ''}`;
   $('#retryAccountLeagues')?.addEventListener('click', () => location.reload());
   $('#createLeagueButton')?.addEventListener('click', () => {
-    dialog('<p class="eyebrow">New league</p><h2>Create a League</h2><p class="sub">Name your league, then invite 2–5 more managers. Roster size adjusts automatically as they join; you can change it in League settings before the draft.</p><label>League name<input id="newLeagueName" maxlength="80" placeholder="e.g. Saturday Night League"></label><div class="modal-actions"><button id="confirmCreateLeague">Create league</button></div>');
+    dialog('<div class="workspace-create-league"><p class="eyebrow">New league</p><h2>Create a League</h2><p class="sub">Start a private league, then invite your friends.</p><label>League name<input id="newLeagueName" maxlength="80" placeholder="e.g. Saturday Night League"></label><div class="workspace-create-facts"><span><b>3–6 managers</b><small>Invite friends after creating</small></span><span><b>Auto-sized rosters</b><small>Adjustable before the draft</small></span></div><div class="modal-actions"><button id="confirmCreateLeague">Create league</button></div></div>');
     $('#confirmCreateLeague').addEventListener('click', () => {
       let createdId;
       runAction(async () => {
@@ -735,15 +735,27 @@ function confirmStartDraft(context) {
 }
 
 function openLeagueSettings(context, refresh) {
-  dialog(`<p class="eyebrow">League settings</p><h2>Edit ${safe(context.leagueName)}</h2><label>League name<input id="workspaceLeagueName" maxlength="80" value="${safe(context.leagueName)}"></label><label class="workspace-auto-size"><input id="workspaceAutoRoster" type="checkbox" ${context.rosterSizeOverridden ? '' : 'checked'} ${context.leagueStatus === 'setup' ? '' : 'disabled'}> Set roster size automatically as managers join</label><label>Cast members per team / draft rounds<input id="workspaceRosterSize" type="number" min="1" max="30" value="${context.rosterSize}" ${context.leagueStatus === 'setup' && context.rosterSizeOverridden ? '' : 'disabled'}></label><p class="sub">${context.leagueStatus === 'setup' ? `Current plan: ${context.memberCount} manager${context.memberCount === 1 ? '' : 's'} · ${context.rosterSize} rounds. Manual roster size × managers cannot exceed ${context.castCount} cast members. The size locks when the draft begins.` : 'The draft has started, so roster size is locked.'}</p><div class="modal-actions"><button id="saveWorkspaceSettings">Save settings</button></div><div class="workspace-danger-zone"><h3>Delete league</h3><p class="sub">Permanently remove this league, its teams, invitations, draft, trades, and scoring history for every manager. This cannot be undone.</p><button id="deleteWorkspaceLeague" class="danger">Delete league</button></div>`);
-  $('#workspaceAutoRoster').addEventListener('change', () => {
-    $('#workspaceRosterSize').disabled = $('#workspaceAutoRoster').checked;
+  const isSetup = context.leagueStatus === 'setup';
+  const rosterOptions = isSetup ? `<div class="workspace-roster-setting"><label class="workspace-roster-size">Roster size<input id="workspaceRosterSize" type="number" min="1" max="30" inputmode="numeric" value="${context.rosterSize}" ${context.rosterSizeOverridden ? '' : 'disabled'}></label><label class="workspace-auto-size"><input id="workspaceAutoRoster" type="checkbox" ${context.rosterSizeOverridden ? '' : 'checked'}>Auto-size</label></div><p class="sub workspace-roster-help">${context.memberCount} manager${context.memberCount === 1 ? '' : 's'} joined. Roster size equals draft rounds; Auto-size adjusts it as managers join. A manual size × managers cannot exceed ${context.castCount} cast members.</p>` : '';
+  dialog(`<p class="eyebrow">League settings</p><h2>Edit ${safe(context.leagueName)}</h2><label>League name<input id="workspaceLeagueName" maxlength="80" value="${safe(context.leagueName)}"></label>${rosterOptions}<div class="modal-actions"><button id="saveWorkspaceSettings">Save changes</button></div><div class="workspace-danger-zone"><h3>Delete league</h3><p class="sub">Permanently remove this league, its teams, invitations, draft, trades, and scoring history for every manager. This cannot be undone.</p><button id="deleteWorkspaceLeague" class="danger">Delete league</button></div>`);
+  let manualRosterSize = context.rosterSize;
+  $('#workspaceAutoRoster')?.addEventListener('change', () => {
+    const field = $('#workspaceRosterSize');
+    const automatic = $('#workspaceAutoRoster').checked;
+    if (automatic) {
+      manualRosterSize = Number(field.value) || context.rosterSize;
+      const suggested = context.memberCount >= 5 ? 8 : context.memberCount === 4 ? 10 : 12;
+      field.value = Math.max(1, Math.min(suggested,
+        Math.floor(context.castCount / Math.max(3, context.memberCount))));
+    } else field.value = manualRosterSize;
+    field.disabled = automatic;
   });
   $('#saveWorkspaceSettings').addEventListener('click', () => runAction(
     () => db.rpc('update_league_workspace', { p_league_id: context.leagueId,
       p_name: $('#workspaceLeagueName').value.trim(),
-      p_roster_size: $('#workspaceAutoRoster').checked ? null : Number($('#workspaceRosterSize').value),
-      p_auto_roster: $('#workspaceAutoRoster').checked }),
+      p_roster_size: isSetup ? $('#workspaceAutoRoster').checked ? null : Number($('#workspaceRosterSize').value)
+        : context.rosterSize,
+      p_auto_roster: isSetup ? $('#workspaceAutoRoster').checked : null }),
     async () => { $('#modal').close(); location.reload(); },
     $('#saveWorkspaceSettings'),
   ));
