@@ -52,6 +52,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const pictureFile = document.querySelector('#accountPictureFile');
   const picturePicker = document.querySelector('#chooseCastPicture');
   const pictureClear = document.querySelector('#clearAccountPicture');
+  const pictureButton = document.querySelector('#accountPictureButton');
+  const pictureOptions = document.querySelector('#accountPictureOptions');
+  const profileFields = document.querySelector('#accountProfileFields');
+  const profileActions = document.querySelector('#accountProfileActions');
+  const profileEdit = document.querySelector('#editAccountProfile');
+  const profileCancel = document.querySelector('#cancelAccountProfile');
   const profileHint = document.querySelector('#accountProfileHint');
   const myTeamNav = document.querySelector('#myTeamNav');
   const scoreDeskLink = document.querySelector('#scoreDeskLink');
@@ -68,6 +74,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   let selectedAvatarUrl = '';
   let pendingPicture = null;
   let previewObjectUrl = null;
+  let profileEditing = false;
+  let pictureDirty = false;
+  const syncProfileControls = () => {
+    profileFields.hidden = !profileEditing;
+    profileActions.hidden = !profileEditing && !pictureDirty;
+    profileEdit.textContent = profileEditing ? 'Editing' : 'Edit';
+    profileEdit.disabled = profileEditing;
+  };
+  const markPictureDirty = () => {
+    pictureDirty = true;
+    pictureOptions.hidden = true;
+    pictureButton.setAttribute('aria-expanded', 'false');
+    syncProfileControls();
+  };
 
   const updatePicturePreview = (url, name = '') => {
     picturePreview.hidden = !url;
@@ -96,6 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     selectedAvatarUrl = '';
     previewObjectUrl = URL.createObjectURL(file);
     updatePicturePreview(previewObjectUrl, displayNameInput.value);
+    markPictureDirty();
   });
   const uploadLabel = document.querySelector('.account-upload-label');
   uploadLabel.tabIndex = 0;
@@ -112,6 +133,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     pictureFile.value = '';
     selectedAvatarUrl = '';
     updatePicturePreview('', displayNameInput.value);
+    markPictureDirty();
+  });
+  pictureButton.addEventListener('click', () => {
+    pictureOptions.hidden = !pictureOptions.hidden;
+    pictureButton.setAttribute('aria-expanded', String(!pictureOptions.hidden));
+  });
+  profileEdit.addEventListener('click', () => {
+    profileEditing = true;
+    syncProfileControls();
+    usernameInput.focus();
+  });
+  profileCancel.addEventListener('click', () => {
+    releasePreview();
+    pendingPicture = null;
+    pictureFile.value = '';
+    pictureDirty = false;
+    profileEditing = false;
+    usernameInput.value = currentProfile?.username || '';
+    displayNameInput.value = currentProfile?.display_name || '';
+    selectedAvatarUrl = currentProfile?.avatar_url || '';
+    updatePicturePreview(selectedAvatarUrl, displayNameInput.value);
+    pictureOptions.hidden = true;
+    pictureButton.setAttribute('aria-expanded', 'false');
+    syncProfileControls();
   });
   picturePicker.addEventListener('click', async () => {
     picturePicker.disabled = true;
@@ -139,13 +184,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const label = document.createElement('span');
       label.textContent = member.name;
       choice.append(image, label);
-      choice.addEventListener('click', () => {
+      choice.addEventListener('click', (event) => {
+        event.stopPropagation();
         releasePreview();
         pendingPicture = null;
         pictureFile.value = '';
         selectedAvatarUrl = url;
         updatePicturePreview(url, displayNameInput.value);
+        markPictureDirty();
         modal.close();
+        menu.hidden = false;
+        auth.setAttribute('aria-expanded', 'true');
       });
       grid.append(choice);
     }
@@ -229,23 +278,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     email.textContent = signedInEmail || '';
     usernameInput.value = currentProfile?.username || '';
     displayNameInput.value = displayName;
+    document.querySelector('#accountUsernameText').textContent = currentProfile?.username ? `@${currentProfile.username}` : 'Username not set';
+    document.querySelector('#accountDisplayNameText').textContent = displayName || 'Set up your profile';
     releasePreview();
     pendingPicture = null;
+    pictureDirty = false;
+    profileEditing = currentProfile?.onboarding_completed === false;
+    profileCancel.hidden = profileEditing;
     pictureFile.value = '';
     selectedAvatarUrl = currentProfile?.avatar_url || '';
     updatePicturePreview(selectedAvatarUrl, displayName);
+    pictureOptions.hidden = true;
+    pictureButton.setAttribute('aria-expanded', 'false');
+    syncProfileControls();
     profileHint.hidden = currentProfile?.onboarding_completed !== false;
     myLeaguesNav.hidden = true;
     const labelMode = currentMember?.team_nav_label_mode || 'default';
-    const teamNavLabel = labelMode === 'custom' && currentMember?.custom_team_nav_label
+    const teamNavLabel = selectedLeague?.league_id !== defaultLeagueId && ['setup', 'drafting'].includes(selectedLeague?.status) ? 'Draft'
+      : labelMode === 'custom' && currentMember?.custom_team_nav_label
       ? currentMember.custom_team_nav_label
       : labelMode === 'team' && teamName ? teamName : 'My Team';
     myTeamNav.querySelector('.nav-label').textContent = teamNavLabel;
     myTeamNav.setAttribute('aria-label', teamNavLabel);
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
+    const dancesNav = buttons.find((button) => button.dataset.view === 'score');
+    dancesNav.hidden = selectedLeague?.league_id !== defaultLeagueId && ['setup', 'drafting'].includes(selectedLeague?.status);
     scoreDeskLink.hidden = !isPlatformAdmin;
     castRosterLink.hidden = !isPlatformAdmin;
-    if (requestedView === 'teams' && myTeamNav.hidden) openView('standings', false);
+    if ((requestedView === 'teams' && myTeamNav.hidden) || (requestedView === 'score' && dancesNav.hidden)) openView('standings', false);
     else openView(requestedView, false);
     if (previousUserId !== session?.user?.id) menu.hidden = true;
     auth.setAttribute('aria-expanded', String(!menu.hidden));
@@ -257,7 +317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const view = location.hash.slice(1);
     if (rememberedViews.has(view)) {
       requestedView = view;
-      if (view !== 'teams' || !myTeamNav.hidden) openView(view, false);
+      if ((view !== 'teams' || !myTeamNav.hidden) && (view !== 'score' || !buttons.find((button) => button.dataset.view === 'score').hidden)) openView(view, false);
     }
   });
   db.auth.onAuthStateChange((event, nextSession) => {
@@ -301,14 +361,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       if (upload.error) {
         button.disabled = false;
-        button.textContent = 'Save profile';
+        button.textContent = 'Save changes';
         return alert('Couldn’t upload your picture. Please try again.');
       }
       avatarUrl = db.storage.from('profile-pictures').getPublicUrl(path).data.publicUrl;
     }
     const { error } = await db.rpc('update_my_profile', { p_username: username, p_display_name: displayName, p_avatar_url: avatarUrl || null });
     button.disabled = false;
-    button.textContent = 'Save profile';
+    button.textContent = 'Save changes';
     if (error) return alert(error.message.includes('already taken') ? 'That username is already taken.' : `Couldn’t save your profile: ${error.message}`);
     await showAccess(currentSession);
     menu.hidden = false;

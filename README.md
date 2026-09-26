@@ -207,14 +207,25 @@ public bucket accepts JPEG, PNG, and WebP files up to 2 MB; authenticated users
 can upload only into their own UUID-named folder. Cast-photo selection does not
 require an upload.
 
-Deployment check: after running the migration, sign in as two existing users,
-confirm their current league/teams still appear, create a disposable test
-league from the account menu with roster size 2, invite the second user by
-username or link, make all four draft picks,
-and confirm neither league's roster or standings change when switching to the
-other. The migration is transactional, but the project currently has no local
-Supabase test database, so this live multi-account check must precede publishing
-the new site. Do not rerun old schema files on the live project.
+Then run `supabase/finish-league-draft-setup.sql` before publishing the next
+website update. Setup leagues automatically size rosters as managers join:
+3 managers → 12 cast each, 4 → 10, 5 → 8, and 6 → 8, capped by the actual
+cast pool. Until three join, the 3-manager size is shown provisionally.
+Owners can override or restore automatic sizing before the draft starts.
+Only 3–6 managers can start a draft. Once the final pick is made, the league
+receives historical snapshots for every already-completed week using the
+original draft teams, so all earlier show points count. This migration also
+repairs completed secondary-league drafts that have the full pick record.
+
+Deployment check: after running the migration, sign in as three existing users,
+confirm their current league/teams still appear, create a test league from the
+account menu, invite the other two users by username or link, and make all 36
+draft picks with the automatic 12-person roster. To make a shorter smoke test,
+the owner can manually reduce the roster to 1 or 2 in League settings before
+starting. Confirm all completed show points appear after the final pick, and
+that switching leagues never changes another league's roster. The project has
+no local Supabase test database, so this multi-account check remains important.
+Do not rerun old schema files on the live project.
 
 Identity ownership after this migration:
 

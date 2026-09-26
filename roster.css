@@ -62,6 +62,29 @@
 .account-picture-choice span { font-size: 10px; text-align: center; }
 .account-menu .invite-count { display: inline; margin: 0; }
 .account-picture-row > [hidden] { display: none; }
+.account-profile-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.account-menu .account-profile-heading h2 { margin: 0; }
+.account-menu .account-profile-heading button { width: auto; margin: 0; padding: 6px 11px; }
+.account-profile-summary { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.account-picture-area { position: relative; flex: 0 0 auto; }
+.account-menu #accountPictureButton { position: relative; display: grid; place-items: center; width: 64px; height: 64px; padding: 0; margin: 0; border-radius: 50%; background: #efe8ee; color: #564258; }
+#accountPictureButton > img, #accountPictureButton > span:first-of-type { width: 64px; height: 64px; margin: 0; border-radius: 50%; object-fit: cover; }
+#accountPictureButton > span:first-of-type { display: grid; place-items: center; font: 700 25px Georgia, serif; }
+#accountPictureButton > [hidden] { display: none !important; }
+#accountPictureButton .account-picture-edit { position: absolute; right: -3px; bottom: -3px; display: grid; place-items: center; width: 23px; height: 23px; margin: 0; border-radius: 50%; border: 2px solid white; background: #302638; color: white; font-size: 12px; }
+.account-profile-identities { min-width: 0; }
+.account-profile-identities b, .account-profile-identities small { display: block; overflow-wrap: anywhere; }
+.account-profile-identities small { margin-top: 4px; color: #786e79; }
+#accountPictureOptions { position: absolute; z-index: 8; top: calc(100% + 8px); left: 0; width: min(245px, calc(100vw - 45px)); padding: 9px; border: 1px solid #e8e0e7; border-radius: 9px; background: #fff; box-shadow: 0 12px 25px #1f132433; }
+#accountPictureOptions[hidden], #accountProfileFields[hidden], #accountProfileActions[hidden] { display: none; }
+#accountPictureOptions .account-upload-label, #accountPictureOptions button { display: block; width: 100%; margin: 0 0 5px; padding: 8px; border-radius: 7px; background: #f2ecf1; color: #302638; text-align: center; font-size: 11px; font-weight: 750; cursor: pointer; }
+#accountPictureOptions .account-upload-label:focus-visible { outline: 2px solid #7d4e73; }
+#accountPictureFile { display: none; }
+#accountPictureOptions .account-picture-hint { margin: 7px 2px 0; }
+#accountProfileFields { margin-top: 14px; }
+#accountProfileActions { display: flex; gap: 8px; margin-top: 11px; }
+.account-menu #accountProfileActions button { width: auto; flex: 1; margin: 0; }
+.account-profile-summary:has(+ #accountProfileFields:not([hidden])) { margin-bottom: 10px; }
 #joinInviteBanner:not(:empty) { max-width: 760px; margin: 0 0 24px; }
 @media (max-width: 520px) { .account-menu { right: -4px; max-height: calc(100dvh - 90px); } }
 
@@ -85,6 +108,14 @@
 .workspace-invite-banner a { margin-left: 10px; }
 .invite-count { color: #786e79; font: 700 13px sans-serif; }
 .workspace-standings-list,.workspace-dance-list { display: grid; gap: 10px; }
+.workspace-setup-panel { margin-bottom: 15px; }
+.workspace-setup-panel h2 { margin: 3px 0 8px; }
+.workspace-setup-facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 15px 0; }
+.workspace-setup-facts span { padding: 9px 12px; border-radius: 8px; background: #f3eef2; font-size: 12px; }
+.workspace-setup-facts b { font-size: 17px; }
+.workspace-inline-link { display: inline-block; margin-top: 8px; color: #593751; font-weight: 800; }
+.workspace-auto-size { display: flex; align-items: center; gap: 9px; }
+.workspace-auto-size input { width: auto !important; margin: 0 !important; }
 .workspace-standing-card { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 14px 17px; background: #fff; color: #302638; text-align: left; }
 .workspace-standing-card:hover,.workspace-standing-card:focus-visible { border-color: #9d7795; background: #fbf8fa; }
 .workspace-standing-card small,.workspace-standing-card b { display: block; }

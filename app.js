@@ -1,5 +1,5 @@
 import { db } from './supabase-client.js';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-profile-modal-fix';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-draft-setup-v2';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -606,13 +606,25 @@ async function loadStandings() {
     return { team, roster, total };
   }).sort((a, b) => b.total - a.total || (a.team.team_name || a.team.manager_name).localeCompare(b.team.team_name || b.team.manager_name));
   const latestWeek = [...weeksResult.data].reverse().find((week) => week.is_complete);
-  $('#standingsSubtitle').textContent = latestWeek ? `Through ${weekTitle(latestWeek)} · current fantasy-team totals` : 'Current fantasy-team totals.';
+  $('#standingsSubtitle').textContent = latestWeek ? `Through ${weekTitle(latestWeek)} · current fantasy-team totals` : 'The season is ready. Standings begin after the first completed show.';
   if (!teamRows.length) {
     $('#standingsContent').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
     $('#overviewTeamDetail').innerHTML = '';
     $('#publicTeamResults').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
     return;
   }
+  if (!latestWeek) {
+    standingsSnapshot.teamRows = teamRows;
+    if (managerTeamId && teamRows.some((row) => row.team.id === managerTeamId)) selectedPublicTeamId = managerTeamId;
+    else selectedPublicTeamId = teamRows[0].team.id;
+    $('#standingsContent').innerHTML = `<section class="card pad workspace-setup-panel"><p class="eyebrow">Before the first show</p><h2>Your league is ready</h2><p class="sub">Teams and cast are in place. Weekly standings and highlights will appear when the first show is completed.</p><div class="workspace-setup-facts"><span><b>${teams.length}</b> teams</span><span><b>${members.length}</b> cast members</span></div></section><div class="workspace-standings-list">${teamRows.map((row) => `<article class="card workspace-standing-card"><span class="workspace-rank">•</span><span><small>${escapeHtml(row.team.manager_name)}</small><b>${escapeHtml(row.team.team_name || defaultTeamName(row.team.manager_name))}</b></span><strong>${row.roster.length} cast</strong></article>`).join('')}</div>`;
+    $('#overviewTeamDetail').innerHTML = '';
+    $('.highlight-preview').hidden = true;
+    renderPublicTeams();
+    return;
+  }
+  $('.highlight-preview').hidden = false;
+  $('.highlight-preview').style.display = '';
   const leaderTotal = teamRows[0].total;
   const isFirstPlaceTie = teamRows.filter((row) => row.total === leaderTotal).length > 1;
   if (!teamRows.some((row) => row.team.id === selectedOverviewTeamId)) selectedOverviewTeamId = teamRows[0].team.id;
@@ -761,6 +773,7 @@ function renderPublicTeams() {
   if (selectedPublicWeekId !== 'all' && !visibleWeeks.some((week) => week.id === selectedPublicWeekId)) selectedPublicWeekId = 'all';
   const displayName = selected.team.team_name || defaultTeamName(selected.team.manager_name);
   $('#myTeamTitle').textContent = selected.team.team_name || 'My Team';
+  $('#myTeamSubtitle').textContent = 'View your roster, weekly scores, and the available cast.';
   $('#myTeamEyebrow').textContent = `${managerFirstName || selected.team.manager_name.split(' ')[0]}'s Manager View`;
   const roster = members.filter((member) => member.fantasy_team_id === selected.team.id).sort((a, b) => a.name.localeCompare(b.name));
   const available = members.filter((member) => !member.fantasy_team_id).sort((a, b) => a.name.localeCompare(b.name));
