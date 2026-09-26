@@ -1,5 +1,5 @@
 import { db } from './supabase-client.js';
-import { renderLeagueHub, renderSecondaryLeague } from './league-workspace.js?v=20260925-multi-league-v1';
+import { renderLeagueHub, renderSecondaryLeague } from './league-workspace.js?v=20260926-league-read-fix';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -190,7 +190,7 @@ async function getPairingData() {
     db.from('cast_members').select('*').order('name'),
     db.from('partnerships').select('id,star_id,pro_id,active,partnership_name').eq('active', true),
     db.from('weeks').select('id,number,label').order('number', { ascending: false }),
-    db.from('fantasy_teams').select('id,manager_name,team_name'),
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId),
     getTeamManagerMap(),
   ]);
   if (playerError || pairingError || weekError || teamError) throw new Error(playerError?.message || pairingError?.message || weekError?.message || teamError?.message);
@@ -388,7 +388,7 @@ async function loadTeams() {
   const loadVersion = ++loadVersions.teams;
   $('#commissionerTeamResults').innerHTML = loadingMarkup('Loading fantasy teams');
   const [{ data: teams, error: teamError }, { data: castMembers, error: castError }, managerMap] = await Promise.all([
-    db.from('fantasy_teams').select('*').order('manager_name'),
+    db.from('fantasy_teams').select('*').eq('league_id', defaultLeagueId).order('manager_name'),
     db.from('cast_members').select('*').order('name'),
     getTeamManagerMap(),
   ]);
@@ -437,7 +437,7 @@ async function loadTeams() {
 
 async function openTeamDetail(teamId) {
   const [{ data: team, error: teamError }, { data: roster, error: rosterError }, managerMap] = await Promise.all([
-    db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId).eq('id', teamId).single(),
     db.from('cast_members').select('*').eq('fantasy_team_id', teamId).order('name'),
     getTeamManagerMap(),
   ]);
@@ -456,7 +456,7 @@ async function openTeamDetail(teamId) {
 
 async function editTeamCard(teamId) {
   const [{ data: team, error: teamError }, { data: roster, error: rosterError }, managerMap] = await Promise.all([
-    db.from('fantasy_teams').select('id,manager_name,team_name').eq('id', teamId).single(),
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId).eq('id', teamId).single(),
     db.from('cast_members').select('*').eq('fantasy_team_id', teamId).order('name'),
     getTeamManagerMap(),
   ]);
@@ -547,7 +547,7 @@ async function loadStandings() {
   $('#standingsContent').innerHTML = loadingMarkup('Loading standings');
   if ($('#publicTeamResults')) $('#publicTeamResults').innerHTML = loadingMarkup('Loading your team');
   const [teamsResult, membersResult, rolesResult, partnershipsResult, weeksResult, dancesResult, scoresResult, appearancesResult] = await Promise.all([
-    db.from('fantasy_teams').select('id,manager_name,team_name').order('manager_name'),
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId).order('manager_name'),
     db.from('cast_members').select('*').order('name'),
     db.from('roles').select('name,appearance_points'),
     db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
@@ -570,7 +570,7 @@ async function loadStandings() {
   let rosterSnapshots = [];
   if (weeksResult.data.some((week) => Object.prototype.hasOwnProperty.call(week, 'is_complete'))) {
     const snapshotColumns = weeksResult.data.some((week) => Object.prototype.hasOwnProperty.call(week, 'uses_rate_snapshots')) ? 'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role,appearance_points' : 'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role';
-    const { data, error: snapshotError } = await db.from('weekly_roster_snapshots').select(snapshotColumns);
+    const { data, error: snapshotError } = await db.from('weekly_roster_snapshots').select(snapshotColumns).eq('league_id', defaultLeagueId);
     if (loadVersion !== loadVersions.standings) return;
     if (snapshotError) {
       console.error(snapshotError);
@@ -1177,7 +1177,7 @@ async function loadScoreDesk() {
   const [pairResult, roleResult, snapshotResult] = await Promise.all([
     getPairingData().then((data) => ({ data })).catch((error) => ({ error })),
     db.from('roles').select('name,appearance_points'),
-    week.is_complete ? db.from('weekly_roster_snapshots').select('*').eq('week_id', week.id) : Promise.resolve({ data: [], error: null }),
+    week.is_complete ? db.from('weekly_roster_snapshots').select('*').eq('league_id', defaultLeagueId).eq('week_id', week.id) : Promise.resolve({ data: [], error: null }),
   ]);
   if (loadVersion !== scoreDeskLoadVersion) return;
   const detailError = pairResult.error || roleResult.error || snapshotResult.error;
@@ -1289,7 +1289,7 @@ async function openWeekLedger(week) {
   if (!canManageShow) return alert('Platform-owner access is required to open the Week Ledger.');
   const [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult] = await Promise.all([
     db.from('cast_members').select('*').order('name'),
-    db.from('fantasy_teams').select('id,manager_name,team_name'),
+    db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId),
     db.from('roles').select('name,appearance_points'),
     db.from('weeks').select('*').order('number'),
     db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
@@ -1306,7 +1306,7 @@ async function openWeekLedger(week) {
   if (error) return alert(`Couldn’t load the week ledger: ${error.message}`);
   let snapshots = [];
   if (Object.prototype.hasOwnProperty.call(week, 'is_complete')) {
-    const { data, error: snapshotError } = await db.from('weekly_roster_snapshots').select('*').eq('week_id', week.id);
+    const { data, error: snapshotError } = await db.from('weekly_roster_snapshots').select('*').eq('league_id', defaultLeagueId).eq('week_id', week.id);
     if (snapshotError) return alert(`Couldn’t load the week roster: ${snapshotError.message}`);
     snapshots = data;
   }

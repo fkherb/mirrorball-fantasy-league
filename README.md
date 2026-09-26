@@ -196,6 +196,11 @@ size is the number of draft rounds and locks when drafting starts. Managers
 make each pick using Claim under Available Cast on My Team; after the draft,
 claims require releasing a current cast member.
 
+After that migration, run `supabase/fix-default-league-read-access.sql` before
+using the signed-in legacy league pages. It restores execute access to the
+public default-league ID helper used by read policies and removes an obsolete
+email-based policy that could write teams outside the original league.
+
 Deployment check: after running the migration, sign in as two existing users,
 confirm their current league/teams still appear, create a disposable test
 league, invite the second user by username and link, make a few draft picks,
