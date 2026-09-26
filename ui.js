@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentProfile = null;
   let membershipReady = false;
   let accessVersion = 0;
+  let currentAccessDetail = null;
   let selectedAvatarUrl = '';
   let pendingPicture = null;
   let previewObjectUrl = null;
@@ -244,7 +245,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     else openView(requestedView, false);
     menu.hidden = true;
     auth.setAttribute('aria-expanded', 'false');
-    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, leaguesError, joinToken } }));
+    currentAccessDetail = { signedIn: Boolean(signedInEmail), userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, leaguesError, joinToken };
+    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: currentAccessDetail }));
   }
 
   const { data: { session } } = await db.auth.getSession();
@@ -263,6 +265,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!signedIn) return openView('signin');
     menu.hidden = !menu.hidden;
     auth.setAttribute('aria-expanded', String(!menu.hidden));
+    if (!menu.hidden && currentAccessDetail) {
+      window.dispatchEvent(new CustomEvent('mirrorball-account-open', { detail: currentAccessDetail }));
+    }
   });
   document.addEventListener('click', (event) => {
     if (!menu.hidden && !document.querySelector('#modal').open && !event.target.closest('.account')) {

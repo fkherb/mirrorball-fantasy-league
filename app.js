@@ -1,5 +1,5 @@
 import { db } from './supabase-client.js';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-account-menu-avatars';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260926-account-menu-refresh';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1680,4 +1680,5 @@ if (isScoreDeskSurface) {
     loadScoreDesk();
     loadRules();
   });
+  window.addEventListener('mirrorball-account-open', (event) => renderLeagueHub(event.detail));
 }

@@ -181,16 +181,17 @@ method, generates deterministic temporary usernames, and installs the signup
 trigger for future accounts. Profile display names become the identity source;
 legacy names on `league_members` and `fantasy_teams` remain synchronized for
 older cached clients, while completed-week snapshot names remain deliberately
-historical. Users can update their own username, display name, and avatar URL,
-and only the safe public directory fields are available for league discovery.
+historical. Users can update their own username and display name, upload a
+profile picture, or choose a cast photo. Only the safe public directory fields
+are available for league discovery.
 
 Next, run `supabase/activate-multi-league-workspaces.sql` **before deploying the
 matching website changes**. This one-time migration leaves the existing league
 and its historical data intact. It adds private owner/member workspaces,
 username and revocable-link invitations, league-specific teams and rates, a
 randomized snake draft, and league-specific roster snapshots and trades. It
-does not create another league automatically. New leagues are created only by
-an onboarded user in My Leagues. A new league remains in setup, then drafting,
+does not create another league automatically. New leagues are created from the
+account menu by an onboarded user. A new league remains in setup, then drafting,
 and becomes active only after all configured rounds are picked. The roster
 size is the number of draft rounds and locks when drafting starts. Managers
 make each pick using Claim under Available Cast on My Team; after the draft,
@@ -201,9 +202,15 @@ using the signed-in legacy league pages. It restores execute access to the
 public default-league ID helper used by read policies and removes an obsolete
 email-based policy that could write teams outside the original league.
 
+Run `supabase/add-profile-picture-storage.sql` to enable profile uploads. The
+public bucket accepts JPEG, PNG, and WebP files up to 2 MB; authenticated users
+can upload only into their own UUID-named folder. Cast-photo selection does not
+require an upload.
+
 Deployment check: after running the migration, sign in as two existing users,
 confirm their current league/teams still appear, create a disposable test
-league, invite the second user by username and link, make a few draft picks,
+league from the account menu with roster size 2, invite the second user by
+username or link, make all four draft picks,
 and confirm neither league's roster or standings change when switching to the
 other. The migration is transactional, but the project currently has no local
 Supabase test database, so this live multi-account check must precede publishing
