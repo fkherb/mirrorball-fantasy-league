@@ -156,7 +156,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function showAccess(session) {
     const version = ++accessVersion;
     const previousUserId = currentSession?.user?.id;
-    const keepMenuOpen = !menu.hidden && previousUserId === session?.user?.id;
     currentSession = session;
     const signedInEmail = session?.user?.email;
     const metadata = session?.user?.user_metadata || {};
@@ -245,8 +244,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     castRosterLink.hidden = !isPlatformAdmin;
     if (requestedView === 'teams' && myTeamNav.hidden) openView('standings', false);
     else openView(requestedView, false);
-    menu.hidden = !keepMenuOpen;
-    auth.setAttribute('aria-expanded', String(keepMenuOpen));
+    if (previousUserId !== session?.user?.id) menu.hidden = true;
+    auth.setAttribute('aria-expanded', String(!menu.hidden));
     currentAccessDetail = { signedIn: Boolean(signedInEmail), userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, leaguesError, joinToken };
     window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: currentAccessDetail }));
   }
@@ -261,7 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   db.auth.onAuthStateChange((event, nextSession) => {
-    if (event === 'TOKEN_REFRESHED') {
+    if (event === 'TOKEN_REFRESHED' || (event === 'SIGNED_IN' && currentSession?.user?.id === nextSession?.user?.id)) {
       currentSession = nextSession;
       return;
     }
