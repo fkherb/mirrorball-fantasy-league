@@ -109,9 +109,9 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-league-list,.workspace-invite-list { display: grid; gap: 10px; }
 .workspace-league-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px; color: #302638; text-decoration: none; }
 .workspace-league-link:hover,.workspace-league-link:focus-visible { border-color: #9d7795; background: #faf6f9; }
-.workspace-league-link b,.workspace-league-link small,.workspace-invite-row small,.workspace-member-grid small { display: block; }
+.workspace-league-link b,.workspace-league-link small,.workspace-invite-row small { display: block; }
 .workspace-league-link b { font: 600 19px Georgia, serif; }
-.workspace-league-link small,.workspace-invite-row small,.workspace-member-grid small { color: #786e79; margin-top: 5px; }
+.workspace-league-link small,.workspace-invite-row small { color: #786e79; margin-top: 5px; }
 .workspace-invite-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .workspace-invite-row > div:last-child { display: flex; gap: 5px; }
 .workspace-onboarding,.workspace-invite-banner { margin-bottom: 18px; }
@@ -167,9 +167,7 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-league-team h3 { margin: 4px 0; }
 .workspace-league-team > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 5px; margin-top: 11px; }
 .workspace-league-team > div span { padding: 6px; border-radius: 6px; background: #f8f5f7; font-size: 11px; overflow-wrap: anywhere; }
-.workspace-people { margin-top: 30px; padding-top: 22px; border-top: 1px solid #e8e0e7; }
-.workspace-member-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(185px,1fr)); gap: 9px; }
-.workspace-member-grid button { margin-top: 9px; }
+.workspace-remove-manager { margin-top: 12px; }
 .workspace-roster-row,.workspace-pending-invite,.workspace-profile-result { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px; border-bottom: 1px solid #e8e0e7; }
 .workspace-roster-row { width: 100%; background: #fff; color: #302638; text-align: left; }
 .workspace-roster-row:hover,.workspace-roster-row:focus-visible { background: #f8f3f7; }

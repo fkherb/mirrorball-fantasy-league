@@ -470,7 +470,7 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   $('#commissionerTeamResults').innerHTML = data.teams.map((team) => {
     const member = memberByTeam.get(team.id);
     const roster = data.cast.filter((cast) => assignmentMap.get(cast.id) === team.id);
-    return `<article class="card pad workspace-league-team"><p class="eyebrow">${safe(member?.display_name || team.manager_name)}</p><h3>${safe(team.team_name || `${(member?.display_name || team.manager_name).split(' ')[0]}'s Team`)}</h3><small>${roster.length}/${context.rosterSize} cast · ${score.totalByTeam.get(team.id) || 0} points</small><div>${roster.map((cast) => `<span>${safe(cast.name)}</span>`).join('') || '<span>Draft not started</span>'}</div></article>`;
+    return `<article class="card pad workspace-league-team"><p class="eyebrow">${safe(member?.display_name || team.manager_name)}</p><h3>${safe(team.team_name || `${(member?.display_name || team.manager_name).split(' ')[0]}'s Team`)}</h3><small>${roster.length}/${context.rosterSize} cast · ${score.totalByTeam.get(team.id) || 0} points</small><div>${roster.map((cast) => `<span>${safe(cast.name)}</span>`).join('') || '<span>Draft not started</span>'}</div>${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member?.member_role === 'member' ? `<button class="secondary workspace-remove-manager" data-remove-member="${member.user_id}">Remove manager</button>` : ''}</article>`;
   }).join('');
   $('#rosterSearch').value = '';
   const rosterResults = $('#rosterResults');
@@ -509,14 +509,8 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
       $('#saveWorkspaceRates'),
     ));
   };
-  const leaguePane = $('#league');
-  leaguePane.querySelector('#workspacePeople')?.remove();
-  const section = document.createElement('section');
-  section.id = 'workspacePeople';
-  section.className = 'workspace-people';
-  section.innerHTML = `<div class="workspace-section-head"><div><p class="eyebrow">League community</p><h2>Members</h2></div></div><div class="workspace-member-grid">${data.members.map((member) => `<article class="card pad"><b>${safe(member.display_name)}</b><small>@${safe(member.username)} · ${safe(member.member_role)}</small>${context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member.member_role === 'member' ? `<button class="secondary" data-remove-member="${member.user_id}">Remove</button>` : ''}</article>`).join('')}</div>`;
-  leaguePane.append(section);
-  section.querySelectorAll('[data-remove-member]').forEach((button) => button.addEventListener('click', () => {
+  $('#league').querySelector('#workspacePeople')?.remove();
+  $('#commissionerTeamResults').querySelectorAll('[data-remove-member]').forEach((button) => button.addEventListener('click', () => {
     const member = data.members.find((item) => item.user_id === button.dataset.removeMember);
     dialog(`<h2>Remove ${safe(member?.display_name || 'member')}?</h2><p class="sub">This removes their team from the league before the draft starts.</p><button id="confirmRemoveMember" class="danger">Remove member</button>`);
     $('#confirmRemoveMember').addEventListener('click', () => runAction(
