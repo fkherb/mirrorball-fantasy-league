@@ -228,6 +228,15 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .account-provider-links button:disabled { opacity: .7; }
 .legacy-signin { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e8e0e7; }
 .legacy-signin .sub { margin-top: 0; }
+.signin-card { max-width: 560px; }
+.signin-card h2 { margin: 3px 0 8px; }
+.signin-card .signin-actions button { flex: 1 1 190px; min-height: 44px; }
+.workspace-roster-note { margin: 0 0 10px; }
+.legacy-signin summary { color: #5f4b5d; font-size: 13px; font-weight: 750; cursor: pointer; }
+.legacy-signin summary:hover { color: #302638; }
+.legacy-signin-fields { padding-top: 14px; }
+.legacy-signin-fields label { display: block; margin-top: 10px; }
+.legacy-signin-fields button { margin-top: 14px; }
 .workspace-invite-link-actions { margin: 15px 0; }
 .workspace-trades h3 { margin: 0; }
 .workspace-trade-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px; margin: 12px 0; border-radius: 8px; background: #f1ecf0; }
