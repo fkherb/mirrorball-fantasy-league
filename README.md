@@ -184,11 +184,31 @@ older cached clients, while completed-week snapshot names remain deliberately
 historical. Users can update their own username, display name, and avatar URL,
 and only the safe public directory fields are available for league discovery.
 
+Next, run `supabase/activate-multi-league-workspaces.sql` **before deploying the
+matching website changes**. This one-time migration leaves the existing league
+and its historical data intact. It adds private owner/member workspaces,
+username and revocable-link invitations, league-specific teams and rates, a
+randomized snake draft, and league-specific roster snapshots and trades. It
+does not create another league automatically. New leagues are created only by
+an onboarded user in My Leagues. A new league remains in setup, then drafting,
+and becomes active only after all configured rounds are picked. The roster
+size is the number of draft rounds and locks when drafting starts. Managers
+make each pick using Claim under Available Cast on My Team; after the draft,
+claims require releasing a current cast member.
+
+Deployment check: after running the migration, sign in as two existing users,
+confirm their current league/teams still appear, create a disposable test
+league, invite the second user by username and link, make a few draft picks,
+and confirm neither league's roster or standings change when switching to the
+other. The migration is transactional, but the project currently has no local
+Supabase test database, so this live multi-account check must precede publishing
+the new site. Do not rerun old schema files on the live project.
+
 Identity ownership after this migration:
 
 - `auth.users` owns authentication and keeps every existing UUID unchanged.
 - `profiles` owns username, display name, avatar, and onboarding state.
-- `league_members` owns per-league membership, team connection, commissioner
+- `league_members` owns per-league membership, team connection, owner/member
   access, and navigation preferences—not account identity.
 - `fantasy_teams` owns league-specific team names. Its `manager_name` column is
   a temporary compatibility mirror and is no longer independently edited.

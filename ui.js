@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setNavCollapsed(collapsed);
     localStorage.setItem(navStateKey, collapsed ? 'collapsed' : 'expanded');
   });
-  const rememberedViews = new Set(['standings', 'teams', 'score', 'league']);
+  const rememberedViews = new Set(['standings', 'teams', 'score', 'league', 'leagues']);
   const storedView = localStorage.getItem('mirrorball-active-view');
   let requestedView = rememberedViews.has(location.hash.slice(1))
     ? location.hash.slice(1)
@@ -52,28 +52,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   const myTeamNav = document.querySelector('#myTeamNav');
   const scoreDeskLink = document.querySelector('#scoreDeskLink');
   const castRosterLink = document.querySelector('#castRosterLink');
+  const leagueSwitcherWrap = document.querySelector('#leagueSwitcherWrap');
+  const leagueSwitcher = document.querySelector('#leagueSwitcher');
+  const myLeaguesNav = document.querySelector('#myLeaguesNav');
+  const defaultLeagueId = '00000000-0000-4000-8000-000000000001';
+  const joinToken = new URLSearchParams(location.search).get('join');
   let currentSession = null;
   let currentMember = null;
   let currentProfile = null;
   let membershipReady = false;
+  let accessVersion = 0;
 
-  const missingMembershipTable = (error) => ['42P01', 'PGRST205'].includes(error?.code) || /league_members/i.test(error?.message || '') && /not find|does not exist/i.test(error.message);
+  leagueSwitcher.addEventListener('change', () => {
+    localStorage.setItem('mirrorball-active-league', leagueSwitcher.value);
+    const url = new URL(location.href);
+    url.searchParams.set('league', leagueSwitcher.value);
+    url.searchParams.delete('join');
+    url.hash = '#standings';
+    location.assign(url.toString());
+  });
 
   async function showAccess(session) {
+    const version = ++accessVersion;
     currentSession = session;
     const signedInEmail = session?.user?.email;
     const metadata = session?.user?.user_metadata || {};
     currentMember = null;
     currentProfile = null;
     membershipReady = false;
-    let membershipError = null;
     let isPlatformAdmin = false;
     let teamName = '';
+    let leagues = [];
     if (session?.user) {
-      const [contextResult, platformResult] = await Promise.all([
+      const [contextResult, platformResult, leaguesResult] = await Promise.all([
         db.rpc('get_my_account_context'),
         db.rpc('is_platform_admin'),
+        db.rpc('get_my_leagues'),
       ]);
+      if (version !== accessVersion) return;
+      leagues = leaguesResult.data || [];
       if (!contextResult.error) {
         currentProfile = contextResult.data?.profile || null;
         currentMember = contextResult.data?.membership || null;
@@ -81,12 +98,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         membershipReady = true;
       } else {
         // Allows the site to stay usable while the profile migration is being deployed.
-        const membershipResult = await db.from('league_members').select('*').eq('user_id', session.user.id).maybeSingle();
-        membershipError = membershipResult.error;
+        const membershipResult = await db.from('league_members').select('*')
+          .eq('league_id', defaultLeagueId).eq('user_id', session.user.id).maybeSingle();
         membershipReady = !membershipResult.error;
         currentMember = membershipResult.data || null;
       }
       isPlatformAdmin = platformResult.data === true;
+    }
+    const requestedLeagueId = new URLSearchParams(location.search).get('league')
+      || localStorage.getItem('mirrorball-active-league') || defaultLeagueId;
+    const selectedLeague = leagues.find((league) => league.league_id === requestedLeagueId)
+      || leagues.find((league) => league.league_id === defaultLeagueId)
+      || leagues[0] || null;
+    const leagueId = selectedLeague?.league_id || defaultLeagueId;
+    if (selectedLeague) localStorage.setItem('mirrorball-active-league', leagueId);
+    if (selectedLeague && selectedLeague.league_id !== defaultLeagueId) {
+      currentMember = { fantasy_team_id: selectedLeague.fantasy_team_id,
+        is_commissioner: selectedLeague.member_role === 'owner' };
+      teamName = selectedLeague.team_name || '';
     }
     const legacyName = [currentMember?.first_name, currentMember?.last_name].filter(Boolean).join(' ') || metadata.display_name || metadata.full_name || metadata.name || '';
     const displayName = currentProfile?.display_name || legacyName;
@@ -96,14 +125,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       const { data: team } = await db.from('fantasy_teams').select('team_name').eq('id', currentMember.fantasy_team_id).maybeSingle();
       teamName = team?.team_name || '';
     }
-    const legacyCommissioner = signedInEmail === 'herbfreddy@gmail.com' && (missingMembershipTable(membershipError) || !currentMember);
-    const isCommissioner = Boolean(currentMember?.is_commissioner) || legacyCommissioner;
+    const isCommissioner = selectedLeague ? selectedLeague.member_role === 'owner' : Boolean(currentMember?.is_commissioner);
     auth.textContent = signedInEmail ? firstName || displayName || 'Signed in' : 'Sign in';
     email.textContent = signedInEmail || '';
     usernameInput.value = currentProfile?.username || '';
     displayNameInput.value = displayName;
     avatarUrlInput.value = currentProfile?.avatar_url || '';
     profileHint.hidden = currentProfile?.onboarding_completed !== false;
+    myLeaguesNav.hidden = !signedInEmail && !joinToken;
+    leagueSwitcherWrap.hidden = !signedInEmail || leagues.length < 2;
+    leagueSwitcher.replaceChildren(...leagues.map((league) => {
+      const option = document.createElement('option');
+      option.value = league.league_id;
+      option.textContent = league.name;
+      return option;
+    }));
+    if (selectedLeague) leagueSwitcher.value = leagueId;
     const labelMode = currentMember?.team_nav_label_mode || 'default';
     const teamNavLabel = labelMode === 'custom' && currentMember?.custom_team_nav_label
       ? currentMember.custom_team_nav_label
@@ -113,10 +150,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     myTeamNav.hidden = !signedInEmail || (membershipReady && !currentMember?.fantasy_team_id);
     scoreDeskLink.hidden = !isPlatformAdmin;
     castRosterLink.hidden = !isPlatformAdmin;
-    if (requestedView === 'teams' && myTeamNav.hidden) openView('standings', false);
+    if (joinToken) openView('leagues', false);
+    else if (requestedView === 'teams' && myTeamNav.hidden) openView('standings', false);
     else openView(requestedView, false);
     menu.hidden = true;
-    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: currentMember?.fantasy_team_id || null, membershipReady } }));
+    window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: { signedIn: Boolean(signedInEmail), userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, joinToken } }));
   }
 
   const { data: { session } } = await db.auth.getSession();
@@ -158,7 +196,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { error } = await db.auth.signInWithPassword({ email: document.querySelector('#email').value.trim(), password: document.querySelector('#password').value });
     button.disabled = false; button.textContent = 'Sign in';
     if (error) return alert(error.message);
-    openView('standings');
+    openView(joinToken ? 'leagues' : 'standings');
+  });
+  document.querySelector('#signUpPassword').addEventListener('click', async () => {
+    const button = document.querySelector('#signUpPassword');
+    const emailAddress = document.querySelector('#email').value.trim();
+    const password = document.querySelector('#password').value;
+    if (!emailAddress || password.length < 6) {
+      document.querySelector('#signInMessage').textContent = 'Enter your email and a password of at least six characters.';
+      return;
+    }
+    button.disabled = true;
+    button.textContent = 'Creating…';
+    const { data, error } = await db.auth.signUp({ email: emailAddress, password });
+    button.disabled = false;
+    button.textContent = 'Create account';
+    document.querySelector('#signInMessage').textContent = error
+      ? error.message
+      : data.session ? 'Account created. Open your profile to choose a username.' : 'Check your email to confirm your new account, then sign in.';
   });
   document.querySelector('#signOut').addEventListener('click', async () => { await db.auth.signOut(); });
 });

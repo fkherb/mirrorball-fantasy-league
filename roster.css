@@ -27,6 +27,107 @@
 .account-menu-link[hidden] { display: none; }
 .account-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .account-profile-hint { margin: 5px 0 8px; color: #786e79; font-size: 11px; line-height: 1.4; }
+
+/* League workspaces, invitations, and drafting. */
+.league-switcher-label { color: #eee7ec; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.league-switcher-label select { width: min(220px, 30vw); margin-top: 2px; padding: 6px 9px; background: #fff; color: #302638; font-size: 12px; font-weight: 750; }
+.workspace-hub-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start; }
+.workspace-hub-grid h2 { margin: 0 0 12px; }
+.workspace-section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 12px; }
+.workspace-section-head h2 { margin: 0; }
+.workspace-league-list,.workspace-invite-list { display: grid; gap: 10px; }
+.workspace-league-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px; color: #302638; text-decoration: none; }
+.workspace-league-link:hover,.workspace-league-link:focus-visible { border-color: #9d7795; background: #faf6f9; }
+.workspace-league-link b,.workspace-league-link small,.workspace-invite-row small,.workspace-member-grid small { display: block; }
+.workspace-league-link b { font: 600 19px Georgia, serif; }
+.workspace-league-link small,.workspace-invite-row small,.workspace-member-grid small { color: #786e79; margin-top: 5px; }
+.workspace-invite-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.workspace-invite-row > div:last-child { display: flex; gap: 5px; }
+.workspace-onboarding,.workspace-invite-banner { margin-bottom: 18px; }
+.workspace-invite-banner h2 { margin: 0 0 8px; }
+.workspace-invite-banner a { margin-left: 10px; }
+.invite-count { color: #786e79; font: 700 13px sans-serif; }
+.workspace-standings-list,.workspace-dance-list { display: grid; gap: 10px; }
+.workspace-standing-card { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 14px 17px; background: #fff; color: #302638; text-align: left; }
+.workspace-standing-card:hover,.workspace-standing-card:focus-visible { border-color: #9d7795; background: #fbf8fa; }
+.workspace-standing-card small,.workspace-standing-card b { display: block; }
+.workspace-standing-card small { color: #786e79; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.workspace-standing-card b { font: 600 22px Georgia, serif; }
+.workspace-standing-card strong { white-space: nowrap; }
+.workspace-rank { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #302638; color: #fff; font-weight: 800; }
+.workspace-team-detail { padding: 18px; }
+.workspace-draft-strip { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 14px; margin-bottom: 17px; background: #f3eef2; border-radius: 10px; }
+.workspace-draft-strip small { display: block; margin-bottom: 7px; color: #786e79; text-transform: uppercase; font-size: 10px; font-weight: 850; letter-spacing: .07em; }
+.workspace-draft-strip > strong { white-space: nowrap; color: #7d4e73; }
+.workspace-draft-order,.workspace-week-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.workspace-draft-order span,.workspace-week-pills span { padding: 5px 8px; border-radius: 7px; background: #fff; font-size: 11px; }
+.workspace-draft-order span.current { background: #302638; color: #fff; }
+.workspace-cast-list,.workspace-available-list { display: grid; gap: 7px; max-height: 620px; overflow: auto; }
+.workspace-cast-tile { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 7px; border: 1px solid #e8e0e7; border-radius: 9px; background: #fbf9fa; }
+.workspace-cast-tile img { width: 48px; height: 48px; object-fit: cover; border-radius: 7px; background: #eee8ed; }
+.workspace-cast-tile b,.workspace-cast-tile small { display: block; }
+.workspace-cast-tile b { font-size: 12px; }
+.workspace-cast-tile small { margin-top: 3px; color: #786e79; font-size: 10px; }
+.workspace-cast-tile button { flex: none; }
+.workspace-points { white-space: nowrap; }
+.workspace-draft-history { margin-top: 12px; }
+.workspace-draft-history h3 { margin: 0 0 8px; }
+.workspace-draft-history p { margin: 6px 0; font-size: 12px; }
+.workspace-release-list { display: grid; gap: 5px; margin: 12px 0; }
+.workspace-release-choice { text-align: left; background: #f3eef2; color: #302638; }
+.workspace-release-choice.selected { background: #302638; color: #fff; }
+.workspace-dance-card { display: flex; justify-content: space-between; align-items: center; gap: 15px; width: 100%; padding: 15px; text-align: left; background: #fff; color: #302638; }
+.workspace-dance-card span > * { display: block; }
+.workspace-dance-card b { margin: 4px 0; font-size: 15px; }
+.workspace-dance-card small { color: #786e79; font-size: 11px; }
+.workspace-dance-card strong { font: 600 24px Georgia, serif; }
+.workspace-week-head { margin-bottom: 12px; }
+.workspace-week-head h2 { margin: 0 0 4px; }
+.workspace-dance-judges { display: flex; gap: 7px; flex-wrap: wrap; }
+.workspace-dance-judges span { padding: 7px 10px; border-radius: 7px; background: #f4edf2; }
+.workspace-league-team h3 { margin: 4px 0; }
+.workspace-league-team > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 5px; margin-top: 11px; }
+.workspace-league-team > div span { padding: 6px; border-radius: 6px; background: #f8f5f7; font-size: 11px; overflow-wrap: anywhere; }
+.workspace-people { margin-top: 30px; padding-top: 22px; border-top: 1px solid #e8e0e7; }
+.workspace-member-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(185px,1fr)); gap: 9px; }
+.workspace-member-grid button { margin-top: 9px; }
+.workspace-roster-row,.workspace-pending-invite,.workspace-profile-result { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px; border-bottom: 1px solid #e8e0e7; }
+.workspace-roster-row { width: 100%; background: #fff; color: #302638; text-align: left; }
+.workspace-roster-row:hover,.workspace-roster-row:focus-visible { background: #f8f3f7; }
+.workspace-roster-row img { width: 42px; height: 42px; object-fit: cover; border-radius: 7px; background: #eee8ed; }
+.workspace-roster-row span:nth-child(2) { flex: 1; min-width: 0; }
+.workspace-roster-row small,.workspace-profile-result small { display: block; color: #786e79; }
+.workspace-profile-modal { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 1fr); gap: 16px; }
+.workspace-profile-modal > img { width: 100%; max-height: 390px; object-fit: cover; border-radius: 12px; }
+@media (max-width: 520px) { .workspace-profile-modal { grid-template-columns: 1fr; } .workspace-profile-modal > img { max-height: 280px; } }
+.workspace-pending-invite { max-width: 450px; }
+.workspace-invite-link-actions { margin: 15px 0; }
+.workspace-trades h3 { margin: 0; }
+.workspace-trade-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px; margin: 12px 0; border-radius: 8px; background: #f1ecf0; }
+.workspace-trade-tabs button { background: transparent; color: #786e79; }
+.workspace-trade-tabs button.selected { background: #fff; color: #302638; box-shadow: 0 2px 8px #1f132422; }
+.workspace-trade-card { padding: 12px; margin-top: 8px; border: 1px solid #e8e0e7; border-radius: 9px; }
+.workspace-trade-card > small,.workspace-trade-card > b { display: block; margin-bottom: 8px; }
+.workspace-trade-card > small { color: #786e79; font-weight: 750; }
+.workspace-trade-card > button { margin-top: 5px; }
+.workspace-trade-swap,.workspace-counter-swap { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 5px; }
+.workspace-trade-swap .workspace-cast-tile { grid-template-columns: 34px minmax(0,1fr); }
+.workspace-trade-swap .workspace-cast-tile img { width: 34px; height: 34px; }
+.workspace-trade-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.workspace-trade-picker { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; max-height: 280px; overflow: auto; }
+.workspace-trade-picker > button { background: transparent; padding: 0; color: #302638; text-align: left; }
+.workspace-trade-picker > button.selected .workspace-cast-tile { border-color: #7d4e73; background: #f3eef2; }
+.workspace-trade-team-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.workspace-trade-team-picker button { background: #f3eef2; color: #302638; }
+.workspace-trade-team-picker button.selected { background: #302638; color: #fff; }
+.workspace-counter-swap > button { padding: 0; background: transparent; color: #302638; text-align: left; }
+.workspace-counter-swap > button.selected .workspace-cast-tile { border-color: #7d4e73; background: #f3eef2; }
+.workspace-counter-swap > button:disabled { opacity: .55; }
+.workspace-counter-swap + button { margin: 10px 0; }
+.workspace-trade-picker h3 { margin: 10px 0 7px; }
+.signin-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+@media (max-width: 900px) { .workspace-hub-grid { grid-template-columns: 1fr; } .workspace-standing-card b { font-size: 18px; } }
+@media (max-width: 600px) { .league-switcher-label select { width: min(140px, 32vw); } .workspace-standing-card { grid-template-columns: 30px minmax(0,1fr); } .workspace-standing-card > strong { grid-column: 2; } .workspace-draft-strip { align-items: flex-start; flex-direction: column; } .workspace-invite-row { align-items: flex-start; flex-direction: column; } .workspace-league-team > div { grid-template-columns: 1fr; } }
 .account-menu [hidden] { display: none; }
 .team-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
 .team-card { padding: 20px; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }

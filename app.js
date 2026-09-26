@@ -1,9 +1,12 @@
 import { db } from './supabase-client.js';
+import { renderLeagueHub, renderSecondaryLeague } from './league-workspace.js?v=20260925-multi-league-v1';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
 const isCastRosterSurface = appSurface === 'cast-roster';
 const isOwnerSurface = isScoreDeskSurface || isCastRosterSurface;
+const defaultLeagueId = '00000000-0000-4000-8000-000000000001';
+let activeLeagueId = defaultLeagueId;
 const assetRoot = isOwnerSurface ? '../' : '';
 const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts', 'Surprise'];
 const assignableRoles = roles.filter((role) => !role.startsWith('Eliminated'));
@@ -211,6 +214,7 @@ function partnerOptions(role, players, partnerships, selectedId = '') {
 }
 
 async function loadRoster() {
+  if (!isOwnerSurface && activeLeagueId !== defaultLeagueId) return;
   if (!$('#rosterResults')) return;
   const loadVersion = ++loadVersions.roster;
   const query = $('#rosterSearch').value.trim();
@@ -1650,6 +1654,7 @@ if (isScoreDeskSurface) {
   window.addEventListener('focus', refreshVisibleTrades);
   document.addEventListener('visibilitychange', refreshVisibleTrades);
   window.addEventListener('mirrorball-auth-change', async (event) => {
+    activeLeagueId = event.detail.leagueId || defaultLeagueId;
     canEdit = event.detail.isCommissioner;
     canManageShow = false;
     canManageCast = false;
@@ -1660,6 +1665,12 @@ if (isScoreDeskSurface) {
     managerTeamName = event.detail.teamName || '';
     managerNavLabelMode = event.detail.teamNavLabelMode || 'default';
     managerCustomNavLabel = event.detail.customTeamNavLabel || '';
+    renderLeagueHub(event.detail);
+    if (activeLeagueId !== defaultLeagueId && event.detail.signedIn) {
+      canEdit = false;
+      renderSecondaryLeague(event.detail);
+      return;
+    }
     if (managerTeamId) selectedPublicTeamId = managerTeamId;
     loadLeagueSettings();
     loadStandings();
