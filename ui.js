@@ -250,8 +250,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: currentAccessDetail }));
   }
 
-  const { data: { session } } = await db.auth.getSession();
-  await showAccess(session);
   window.addEventListener('hashchange', () => {
     const view = location.hash.slice(1);
     if (rememberedViews.has(view)) {
@@ -339,4 +337,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       : data.session ? 'Account created. Open your profile to choose a username.' : 'Check your email to confirm your new account, then sign in.';
   });
   document.querySelector('#signOut').addEventListener('click', async () => { await db.auth.signOut(); });
+  const { data: { session } } = await db.auth.getSession();
+  await showAccess(session);
 });
