@@ -316,7 +316,7 @@
 .mini-filters button { padding: 5px 8px; background: #f1e9ee; color: #6d5966; font-size: 11px; }
 .mini-filters button.selected { background: #7f5268; color: #fff; }
 .dance-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
-.filter-tabs button:disabled { opacity: .4; cursor: not-allowed; }
+.filter-tabs button:disabled { opacity: .4; cursor: default; }
 .check-label { display: flex; align-items: center; gap: 8px; margin: 14px 0; color: #4f4550; }
 .check-label input { display: inline-block; width: auto; margin: 0; }
 .dance-kind-tabs { margin: 0 0 6px; }
@@ -970,7 +970,7 @@ button.secondary { background: #f0eaf0; box-shadow: none; }
 main { max-width: 1440px; margin-inline: auto; }
 .nav-icon svg { width: 19px; height: 19px; fill: currentColor; }
 nav button[data-view]:focus-visible, .nav-toggle:focus-visible, button:focus-visible { outline: 3px solid #c9a25c80; outline-offset: 2px; }
-button:disabled { cursor: wait; opacity: .65; }
+button:disabled { cursor: default; opacity: .65; }
 dialog .close { display: grid; width: 42px; height: 42px; place-items: center; padding: 0; }
 .loading-state { display: grid; gap: 9px; min-height: 150px; align-content: center; padding: 20px; }
 .loading-state p { margin: 3px 0 0; color: #786e79; font-size: 12px; text-align: center; }
