@@ -5,4 +5,5 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 export const db = createClient(
   'https://mdrrnanxqazecqviaass.supabase.co',
   'sb_publishable_ylMIgpLXA0NBoeb3aPI8qQ_m0wrG7It',
+  { auth: { flowType: 'pkce', detectSessionInUrl: true } },
 );

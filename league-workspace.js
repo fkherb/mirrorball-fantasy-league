@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js';
+import { db } from './supabase-client.js?v=20260926-apple-auth-v20';
 import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260926-league-parity-v18';
 
 const $ = (selector) => document.querySelector(selector);

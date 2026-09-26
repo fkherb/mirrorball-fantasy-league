@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js';
+import { db } from './supabase-client.js?v=20260926-apple-auth-v20';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
@@ -483,7 +483,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fragmentError = new URLSearchParams(location.hash.slice(1));
   const oauthError = fragmentError.get('error_description') || queryError.get('error_description')
     || fragmentError.get('error') || queryError.get('error');
-  const { data: { session } } = await db.auth.getSession();
+  const returnedWithCode = queryError.has('code');
+  const { data: { session }, error: sessionError } = await db.auth.getSession();
   let oauthReturn = null;
   const clearOauthReturn = () => { try { sessionStorage.removeItem('mirrorball-oauth-return'); } catch { /* Storage may be unavailable. */ } };
   try { oauthReturn = JSON.parse(sessionStorage.getItem('mirrorball-oauth-return') || 'null'); } catch { /* Ignore malformed old state. */ }
@@ -492,10 +493,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     history.replaceState(null, '', `${location.pathname}${oauthReturn?.search || ''}#signin`);
     clearOauthReturn();
     document.querySelector('#signInMessage').textContent = `Sign-in was not completed: ${oauthError}`;
-  } else if (session && oauthReturn) {
-    requestedView = rememberedViews.has(oauthReturn.view) ? oauthReturn.view : 'standings';
-    history.replaceState(null, '', `${location.pathname}${oauthReturn.search || ''}#${requestedView}`);
+  } else if (session && (oauthReturn || returnedWithCode)) {
+    requestedView = rememberedViews.has(oauthReturn?.view) ? oauthReturn.view : 'standings';
+    history.replaceState(null, '', `${location.pathname}${oauthReturn?.search || ''}#${requestedView}`);
     clearOauthReturn();
+  } else if (!session && (oauthReturn || returnedWithCode)) {
+    requestedView = 'signin';
+    history.replaceState(null, '', `${location.pathname}${oauthReturn?.search || ''}#signin`);
+    clearOauthReturn();
+    const label = oauthReturn?.provider === 'apple' ? 'Apple' : oauthReturn?.provider === 'google' ? 'Google' : 'Provider';
+    document.querySelector('#signInMessage').textContent = `${label} sign-in returned, but the site couldn’t finish saving your session${sessionError ? `: ${sessionError.message}` : '.'} Please try again.`;
   }
   await showAccess(session);
 });

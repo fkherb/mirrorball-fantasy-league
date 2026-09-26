@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js';
+import { db } from '../supabase-client.js?v=20260926-apple-auth-v20';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');
