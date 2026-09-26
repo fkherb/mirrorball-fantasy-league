@@ -158,11 +158,17 @@ Run `supabase/allow-managers-to-claim-available-cast.sql` after it. This exposes
 that same atomic swap to each signed-in manager for their own team only, powering
 the Team-page free-agent claim flow without allowing direct additions or drops.
 
-Finally, run `supabase/harden-data-integrity-and-manager-inputs.sql`. It locks
+Then run `supabase/harden-data-integrity-and-manager-inputs.sql`. It locks
 free-agent claims to the signed-in manager's own team even when that manager is
 also a commissioner, records competing trade offers as Superseded before an
 accepted trade removes them, and enforces manager/team/navigation text limits
 at the database boundary.
+
+Then run `supabase/prepare-multi-league-foundation.sql`. It creates and seeds
+only the existing league, scopes current league-owned rows, and mirrors current
+rosters and rates into league-specific tables. It does not create a second
+league or expose league creation, and the current single-league interface keeps
+working unchanged.
 
 Then run `supabase/add-trade-result-notifications.sql`. It keeps a newly
 accepted or denied trade in the sending manager's Active tab until they dismiss

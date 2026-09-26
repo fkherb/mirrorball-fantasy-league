@@ -1,5 +1,8 @@
 # Multi-league readiness plan
 
+> This file is design documentation, not SQL. The executable first-stage
+> migration is `supabase/prepare-multi-league-foundation.sql`.
+
 ## Goal
 
 Prepare the application to support multiple independent fantasy leagues while keeping one platform-owned source of truth for the DWTS cast, partnerships, weeks, dances, judges' scores, and appearances. This plan does not create another league or expose league creation in the interface.

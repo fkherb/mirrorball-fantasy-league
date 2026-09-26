@@ -1,6 +1,6 @@
 -- Mirrorball Fantasy League: keep accepted and denied trade results visible
 -- to the manager who sent the latest offer until that manager dismisses them.
--- Run after harden-data-integrity-and-manager-inputs.sql.
+-- Run after prepare-multi-league-foundation.sql.
 
 begin;
 
