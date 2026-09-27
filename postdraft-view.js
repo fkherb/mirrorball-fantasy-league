@@ -5,8 +5,29 @@ const html = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => (
 })[char]);
 const imagePosition = (value) => value != null && Number.isFinite(Number(value)) ? Number(value) : 50;
 
-export function standingCard({ id, rank, manager, name, contributors, total, selected, leader, tied }) {
-  return `<article class="card standing-card ${leader || tied ? 'leader' : ''} ${tied ? 'tied-leader' : ''} ${selected ? 'selected' : ''}" data-standing-team="${html(id)}" tabindex="0" role="button" aria-label="View ${html(name)} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${html(manager)}</p><h2>${html(name)}</h2>${tied ? '<p class="tie-note">Tied for first</p>' : ''}<div class="standing-contributors">${contributors.slice(0, 4).map(({ name: castName, points }) => `<span>${html(castName)} <b>${points}</b></span>`).join('') || '<span>No cast assigned</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${total}</strong><span>points</span></div><span class="card-chevron standing-chevron" aria-hidden="true">›</span></article>`;
+export function episodeSpotlight({ week, state = 'upcoming', date = '', scored = 0, performances = 0, teamPoints = null, portrait = '' }) {
+  if (!week) return '';
+  const title = week.title || (week.theme ? `${week.theme} Week` : `Week ${week.number}`);
+  const complete = state === 'complete';
+  const receiving = state === 'receiving';
+  const label = complete ? 'Results are in' : receiving ? 'Scores being entered' : 'Coming up';
+  const description = complete
+    ? 'See the performances and how the completed show affected your league.'
+    : receiving ? 'Judges’ scores are appearing. Fantasy standings update when the week is finalized.'
+      : 'Explore the lineup and check back as the show unfolds.';
+  const progress = performances > 0 && !complete
+    ? `<div class="episode-progress"><span>${scored} of ${performances} competitive dances have scores</span><div role="progressbar" aria-label="Dances with scores" aria-valuemin="0" aria-valuemax="${performances}" aria-valuenow="${scored}"><i style="width:${Math.round(scored / performances * 100)}%"></i></div></div>` : '';
+  return `<section class="episode-spotlight episode-${state}" aria-label="Featured episode"><div class="episode-spotlight-copy"><p class="eyebrow">${html(label)} · Week ${Number(week.number) || 0}${date ? ` · ${html(date)}` : ''}</p><h2>${html(title)}</h2><p>${description}</p><button type="button" data-open-episode="${html(week.id)}">${complete ? 'Explore the results' : 'Explore the episode'} <span aria-hidden="true">↗</span></button>${progress}</div><div class="episode-spotlight-aside" aria-hidden="true">${portrait ? `<img src="${html(portrait)}" alt="">` : ''}<span>DWTS</span><b>${String(Number(week.number) || 0).padStart(2, '0')}</b><small>THE SHOW</small></div>${complete && teamPoints != null ? `<div class="episode-personal-score"><small>Your team this week</small><strong>${Number(teamPoints) || 0}</strong><span>fantasy points</span></div>` : ''}</section>`;
+}
+
+export function standingsSwitch(mode, week) {
+  return `<div class="standings-switch" role="group" aria-label="Standings period"><button type="button" data-standings-mode="season" aria-pressed="${mode === 'season'}" class="${mode === 'season' ? 'selected' : ''}">Season</button><button type="button" data-standings-mode="week" aria-pressed="${mode === 'week'}" class="${mode === 'week' ? 'selected' : ''}">${html(week?.title || `Week ${week?.number || ''}`)}</button></div>`;
+}
+
+export function standingCard({ id, rank, manager, name, contributors, total, selected, leader, tied, weekPoints = null, movement = null, period = 'season' }) {
+  const trend = period === 'season' && weekPoints != null
+    ? `<p class="standing-trend"><span>+${Number(weekPoints) || 0} latest week</span>${movement == null ? '' : `<span class="${movement > 0 ? 'up' : movement < 0 ? 'down' : ''}">${movement > 0 ? `↑ ${movement}` : movement < 0 ? `↓ ${Math.abs(movement)}` : '—'} ${movement === 0 ? 'no rank change' : movement > 0 ? 'place' + (movement === 1 ? '' : 's') + ' gained' : 'place' + (movement === -1 ? '' : 's') + ' lost'}</span>`}</p>` : '';
+  return `<article class="card standing-card ${leader || tied ? 'leader' : ''} ${tied ? 'tied-leader' : ''} ${selected ? 'selected' : ''}" data-standing-team="${html(id)}" tabindex="0" role="button" aria-label="View ${html(name)} ${period === 'week' ? 'weekly' : 'season'} score breakdown"><div class="standing-rank">${rank}</div><div class="standing-main"><p class="eyebrow">${html(manager)}</p><h2>${html(name)}</h2>${tied ? '<p class="tie-note">Tied for first</p>' : ''}${trend}<div class="standing-contributors">${contributors.slice(0, 4).map(({ name: castName, points }) => `<span>${html(castName)} <b>${points}</b></span>`).join('') || '<span>No points recorded</span>'}${contributors.length > 4 ? `<span>+${contributors.length - 4} more</span>` : ''}</div></div><div class="standing-total"><strong>${total}</strong><span>${period === 'week' ? 'this week' : 'season points'}</span></div><span class="card-chevron standing-chevron" aria-hidden="true">›</span></article>`;
 }
 
 export function scoreRows(rows, { limit = null, withImages = false, imageFor = () => '', historicalJudges = false } = {}) {
@@ -17,8 +38,8 @@ export function scoreRows(rows, { limit = null, withImages = false, imageFor = (
   }).join('') || '<p class="sub league-empty">No points recorded in this view.</p>'}</div>`;
 }
 
-export function overviewTeamDetail({ name, manager, total, castRows }) {
-  return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${html(name)}</h2><p class="sub">Managed by ${html(manager)}</p></div><div class="league-detail-total"><strong>${total}</strong><span>season points</span></div></div><p class="top-cast-label">Top Five Cast Members</p>${scoreRows(castRows, { limit: 5, historicalJudges: true })}`;
+export function overviewTeamDetail({ name, manager, total, castRows, period = 'season' }) {
+  return `<div class="league-detail-head"><div><p class="eyebrow">Selected team</p><h2>${html(name)}</h2><p class="sub">Managed by ${html(manager)}</p></div><div class="league-detail-total"><strong>${total}</strong><span>${period === 'week' ? 'this week' : 'season points'}</span></div></div><p class="top-cast-label">Top Five Cast Members · ${period === 'week' ? 'This Week' : 'Season'}</p>${scoreRows(castRows, { limit: 5, historicalJudges: true })}`;
 }
 
 export function highlightCards({ teamScore, teamNames, castScore, castNames, appearances, appearanceNames,
@@ -40,7 +61,8 @@ export function castRosterRow({ id, name, roleDetails, roleDetailsHtml, image, p
 }
 
 export function danceCard({ id, kind, title, danceType, song, scores, castNames, scoreImage, pending = false, editButton = false }) {
-  return `<article class="card dance-row dance-${html(kind)}" data-dance-detail="${html(id)}" tabindex="0" role="button" aria-label="View details for ${html(title)}"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${html(title)}</h3></div>${editButton ? `<button class="secondary" data-edit-dance="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>${kind === 'competitive' ? `<div class="dance-details"><span>${html(danceType || 'Dance type not set')}</span>${song ? `<span>${html(song)}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}">`).join('')}${pending ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''}</div>` : ''}${castNames.length ? `<div class="dance-cast" title="${html(castNames.join(', '))}"><span>Cast</span>${castNames.slice(0, 3).map((name) => `<b>${html(name)}</b>`).join('')}${castNames.length > 3 ? `<b>+${castNames.length - 3}</b>` : ''}</div>` : ''}</article>`;
+  const total = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
+  return `<article class="card dance-row dance-${html(kind)}" data-dance-detail="${html(id)}" tabindex="0" role="button" aria-label="View details for ${html(title)}"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${html(title)}</h3></div>${editButton ? `<button class="secondary" data-edit-dance="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>${kind === 'competitive' ? `<div class="dance-details"><span>${html(danceType || 'Dance type not set')}</span>${song ? `<span>${html(song)}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}">`).join('')}${scores.length ? `<strong class="dance-judge-total" aria-label="Judges total ${total}">${total}<small>judges</small></strong>` : ''}${pending ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''}</div>` : ''}${castNames.length ? `<div class="dance-cast" title="${html(castNames.join(', '))}"><span>Cast</span>${castNames.slice(0, 3).map((name) => `<b>${html(name)}</b>`).join('')}${castNames.length > 3 ? `<b>+${castNames.length - 3}</b>` : ''}</div>` : ''}</article>`;
 }
 
 export function teamPage({ weekHistory, total, period, rosterRows, available, availableMarkup, tradesMarkup = '<section id="tradeCenter" class="trade-center card"><div class="trade-center-loading">Loading trades…</div></section>' }) {

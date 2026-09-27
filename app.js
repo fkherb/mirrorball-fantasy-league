@@ -1,6 +1,6 @@
-import { db } from './supabase-client.js?v=20260927-ballroom-v25';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-ballroom-v25';
-import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-ballroom-v25';
+import { db } from './supabase-client.js?v=20260927-research-v27';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-research-v27';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-research-v27';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -40,6 +40,7 @@ let selectedWeekId = null;
 let editingWeekId = null;
 let standingsSnapshot = null;
 let selectedOverviewTeamId = null;
+let standingsMode = 'season';
 let selectedPublicTeamId = null;
 let selectedPublicWeekId = 'all';
 let managerTeamId = null;
@@ -597,7 +598,38 @@ async function loadStandings() {
     return { team, roster, total };
   }).sort((a, b) => b.total - a.total || (a.team.team_name || a.team.manager_name).localeCompare(b.team.team_name || b.team.manager_name));
   const latestWeek = [...weeksResult.data].reverse().find((week) => week.is_complete);
+  const weekTotals = new Map(teams.map((team) => [team.id, 0]));
+  if (latestWeek) (weekMemberPoints.get(latestWeek.id) || new Map()).forEach((entry, memberId) => {
+    const member = members.find((item) => item.id === memberId);
+    const teamId = member && teamForMemberInWeek(member, latestWeek);
+    if (weekTotals.has(teamId)) weekTotals.set(teamId, weekTotals.get(teamId) + entry.official + entry.appearances);
+  });
+  standingsSnapshot.teamRows = teamRows;
+  standingsSnapshot.latestWeek = latestWeek;
+  standingsSnapshot.weekTotals = weekTotals;
+  const nextWeek = weeks.find((week) => !week.is_complete && (!latestWeek || week.number > latestWeek.number));
+  const focusWeek = nextWeek || latestWeek;
+  const focusDances = dancesResult.data.filter((dance) => dance.week_id === focusWeek?.id && dance.kind === 'competitive');
+  const scoredDances = new Set(scoresResult.data.map((score) => score.dance_id));
+  const featuredPair = partnershipsResult.data.find((pair) => pair.id === focusDances[0]?.partnership_id);
+  const featuredCast = members.find((member) => member.id === featuredPair?.star_id);
+  let episodeContainer = $('#episodeSpotlight');
+  if (!episodeContainer) {
+    episodeContainer = document.createElement('div');
+    episodeContainer.id = 'episodeSpotlight';
+    $('#memberOverview .standings-head').after(episodeContainer);
+  }
+  episodeContainer.innerHTML = focusWeek ? episodeSpotlight({ week: focusWeek,
+    state: nextWeek ? focusDances.some((dance) => scoredDances.has(dance.id)) ? 'receiving' : 'upcoming' : 'complete',
+    date: weekAiringLabel(focusWeek), scored: focusDances.filter((dance) => scoredDances.has(dance.id)).length,
+    performances: focusDances.length, teamPoints: !nextWeek && managerTeamId ? weekTotals.get(managerTeamId) : null,
+    portrait: featuredCast ? displayImagePath(featuredCast) : '' }) : '';
+  episodeContainer.querySelector('[data-open-episode]')?.addEventListener('click', () => {
+    selectedWeekId = focusWeek.id;
+    document.querySelector('nav [data-view="score"]')?.click();
+  });
   $('#standingsSubtitle').textContent = latestWeek ? `Through ${weekTitle(latestWeek)} · current fantasy-team totals` : 'The season is ready. Standings begin after the first completed show.';
+  if ($('#standingsMode')) $('#standingsMode').hidden = !latestWeek;
   if (!teamRows.length) {
     $('#standingsContent').innerHTML = '<div class="card empty">No fantasy teams yet.</div>';
     $('#overviewTeamDetail').innerHTML = '';
@@ -605,7 +637,6 @@ async function loadStandings() {
     return;
   }
   if (!latestWeek) {
-    standingsSnapshot.teamRows = teamRows;
     if (managerTeamId && teamRows.some((row) => row.team.id === managerTeamId)) selectedPublicTeamId = managerTeamId;
     else selectedPublicTeamId = teamRows[0].team.id;
     $('#standingsContent').innerHTML = `<section class="card pad workspace-setup-panel"><p class="eyebrow">Before the first show</p><h2>Your league is ready</h2><p class="sub">Teams and cast are in place. Weekly standings and highlights will appear when the first show is completed.</p><div class="workspace-setup-facts"><span><b>${teams.length}</b> teams</span><span><b>${members.length}</b> cast members</span></div></section><div class="workspace-standings-list">${teamRows.map((row) => `<article class="card workspace-standing-card"><span class="workspace-rank">•</span><span><small>${escapeHtml(row.team.manager_name)}</small><b>${escapeHtml(row.team.team_name || defaultTeamName(row.team.manager_name))}</b></span><strong>${row.roster.length} cast</strong></article>`).join('')}</div>`;
@@ -616,34 +647,69 @@ async function loadStandings() {
   }
   $('.highlight-preview').hidden = false;
   $('.highlight-preview').style.display = '';
-  const leaderTotal = teamRows[0].total;
-  const isFirstPlaceTie = teamRows.filter((row) => row.total === leaderTotal).length > 1;
   if (!teamRows.some((row) => row.team.id === selectedOverviewTeamId)) selectedOverviewTeamId = teamRows[0].team.id;
   if (managerTeamId && teamRows.some((row) => row.team.id === managerTeamId)) selectedPublicTeamId = managerTeamId;
   else if (!teamRows.some((row) => row.team.id === selectedPublicTeamId)) selectedPublicTeamId = teamRows[0].team.id;
-  $('#standingsContent').innerHTML = `<div class="standings-grid">${teamRows.map((row, index) => {
-    const contributors = members.filter((member) => (teamMemberPoints.get(row.team.id)?.get(member.id) || 0) > 0 || member.fantasy_team_id === row.team.id).sort((a, b) => (teamMemberPoints.get(row.team.id)?.get(b.id) || 0) - (teamMemberPoints.get(row.team.id)?.get(a.id) || 0) || a.name.localeCompare(b.name));
-    const tiedLeader = isFirstPlaceTie && row.total === leaderTotal;
-    const rank = teamRows.findIndex((item) => item.total === row.total) + 1;
-    const displayName = row.team.team_name || defaultTeamName(row.team.manager_name);
-    return standingCard({ id: row.team.id, rank, manager: row.team.manager_name, name: displayName,
-      contributors: contributors.map((member) => ({ name: member.name, points: teamMemberPoints.get(row.team.id)?.get(member.id) || 0 })),
-      total: row.total, selected: row.team.id === selectedOverviewTeamId, leader: index === 0, tied: tiedLeader });
+  renderStandingsCards();
+  renderPublicTeams();
+  renderLeagueHighlights();
+}
+
+function renderStandingsCards() {
+  const { teamRows, members, teamMemberPoints, weekMemberPoints, teamForMemberInWeek, latestWeek, weekTotals } = standingsSnapshot;
+  if (!latestWeek || !teamRows.length) return;
+  let controls = $('#standingsMode');
+  if (!controls) {
+    controls = document.createElement('div');
+    controls.id = 'standingsMode';
+    $('#memberOverview .overview-layout').before(controls);
+  }
+  controls.hidden = false;
+  controls.innerHTML = standingsSwitch(standingsMode, latestWeek);
+  const changePeriod = (event) => {
+    const button = event.target.closest('[data-standings-mode]');
+    if (!button) return;
+    if (standingsMode === button.dataset.standingsMode) return;
+    standingsMode = button.dataset.standingsMode;
+    renderStandingsCards();
+  };
+  controls.onpointerdown = changePeriod;
+  controls.onclick = changePeriod;
+  const weeklyPoints = weekMemberPoints.get(latestWeek.id) || new Map();
+  const displayRows = [...teamRows].sort((a, b) => {
+    if (standingsMode === 'season') return b.total - a.total || a.team.manager_name.localeCompare(b.team.manager_name);
+    return (weekTotals.get(b.team.id) || 0) - (weekTotals.get(a.team.id) || 0) || a.team.manager_name.localeCompare(b.team.manager_name);
+  });
+  const previousPoints = (row) => row.total - (weekTotals.get(row.team.id) || 0);
+  const previousRows = [...teamRows].sort((a, b) => previousPoints(b) - previousPoints(a));
+  const first = standingsMode === 'week' ? weekTotals.get(displayRows[0].team.id) || 0 : displayRows[0].total;
+  $('#standingsContent').innerHTML = `<div class="standings-grid">${displayRows.map((row, index) => {
+    const total = standingsMode === 'week' ? weekTotals.get(row.team.id) || 0 : row.total;
+    const contributors = members.map((member) => ({ member, points: standingsMode === 'week'
+      ? teamForMemberInWeek(member, latestWeek) === row.team.id ? (weeklyPoints.get(member.id)?.official || 0) + (weeklyPoints.get(member.id)?.appearances || 0) : 0
+      : teamMemberPoints.get(row.team.id)?.get(member.id) || 0 }))
+      .filter(({ member, points }) => points || standingsMode === 'season' && member.fantasy_team_id === row.team.id)
+      .sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
+    const rank = displayRows.findIndex((item) => (standingsMode === 'week' ? weekTotals.get(item.team.id) || 0 : item.total) === total) + 1;
+    const movement = latestWeek.number > 1
+      ? previousRows.findIndex((item) => previousPoints(item) === previousPoints(row)) - teamRows.findIndex((item) => item.total === row.total)
+      : null;
+    return standingCard({ id: row.team.id, rank, manager: row.team.manager_name,
+      name: row.team.team_name || defaultTeamName(row.team.manager_name),
+      contributors: contributors.map(({ member, points }) => ({ name: member.name, points })), total,
+      weekPoints: weekTotals.get(row.team.id) || 0, movement, period: standingsMode,
+      selected: row.team.id === selectedOverviewTeamId, leader: index === 0, tied: displayRows.filter((item) => (standingsMode === 'week' ? weekTotals.get(item.team.id) || 0 : item.total) === first).length > 1 && total === first });
   }).join('')}</div>`;
   document.querySelectorAll('[data-standing-team]').forEach((card) => {
     const open = () => {
       selectedOverviewTeamId = card.dataset.standingTeam;
       document.querySelectorAll('[data-standing-team]').forEach((item) => item.classList.toggle('selected', item === card));
-      if (overviewUsesSplitLayout()) renderOverviewTeamDetail();
-      else openOverviewTeamDetail();
+      if (overviewUsesSplitLayout()) renderOverviewTeamDetail(); else openOverviewTeamDetail();
     };
     card.addEventListener('click', open);
     card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
   });
-  standingsSnapshot.teamRows = teamRows;
   renderOverviewTeamDetail();
-  renderPublicTeams();
-  renderLeagueHighlights();
 }
 
 function teamScoreBreakdown(teamId, weekId = 'all') {
@@ -682,10 +748,10 @@ function bindScoreCastDetails(container = document) {
 }
 
 function overviewTeamDetailMarkup(row) {
-  const breakdown = teamScoreBreakdown(row.team.id);
+  const breakdown = teamScoreBreakdown(row.team.id, standingsMode === 'week' ? standingsSnapshot.latestWeek.id : 'all');
   const displayName = row.team.team_name || defaultTeamName(row.team.manager_name);
   return overviewTeamDetail({ name: displayName, manager: row.team.manager_name, total: breakdown.total,
-    castRows: breakdown.rows.map((castRow) => ({ ...castRow, displayRole: displayRole({ ...castRow.member, role: castRow.role }) })) });
+    period: standingsMode, castRows: breakdown.rows.map((castRow) => ({ ...castRow, displayRole: displayRole({ ...castRow.member, role: castRow.role }) })) });
 }
 
 function overviewUsesSplitLayout() {
