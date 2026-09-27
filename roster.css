@@ -237,12 +237,15 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-danger-zone h3 { margin: 0 0 5px; }
 .account-provider-links { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e8e0e7; }
 .account-provider-links .eyebrow { margin: 0 0 5px; }
+.account-provider-links .account-profile-hint { margin: 0 0 8px; }
+.account-provider-links #providerLinkMessage:empty { display: none; }
 .account-provider-links button:disabled { opacity: .7; }
 .legacy-signin { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e8e0e7; }
 .legacy-signin .sub { margin-top: 0; }
 .signin-card { max-width: 560px; }
 .signin-card h2 { margin: 3px 0 8px; }
 .signin-card .signin-actions button { flex: 1 1 190px; min-height: 44px; }
+.signin-account-hint { margin: 10px 0 0; color: #786e79; font-size: 12px; line-height: 1.45; }
 .workspace-roster-note { margin: 0 0 10px; }
 .legacy-signin summary { color: #5f4b5d; font-size: 13px; font-weight: 750; cursor: pointer; }
 .legacy-signin summary:hover { color: #302638; }

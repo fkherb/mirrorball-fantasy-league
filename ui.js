@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260926-apple-auth-v20';
+import { db } from './supabase-client.js?v=20260927-linked-accounts-v21';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
@@ -52,7 +52,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const menu = document.querySelector('#accountMenu');
   const providerLinks = document.createElement('div');
   providerLinks.className = 'account-provider-links';
-  providerLinks.innerHTML = '<p class="eyebrow">Sign-in methods</p><button id="connectGoogle" type="button" class="secondary">Connect Google</button><button id="connectApple" type="button" class="secondary">Connect Apple</button><p id="providerLinkMessage" class="account-profile-hint" role="status"></p>';
+  providerLinks.innerHTML = '<p class="eyebrow">Link an account</p><p class="account-profile-hint">Add another way to sign in to this same profile.</p><button id="connectGoogle" type="button" class="secondary">Link Google</button><button id="connectApple" type="button" class="secondary">Link Apple</button><p id="providerLinkMessage" class="account-profile-hint" role="status"></p>';
+  providerLinks.hidden = true;
   menu.querySelector('.account-admin-links').before(providerLinks);
   const email = document.querySelector('#accountEmail');
   const usernameInput = document.querySelector('#accountUsername');
@@ -86,6 +87,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   let previewObjectUrl = null;
   let profileEditing = false;
   let pictureDirty = false;
+  let providerRefreshVersion = 0;
+  const refreshLinkedProviders = async () => {
+    const userId = currentSession?.user?.id;
+    const refreshVersion = ++providerRefreshVersion;
+    const message = document.querySelector('#providerLinkMessage');
+    const providerButtons = [document.querySelector('#connectGoogle'), document.querySelector('#connectApple')];
+    providerLinks.hidden = true;
+    providerButtons.forEach((button) => { button.hidden = true; });
+    message.textContent = '';
+    if (!userId) return;
+    const { data, error } = await db.auth.getUserIdentities();
+    if (refreshVersion !== providerRefreshVersion || currentSession?.user?.id !== userId) return;
+    if (error || !data?.identities) {
+      providerLinks.hidden = false;
+      message.textContent = 'Couldn’t check linked accounts. Close and reopen this menu to try again.';
+      return;
+    }
+    const linked = new Set(data.identities.map((identity) => identity.provider));
+    for (const provider of ['google', 'apple']) {
+      const button = document.querySelector(`#connect${provider === 'google' ? 'Google' : 'Apple'}`);
+      button.hidden = linked.has(provider);
+      button.disabled = false;
+    }
+    providerLinks.hidden = ['google', 'apple'].every((provider) => linked.has(provider));
+  };
   const syncProfileControls = () => {
     profileFields.hidden = !profileEditing;
     profileActions.hidden = !profileEditing && !pictureDirty;
@@ -356,17 +382,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     else openView(requestedView, false);
     if (previousUserId !== session?.user?.id) menu.hidden = currentProfile?.onboarding_completed !== false;
     auth.setAttribute('aria-expanded', String(!menu.hidden));
-    providerLinks.hidden = !session?.user;
-    if (session?.user) {
-      const identitiesResult = await db.auth.getUserIdentities();
-      if (version !== accessVersion) return;
-      const providers = new Set((identitiesResult.data?.identities || []).map((identity) => identity.provider));
-      for (const provider of ['google', 'apple']) {
-        const button = document.querySelector(`#connect${provider === 'google' ? 'Google' : 'Apple'}`);
-        button.textContent = providers.has(provider) ? `${provider === 'google' ? 'Google' : 'Apple'} connected` : `Connect ${provider === 'google' ? 'Google' : 'Apple'}`;
-        button.disabled = providers.has(provider);
-      }
-    }
+    await refreshLinkedProviders();
+    if (version !== accessVersion) return;
     currentAccessDetail = { signedIn: Boolean(signedInEmail), noLeague, userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, leaguesError, joinToken };
     window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: currentAccessDetail }));
   }
@@ -392,6 +409,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     menu.hidden = !menu.hidden;
     auth.setAttribute('aria-expanded', String(!menu.hidden));
     if (!menu.hidden && currentAccessDetail) {
+      void refreshLinkedProviders();
       window.dispatchEvent(new CustomEvent('mirrorball-account-open', { detail: currentAccessDetail }));
     }
   });
@@ -459,7 +477,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       catch { /* Sign-in can still continue when browser storage is restricted. */ }
       try {
         const callbackUrl = new URL('./', location.href).toString();
-        const { data, error } = await db.auth.signInWithOAuth({ provider, options: { redirectTo: callbackUrl, skipBrowserRedirect: true } });
+        const { data, error } = await db.auth.signInWithOAuth({ provider, options: {
+          redirectTo: callbackUrl,
+          skipBrowserRedirect: true,
+          ...(provider === 'google' ? { queryParams: { prompt: 'select_account' } } : {}),
+        } });
         if (error) throw error;
         if (!data?.url) throw new Error('The sign-in link was not returned. Please try again.');
         location.assign(data.url);
@@ -471,10 +493,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelector(`#connect${label}`).addEventListener('click', async () => {
       const button = document.querySelector(`#connect${label}`);
       button.disabled = true;
-      const { error } = await db.auth.linkIdentity({ provider, options: { redirectTo } });
+      const { error } = await db.auth.linkIdentity({ provider, options: {
+        redirectTo,
+        ...(provider === 'google' ? { queryParams: { prompt: 'select_account' } } : {}),
+      } });
       if (error) {
         button.disabled = false;
-        document.querySelector('#providerLinkMessage').textContent = `Couldn’t connect ${label}: ${error.message}. Check that manual identity linking is enabled in Supabase.`;
+        document.querySelector('#providerLinkMessage').textContent = `Couldn’t link ${label}: ${error.message}. Check that manual identity linking is enabled in Supabase.`;
       }
     });
   }
