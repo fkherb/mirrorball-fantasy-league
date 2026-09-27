@@ -255,6 +255,14 @@ installed. Signed-in league members keep the clock moving while the draft is
 open; if `pg_cron` is installed, a scheduled job also advances expired turns
 when nobody has the site open.
 
+For draft readiness and optional untimed drafts, run
+`supabase/draft-readiness-and-untimed-mode.sql` after
+`supabase/pause-league-draft.sql` and before deploying the matching site update.
+Regular managers can mark themselves ready or unready in Draft; the
+commissioner can start only when all regular managers are ready. The start
+confirmation can disable both the two-minute timer and automatic picks for
+that draft. Existing drafts keep their timed behavior.
+
 Google and Apple sign-in use the existing Supabase Auth users and profile
 trigger. New users finish onboarding by choosing a username and display name;
 existing password users can connect either provider without changing their

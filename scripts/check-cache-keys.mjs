@@ -17,10 +17,12 @@ if (versions.size !== 1) {
 }
 
 const expectedKey = [...versions.keys()][0];
-const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
-const moduleKeys = [...app.matchAll(/from ['"][^'"]+\.js\?v=([^'"]+)['"]/g)].map((match) => match[1]);
-if (!moduleKeys.length || moduleKeys.some((key) => key !== expectedKey)) {
-  throw new Error(`app.js module import cache key must match ${expectedKey}.`);
+for (const file of ['app.js', 'ui.js', 'league-workspace.js', 'score-desk/score-desk-ui.js', 'cast-roster/cast-roster-ui.js']) {
+  const module = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+  const moduleKeys = [...module.matchAll(/from ['"][^'"]+\.js\?v=([^'"]+)['"]/g)].map((match) => match[1]);
+  if (!moduleKeys.length || moduleKeys.some((key) => key !== expectedKey)) {
+    throw new Error(`${file} module import cache key must match ${expectedKey}.`);
+  }
 }
 
 console.log(`Static asset cache key verified: ${expectedKey}`);

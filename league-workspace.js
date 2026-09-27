@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20260926-apple-auth-v20';
-import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260926-league-parity-v18';
+import { db } from './supabase-client.js?v=20260927-draft-ready-v22';
+import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-draft-ready-v22';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -342,11 +342,12 @@ function scoreLeague(data, context) {
 async function loadWorkspaceData(context) {
   const leagueId = context.leagueId;
   const queries = {
-    league: db.from('leagues').select('id,name,status,roster_size,roster_size_overridden,scoring_starts_after_week,draft_pick_deadline_at,draft_paused_at').eq('id', leagueId).single(),
+    league: db.from('leagues').select('id,name,status,roster_size,roster_size_overridden,scoring_starts_after_week,draft_pick_deadline_at,draft_paused_at,draft_timer_disabled').eq('id', leagueId).single(),
     teams: db.from('fantasy_teams').select('id,league_id,manager_name,team_name').eq('league_id', leagueId),
     assignments: db.from('league_roster_assignments').select('cast_member_id,fantasy_team_id').eq('league_id', leagueId),
     cast: db.from('cast_members').select('*').order('name'),
     members: db.rpc('list_league_members', { p_league_id: leagueId }),
+    readiness: db.rpc('get_league_draft_readiness', { p_league_id: leagueId }),
     roles: db.from('roles').select('id,name,appearance_points'),
     rates: db.from('league_role_rates').select('role_id,appearance_points').eq('league_id', leagueId),
     weeks: db.from('weeks').select('id,number,title,theme,is_complete,air_date').order('number'),
@@ -375,7 +376,10 @@ function renderStandings(context, data, score, assignmentMap, memberByTeam, refr
     : context.leagueStatus === 'drafting' ? 'The draft is underway. Standings begin after every roster is filled.'
       : score.scoringWeeks.length ? `Through ${score.scoringWeeks.at(-1).title || (score.scoringWeeks.at(-1).theme ? `${score.scoringWeeks.at(-1).theme} Week` : `Week ${score.scoringWeeks.at(-1).number}`)} · current fantasy-team totals` : 'The season is ready. Scores will appear after the first completed show.';
   const turn = draftTurn(data.order, data.picks, context.rosterSize);
-  const setupPanel = isSetup ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">Before the draft</p><h2>Build your league</h2><p class="sub">${data.members.length} of 3–6 managers joined. ${data.members.length < 3 ? `Invite ${3 - data.members.length} more to start.` : 'Your league can start its draft whenever the owner is ready.'} Roster size is currently ${context.rosterSize} cast per team${context.rosterSizeOverridden ? ' (custom)' : ' (automatic)'}.</p><div class="workspace-setup-facts"><span><b>${data.members.length}</b> managers</span><span><b>${context.rosterSize}</b> draft rounds</span><span><b>${data.cast.length}</b> cast in pool</span></div>${context.leagueRole === 'owner' ? `<div class="modal-actions">${data.members.length < 6 ? '<button id="overviewInvitePlayers">Invite players</button>' : ''}<button id="overviewLeagueSettings" class="secondary">League settings</button></div>` : '<p class="sub">The league owner can invite managers and start the draft when at least three have joined.</p>'}</section>` : isDrafting ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">${context.draftPaused ? 'Draft paused' : 'Draft in progress'}</p><h2>Round ${turn?.round || context.rosterSize} of ${context.rosterSize}</h2><p class="sub">${data.picks.length} of ${data.order.length * context.rosterSize} picks complete. ${context.draftPaused ? 'The clock and picks are paused until the league owner resumes.' : turn ? `${safe(memberByTeam.get(turn.teamId)?.display_name || 'The next manager')} is on the clock.` : 'Every roster is filled.'}</p><a class="workspace-inline-link" href="#teams" id="overviewOpenDraft">View the draft</a></section>` : !score.scoringWeeks.length ? '<section class="card pad workspace-setup-panel"><p class="eyebrow">Season ready</p><h2>Waiting for the first completed show</h2><p class="sub">Your draft teams are set. Weekly points and highlights will appear after a show is completed.</p></section>' : '';
+  const regularMembers = data.members.filter((member) => member.member_role === 'member');
+  const readyIds = new Set(data.readiness.filter((item) => item.ready_at).map((item) => item.user_id));
+  const readyCount = regularMembers.filter((member) => readyIds.has(member.user_id)).length;
+  const setupPanel = isSetup ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">Before the draft</p><h2>Build your league</h2><p class="sub">${data.members.length} of 3–6 managers joined. ${data.members.length < 3 ? `Invite ${3 - data.members.length} more to start.` : `${readyCount} of ${regularMembers.length} regular managers ready.`} Roster size is currently ${context.rosterSize} cast per team${context.rosterSizeOverridden ? ' (custom)' : ' (automatic)'}.</p><div class="workspace-setup-facts"><span><b>${data.members.length}</b> managers</span><span><b>${context.rosterSize}</b> draft rounds</span><span><b>${data.cast.length}</b> cast in pool</span></div>${context.leagueRole === 'owner' ? `<div class="modal-actions">${data.members.length < 6 ? '<button id="overviewInvitePlayers">Invite players</button>' : ''}<button id="overviewLeagueSettings" class="secondary">League settings</button></div>` : '<p class="sub">Open Draft to mark yourself ready. The commissioner can start once every regular manager is ready.</p>'}</section>` : isDrafting ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">${context.draftPaused ? 'Draft paused' : 'Draft in progress'}</p><h2>Round ${turn?.round || context.rosterSize} of ${context.rosterSize}</h2><p class="sub">${data.picks.length} of ${data.order.length * context.rosterSize} picks complete. ${context.draftTimerDisabled ? 'This draft has no timer or automatic picks.' : context.draftPaused ? 'The clock and picks are paused until the league owner resumes.' : turn ? `${safe(memberByTeam.get(turn.teamId)?.display_name || 'The next manager')} is on the clock.` : 'Every roster is filled.'}</p><a class="workspace-inline-link" href="#teams" id="overviewOpenDraft">View the draft</a></section>` : !score.scoringWeeks.length ? '<section class="card pad workspace-setup-panel"><p class="eyebrow">Season ready</p><h2>Waiting for the first completed show</h2><p class="sub">Your draft teams are set. Weekly points and highlights will appear after a show is completed.</p></section>' : '';
   const scored = context.leagueStatus === 'active' && score.scoringWeeks.length > 0;
   const castPoints = (team) => data.cast.map((cast) => ({ cast, points: score.pointsByTeamCast.get(team.id)?.get(cast.id) || 0 }))
     .filter(({ cast, points }) => points || assignmentMap.get(cast.id) === team.id)
@@ -526,7 +530,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     ? `${(context.displayName || 'Your').split(' ')[0]}'s Manager View`
     : `${context.displayName || 'Your'} · ${context.leagueName}`;
   $('#myTeamSubtitle').textContent = context.leagueStatus === 'setup'
-    ? 'Invitations and league settings are open. The draft begins when 3–6 managers have joined.'
+    ? 'Get ready with your league. The commissioner can start when 3–6 managers have joined and every regular manager is ready.'
     : context.leagueStatus === 'drafting' ? 'Follow the draft order and claim cast members when it is your turn.'
       : 'View your roster, weekly scores, and the available cast.';
   const weekHistory = visibleWeeks.map((week) => {
@@ -550,10 +554,21 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       displayRole: role === 'DWTS Next Pro' ? 'Next Pro' : role,
       official: parts.official, appearances: parts.appearances, total: parts.official + parts.appearances };
   });
+  const regularMembers = data.members.filter((member) => member.member_role === 'member');
+  const readyIds = new Set(data.readiness.filter((item) => item.ready_at).map((item) => item.user_id));
+  const readyCount = regularMembers.filter((member) => readyIds.has(member.user_id)).length;
+  const canStartDraft = data.members.length >= 3 && data.members.length <= 6
+    && readyCount === regularMembers.length;
+  const ownReady = readyIds.has(context.userId);
+  const readinessRows = data.members.map((member) => {
+    const isOwner = member.member_role === 'owner';
+    const isReady = readyIds.has(member.user_id);
+    return `<li class="workspace-ready-person"><span class="workspace-ready-avatar">${member.avatar_url ? `<img src="${safe(member.avatar_url)}" alt="">` : safe((member.display_name || member.username || 'M').charAt(0).toUpperCase())}</span><span class="workspace-ready-name"><b>${safe(member.display_name || member.username || 'Manager')}</b><small>${isOwner ? 'Commissioner' : `@${safe(member.username || 'manager')}`}</small></span><span class="workspace-ready-state ${isOwner ? 'is-owner' : isReady ? 'is-ready' : 'is-waiting'}">${isOwner ? 'Commissioner' : isReady ? 'Ready' : 'Not ready'}</span></li>`;
+  }).join('');
   const draftStrip = context.leagueStatus === 'setup'
-    ? `<div class="workspace-draft-strip"><div><small>Draft setup</small><strong>${data.members.length} of 3–6 managers joined</strong><p class="sub">${context.rosterSize} rounds · ${context.rosterSizeOverridden ? 'custom' : 'automatic'} roster size</p></div>${context.leagueRole === 'owner' ? `<button id="startDraftFromTeam" ${data.members.length >= 3 && data.members.length <= 6 ? '' : 'disabled'}>Start draft</button>` : ''}</div>`
+    ? `<div class="workspace-draft-setup"><div class="workspace-draft-strip"><div><small>Draft setup</small><strong>${regularMembers.length ? `${readyCount} of ${regularMembers.length} members ready` : 'Waiting for managers'}</strong><p class="sub">${data.members.length} managers · ${context.rosterSize} rounds · ${context.rosterSizeOverridden ? 'custom' : 'automatic'} roster size</p></div>${context.leagueRole === 'owner' ? `<button id="startDraftFromTeam" ${canStartDraft ? '' : 'disabled'}>Start draft</button>` : `<button id="toggleDraftReady" type="button" class="${ownReady ? 'secondary' : ''}">${ownReady ? 'Unready' : 'Ready'}</button>`}</div><div class="workspace-ready-board"><div class="workspace-ready-heading"><h3>Manager readiness</h3><span>${regularMembers.length ? `${readyCount}/${regularMembers.length} ready` : 'No members yet'}</span></div><ul class="workspace-ready-list">${readinessRows}</ul>${context.leagueRole === 'owner' && !canStartDraft ? `<p class="workspace-ready-note">${data.members.length < 3 ? `Invite ${3 - data.members.length} more ${3 - data.members.length === 1 ? 'manager' : 'managers'} to start.` : 'Waiting for every regular manager to be ready.'}</p>` : ''}</div></div>`
     : context.leagueStatus === 'drafting'
-      ? `<div class="workspace-draft-strip workspace-draft-status"><div><small>Round ${currentRound} of ${context.rosterSize} · Pick ${turn?.pickNumber || '—'}</small><strong>${context.draftPaused ? 'Draft paused' : isYourTurn ? 'You are on the clock' : `${safe(memberByTeam.get(turn?.teamId)?.display_name || 'Next manager')} is on the clock`}</strong><p class="sub">${context.draftPaused ? 'The league owner paused the draft. No picks or automatic selections can happen until it resumes.' : 'Each manager has two minutes to pick before the draft selects a random available cast member.'}</p>${context.leagueRole === 'owner' ? `<button type="button" id="toggleDraftPause" class="secondary">${context.draftPaused ? 'Resume draft' : 'Pause draft'}</button>` : ''}</div><div class="workspace-draft-timer"><small>${context.draftPaused ? 'Draft clock' : 'Time left'}</small><strong id="workspaceDraftClock" aria-live="off">${context.draftPaused ? 'Paused' : '02:00'}</strong></div></div>`
+      ? `<div class="workspace-draft-strip workspace-draft-status"><div><small>Round ${currentRound} of ${context.rosterSize} · Pick ${turn?.pickNumber || '—'}</small><strong>${context.draftPaused ? 'Draft paused' : isYourTurn ? 'You are on the clock' : `${safe(memberByTeam.get(turn?.teamId)?.display_name || 'Next manager')} is on the clock`}</strong><p class="sub">${context.draftTimerDisabled ? 'No time limit or automatic picks. Each manager picks when it is their turn.' : context.draftPaused ? 'The league owner paused the draft. No picks or automatic selections can happen until it resumes.' : 'Each manager has two minutes to pick before the draft selects a random available cast member.'}</p>${context.leagueRole === 'owner' && !context.draftTimerDisabled ? `<button type="button" id="toggleDraftPause" class="secondary">${context.draftPaused ? 'Resume draft' : 'Pause draft'}</button>` : ''}</div>${context.draftTimerDisabled ? '' : `<div class="workspace-draft-timer"><small>${context.draftPaused ? 'Draft clock' : 'Time left'}</small><strong id="workspaceDraftClock" aria-live="off">${context.draftPaused ? 'Paused' : '02:00'}</strong></div>`}</div>`
       : seasonSummary;
   const canClaim = isYourTurn || context.leagueStatus === 'active';
   const castScrollTop = body.querySelector('.workspace-available-list')?.scrollTop || 0;
@@ -602,13 +617,22 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     selectedDraftRound = Number(button.dataset.draftRound);
     renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh);
   }));
-  if (context.leagueStatus === 'drafting') updateDraftClock(data.league.draft_pick_deadline_at, null, context.draftPaused);
+  if (context.leagueStatus === 'drafting' && !context.draftTimerDisabled) updateDraftClock(data.league.draft_pick_deadline_at, null, context.draftPaused);
+  else {
+    clearInterval(workspaceDraftTimer);
+    workspaceDraftTimer = null;
+  }
   $('#toggleDraftPause')?.addEventListener('click', () => runAction(
     () => db.rpc('set_league_draft_paused', { p_league_id: context.leagueId, p_paused: !context.draftPaused }),
     refresh,
     $('#toggleDraftPause'),
   ));
   $('#startDraftFromTeam')?.addEventListener('click', () => confirmStartDraft(context));
+  $('#toggleDraftReady')?.addEventListener('click', () => runAction(
+    () => db.rpc('set_league_draft_ready', { p_league_id: context.leagueId, p_ready: !ownReady }),
+    refresh,
+    $('#toggleDraftReady'),
+  ));
   $('#editMyTeam').hidden = context.leagueStatus !== 'active';
   const openTeamNameEditor = () => {
     dialog(`<p class="eyebrow">Team settings</p><h2>Edit team name</h2><label>Team name<input id="workspaceTeamName" maxlength="80" value="${safe(ownTeam.team_name || '')}"></label><div class="modal-actions"><button id="saveWorkspaceTeamName">Save</button></div>`);
@@ -954,9 +978,11 @@ async function loadPendingInvites(leagueId) {
 }
 
 function confirmStartDraft(context) {
-  dialog(`<h2>Start the draft?</h2><p class="sub">The order will be randomized once. ${context.memberCount} managers will each draft ${context.rosterSize} cast members in snake order. New members cannot join after it starts.</p><button id="confirmStartDraft">Start draft</button>`);
+  dialog(`<p class="eyebrow">Final confirmation</p><h2>Start the draft?</h2><p class="sub">The order will be randomized once. ${context.memberCount} managers will each draft ${context.rosterSize} cast members in snake order. New members cannot join after it starts.</p><label class="workspace-untimed-choice"><input id="disableDraftTimer" type="checkbox"><span><b>Disable timer &amp; autodraft</b><small>Managers can take as long as they need to pick. No random cast will be selected.</small></span></label><div class="modal-actions"><button id="cancelStartDraft" type="button" class="secondary">Cancel</button><button id="confirmStartDraft">Start draft</button></div>`);
+  $('#cancelStartDraft').addEventListener('click', () => $('#modal').close());
   $('#confirmStartDraft').addEventListener('click', () => runAction(
-    () => db.rpc('start_league_draft', { p_league_id: context.leagueId }),
+    () => db.rpc('start_league_draft', { p_league_id: context.leagueId,
+      p_disable_timer: $('#disableDraftTimer').checked }),
     async () => { $('#modal').close(); selectedDraftRound = 1; await renderSecondaryLeague(context, { silent: true }); },
     $('#confirmStartDraft'),
   ));
@@ -1085,6 +1111,7 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
     const liveContext = { ...context, leagueName: data.league.name,
       leagueStatus: data.league.status, rosterSize: data.league.roster_size,
       draftPaused: Boolean(data.league.draft_paused_at),
+      draftTimerDisabled: Boolean(data.league.draft_timer_disabled),
       rosterSizeOverridden: data.league.roster_size_overridden,
       memberCount: data.members.length, castCount: data.cast.length,
       scoringStartsAfterWeek: data.league.scoring_starts_after_week };
@@ -1118,6 +1145,7 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
       const knownStatus = liveContext.leagueStatus;
       const knownPickCount = data.picks.length;
       const knownPaused = liveContext.draftPaused;
+      const knownReadiness = data.readiness.map((item) => `${item.user_id}:${Boolean(item.ready_at)}`).sort().join('|');
       const pollDraft = async () => {
         if (document.hidden || workspaceDraftPollInFlight || version !== workspaceVersion) return;
         workspaceDraftPollInFlight = true;
@@ -1125,11 +1153,17 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
           const { data: state, error } = await db.rpc('advance_league_draft_clock', { p_league_id: liveContext.leagueId });
           if (error) throw error;
           if (version !== workspaceVersion) return;
-          const statePaused = state.status === 'drafting' && !state.deadline_at;
-          if (state.status !== knownStatus || state.pick_count !== knownPickCount || statePaused !== knownPaused) {
+          const statePaused = state.status === 'drafting' && !liveContext.draftTimerDisabled && !state.deadline_at;
+          const readinessResult = knownStatus === 'setup' && state.status === 'setup'
+            ? await db.rpc('get_league_draft_readiness', { p_league_id: liveContext.leagueId }) : null;
+          if (readinessResult?.error) throw readinessResult.error;
+          if (version !== workspaceVersion) return;
+          const stateReadiness = readinessResult?.data?.map((item) => `${item.user_id}:${Boolean(item.ready_at)}`).sort().join('|') || knownReadiness;
+          if (state.status !== knownStatus || state.pick_count !== knownPickCount
+            || statePaused !== knownPaused || stateReadiness !== knownReadiness) {
             if (state.pick_count !== knownPickCount) selectedDraftRound = null;
             await refresh();
-          } else if (state.status === 'drafting') updateDraftClock(state.deadline_at, state.server_now, statePaused);
+          } else if (state.status === 'drafting' && !liveContext.draftTimerDisabled) updateDraftClock(state.deadline_at, state.server_now, statePaused);
         } catch (error) {
           console.warn('Draft update unavailable', error);
         } finally {

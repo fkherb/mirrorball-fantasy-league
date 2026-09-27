@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260927-linked-accounts-v21';
+import { db } from '../supabase-client.js?v=20260927-draft-ready-v22';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');
