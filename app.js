@@ -1,6 +1,6 @@
-import { db } from './supabase-client.js?v=20260927-draft-ready-v22';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-draft-ready-v22';
-import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-draft-ready-v22';
+import { db } from './supabase-client.js?v=20260927-draft-pages-v23';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-draft-pages-v23';
+import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-draft-pages-v23';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1689,6 +1689,10 @@ if (isScoreDeskSurface) {
     const showWelcome = !event.detail.signedIn || event.detail.noLeague;
     $('#signedOutOverview').hidden = !showWelcome;
     $('#memberOverview').hidden = showWelcome;
+    if (!showWelcome) {
+      $('#memberOverview h1').textContent = 'Home';
+      $('#league .league-title-head .eyebrow').textContent = 'League view';
+    }
     if (showWelcome) {
       stopSecondaryLeague();
       Object.keys(loadVersions).forEach((key) => { loadVersions[key] += 1; });

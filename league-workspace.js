@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20260927-draft-ready-v22';
-import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-draft-ready-v22';
+import { db } from './supabase-client.js?v=20260927-draft-pages-v23';
+import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-draft-pages-v23';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -370,6 +370,8 @@ function renderStandings(context, data, score, assignmentMap, memberByTeam, refr
     manager: memberByTeam.get(team.id)?.display_name || team.manager_name })).sort((a, b) => b.points - a.points || (a.team_name || a.manager).localeCompare(b.team_name || b.manager));
   const isSetup = context.leagueStatus === 'setup';
   const isDrafting = context.leagueStatus === 'drafting';
+  $('#memberOverview h1').textContent = isSetup || isDrafting ? 'Draft Home' : 'Home';
+  $('#standings').classList.toggle('is-draft-home', isSetup || isDrafting);
   $('#standingsLeagueName').textContent = context.leagueName;
   $('#standingsSubtitle').textContent = isSetup
     ? 'Your league is getting ready for its draft.'
@@ -393,8 +395,8 @@ function renderStandings(context, data, score, assignmentMap, memberByTeam, refr
       name: team.team_name || `${team.manager.split(' ')[0]}'s Team`,
       contributors: leaders.map(({ cast, points }) => ({ name: cast.name, points })), total: team.points,
       selected: team.id === selectedWorkspaceOverviewTeamId, leader: index === 0, tied });
-  }).join('')}</div>` : `${setupPanel}${rows.length ? `<div class="workspace-standings-list">${rows.map((team) => `<button type="button" class="card workspace-standing-card" data-workspace-standing="${team.id}" aria-label="View ${safe(team.team_name || team.manager)} roster"><span class="workspace-rank">•</span><span><small>${safe(team.manager)}</small><b>${safe(team.team_name || `${team.manager.split(' ')[0]}'s Team`)}</b></span><strong>${[...assignmentMap.values()].filter((id) => id === team.id).length}/${context.rosterSize} cast</strong></button>`).join('')}</div>` : '<div class="card pad">No teams yet.</div>'}`;
-  $('#overviewInvitePlayers')?.remove();
+  }).join('')}</div>` : `${setupPanel}${rows.length ? `<div class="workspace-standings-list">${rows.map((team) => `<button type="button" class="card workspace-standing-card" data-workspace-standing="${team.id}" aria-label="View ${safe(team.team_name || team.manager)} roster"><span class="workspace-rank">${isSetup ? '•' : `${[...assignmentMap.values()].filter((id) => id === team.id).length}`}</span><span><small>${safe(team.manager)}</small><b>${safe(team.team_name || `${team.manager.split(' ')[0]}'s Team`)}</b></span><strong>${isSetup ? data.members.find((member) => member.fantasy_team_id === team.id)?.member_role === 'owner' ? 'Commissioner' : readyIds.has(data.members.find((member) => member.fantasy_team_id === team.id)?.user_id) ? 'Ready' : 'Not ready' : `${[...assignmentMap.values()].filter((id) => id === team.id).length}/${context.rosterSize} cast`}</strong></button>`).join('')}</div>` : '<div class="card pad">No teams yet.</div>'}`;
+  $('#overviewInvitePlayers')?.addEventListener('click', () => openInviteManager(context, refresh));
   $('#overviewLeagueSettings')?.addEventListener('click', () => openLeagueSettings(context, refresh));
   $('#overviewOpenDraft')?.addEventListener('click', (event) => { event.preventDefault(); $('#myTeamNav').click(); });
   const detailMarkup = (team) => {
@@ -572,7 +574,12 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       : seasonSummary;
   const canClaim = isYourTurn || context.leagueStatus === 'active';
   const castScrollTop = body.querySelector('.workspace-available-list')?.scrollTop || 0;
+  if (context.leagueStatus !== 'setup') {
   body.innerHTML = `<section class="card public-team-detail workspace-team-detail">${draftStrip}${context.leagueStatus === 'drafting' ? `<section class="workspace-draft-rounds"><div class="public-section-head"><div><p class="eyebrow">Draft board</p><h3>Round ${draftRound} picks</h3></div><span>${data.picks.length} of ${data.order.length * context.rosterSize} picked</span></div><div class="workspace-round-tabs" role="group" aria-label="Draft rounds">${Array.from({ length: context.rosterSize }, (_, index) => `<button type="button" data-draft-round="${index + 1}" class="${draftRound === index + 1 ? 'selected' : ''}" aria-pressed="${draftRound === index + 1}">Round ${index + 1}</button>`).join('')}</div><div class="workspace-round-picks">${roundSlots}</div></section>` : ''}<div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Roster</p><h3>Team Roster · ${roster.length}/${context.rosterSize}</h3></div></div><div class="workspace-cast-list">${roster.map((member) => castTile(member, context.leagueStatus === 'active' ? `<strong class="workspace-points">${score.pointsByTeamCast.get(ownTeam.id)?.get(member.id) || 0} pts</strong>` : '')).join('') || '<p class="sub">Your picks will appear here.</p>'}</div></section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? 'Draft pool' : 'Free agents'}</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">${isYourTurn ? 'It is your turn. Claim one cast member below.' : context.draftPaused ? 'The draft is paused. Claims reopen when the owner resumes.' : context.leagueStatus === 'drafting' ? 'Claims open when it is your turn.' : context.leagueStatus === 'active' ? 'Claim a cast member by releasing one from your roster.' : 'Claims open after the draft starts.'}</p><div class="workspace-available-list">${available.map((member) => castTile(member, canClaim ? `<button data-workspace-claim="${member.id}">Claim</button>` : '')).join('') || '<p class="sub">No cast members are available.</p>'}</div></section>${context.leagueStatus === 'active' ? '<section id="workspaceTradeCenter" class="card pad workspace-trades">Loading trades…</section>' : ''}</div></div></section>`;
+  }
+  if (context.leagueStatus === 'setup') {
+    body.innerHTML = `<section class="card public-team-detail workspace-team-detail is-setup"><div class="workspace-setup-intro"><p class="eyebrow">Before the draft</p><h2>Get ready to draft</h2><p class="sub">${context.leagueRole === 'owner' ? 'Invite managers and check their readiness. You can start once at least three managers have joined and every member is ready.' : 'Mark yourself ready when you can join the draft. You can change your status until the commissioner starts.'}</p></div>${draftStrip}<div class="workspace-setup-footer"><div><p class="eyebrow">Your team</p><h3>${safe(ownTeam.team_name || 'My Team')}</h3><p class="sub">${context.rosterSize} picks will fill your roster once the draft begins.</p></div><button type="button" class="secondary workspace-roster-edit">Edit team name</button></div></section>`;
+  }
   if (context.leagueStatus === 'active') {
     const availableMarkup = available.map((member) => `<article class="league-cast-person available-cast-person"><button type="button" class="available-profile-button" data-workspace-available-cast="${member.id}" aria-label="View ${safe(member.name)} profile"><img src="${safe(castImage(member))}" style="object-position:${Number(member.image_position) || 50}% center" alt=""><span><strong>${safe(member.name)}</strong><small>${safe(member.role === 'DWTS Next Pro' ? 'Next Pro' : member.role)}</small></span></button><button type="button" class="claim-cast-button" data-workspace-claim="${member.id}">Claim</button></article>`).join('');
     body.innerHTML = teamPage({ weekHistory, total: selectedTotal, period: selectedWeek ? 'week' : 'season',
@@ -604,7 +611,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   }
   body.firstElementChild.classList.toggle('is-drafting', context.leagueStatus === 'drafting');
   if (body.querySelector('.workspace-available-list')) body.querySelector('.workspace-available-list').scrollTop = castScrollTop;
-  if (context.leagueStatus !== 'active') {
+  if (context.leagueStatus === 'drafting') {
     const rosterHeading = body.querySelector('.public-team-columns > section:first-child .public-section-head');
     rosterHeading.querySelector('h3').textContent = `${ownTeam.team_name || 'My Team'} · ${roster.length}/${context.rosterSize}`;
     const editButton = document.createElement('button');
@@ -846,6 +853,18 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
 
 async function renderLeague(context, data, assignmentMap, memberByTeam, score, refresh) {
   const renderVersion = workspaceVersion;
+  const preparing = context.leagueStatus === 'setup' || context.leagueStatus === 'drafting';
+  $('#league').classList.toggle('is-league-setup', preparing);
+  $('#league .league-title-head .eyebrow').textContent = preparing ? 'League setup' : 'League view';
+  $('#league .league-title-head .sub').textContent = preparing
+    ? 'Review managers, draft settings, the cast pool, and scoring rules.'
+    : 'Browse teams, cast, and scoring rules.';
+  $('#leagueTeamsPane h2').textContent = context.leagueStatus === 'setup' ? 'Managers' : 'Fantasy Teams';
+  $('#leagueTeamsPane .sub').textContent = context.leagueStatus === 'setup'
+    ? 'Invite friends and see who is ready for the draft.' : 'View every team and its current lineup.';
+  $('#leagueRosterPane > .splithead h2').textContent = preparing ? 'Cast Pool' : 'Cast Roster';
+  $('#leagueRosterPane > .splithead .sub').textContent = preparing
+    ? 'Explore the cast before drafting begins.' : 'Select anyone to view their profile and season stats.';
   $('#leagueName').textContent = context.leagueName;
   $('#leagueTeamCount').textContent = data.teams.length;
   $('#leagueCastCount').textContent = data.cast.length;
@@ -870,6 +889,7 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
     inviteButton.addEventListener('click', () => openInviteManager(context, refresh));
     teamsHeading.append(inviteButton);
   }
+  const readyManagerIds = new Set(data.readiness.filter((item) => item.ready_at).map((item) => item.user_id));
   $('#commissionerTeamResults').innerHTML = data.teams.map((team) => {
     const member = memberByTeam.get(team.id);
     const roster = data.cast.filter((cast) => assignmentMap.get(cast.id) === team.id);
@@ -877,7 +897,7 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
     const teamName = team.team_name || `${managerName.split(' ')[0]}'s Team`;
     return teamCard({ id: team.id, manager: managerName, name: teamName,
       roster: roster.map((cast) => ({ name: cast.name, role: cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role })),
-      emptyMessage: context.leagueStatus === 'setup' ? 'Draft not started' : context.leagueStatus === 'drafting' ? 'Waiting for first pick' : 'No cast on this team',
+      emptyMessage: context.leagueStatus === 'setup' ? member?.member_role === 'owner' ? 'Commissioner' : readyManagerIds.has(member?.user_id) ? 'Ready to draft' : 'Not ready yet' : context.leagueStatus === 'drafting' ? 'Waiting for first pick' : 'No cast on this team',
       footerHtml: context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member?.member_role === 'member'
         ? `<button class="secondary workspace-remove-manager" data-remove-member="${member.user_id}">Remove manager</button>` : '' });
   }).join('');
@@ -1115,6 +1135,14 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
       rosterSizeOverridden: data.league.roster_size_overridden,
       memberCount: data.members.length, castCount: data.cast.length,
       scoringStartsAfterWeek: data.league.scoring_starts_after_week };
+    const preparing = liveContext.leagueStatus === 'setup' || liveContext.leagueStatus === 'drafting';
+    for (const [view, label] of [['standings', preparing ? 'Draft Home' : 'Home'],
+      ['league', preparing ? 'League Setup' : 'League View']]) {
+      const button = document.querySelector(`#primaryNav [data-view="${view}"]`);
+      button.querySelector('.nav-label').textContent = label;
+      button.setAttribute('aria-label', label);
+      button.title = label;
+    }
     const teamNav = $('#myTeamNav');
     const teamNavLabel = liveContext.leagueStatus === 'active' ? 'My Team' : 'Draft';
     teamNav.querySelector('.nav-label').textContent = teamNavLabel;

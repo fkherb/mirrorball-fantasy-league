@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260927-draft-ready-v22';
+import { db } from './supabase-client.js?v=20260927-draft-pages-v23';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
@@ -368,6 +368,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       : labelMode === 'custom' && currentMember?.custom_team_nav_label
       ? currentMember.custom_team_nav_label
       : labelMode === 'team' && teamName ? teamName : 'My Team';
+    const draftPhase = selectedLeague && ['setup', 'drafting'].includes(selectedLeague.status);
+    for (const [view, label] of [['standings', draftPhase ? 'Draft Home' : 'Home'],
+      ['league', draftPhase ? 'League Setup' : 'League View']]) {
+      const button = buttons.find((item) => item.dataset.view === view);
+      button.querySelector('.nav-label').textContent = label;
+      button.setAttribute('aria-label', label);
+      button.title = label;
+    }
     myTeamNav.querySelector('.nav-label').textContent = teamNavLabel;
     myTeamNav.setAttribute('aria-label', teamNavLabel);
     myTeamNav.hidden = !signedInEmail || noLeague || (membershipReady && !currentMember?.fantasy_team_id);

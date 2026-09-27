@@ -1089,7 +1089,33 @@ dialog .close { display: grid; width: 42px; height: 42px; place-items: center; p
 .week-upcoming { background: #f0eaf0 !important; color: #675966 !important; }
 
 @media (min-width: 751px) {
-  nav .nav-toggle { width: 40px; height: 40px; right: -20px; top: 15px; border-radius: 11px; }
+  nav { z-index: 11; }
+  nav .nav-toggle { width: 30px; height: 30px; right: -15px; top: -15px; border-radius: 9px; }
+  nav .nav-toggle-icon { font-size: 16px; }
+}
+
+/* Draft workspaces use the available width without borrowing empty post-draft panels. */
+#standings.is-draft-home .overview-layout { display: block; max-width: 1100px; }
+#standings.is-draft-home .workspace-standings-list { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+#standings.is-draft-home .workspace-setup-panel { padding: 24px; }
+#standings.is-draft-home .workspace-setup-panel .sub { max-width: 70ch; line-height: 1.5; }
+#standings.is-draft-home .workspace-standing-card strong { color: #665b64; font-size: 12px; }
+.workspace-team-detail.is-setup { max-width: 1000px; }
+.workspace-setup-intro { margin-bottom: 18px; }
+.workspace-setup-intro h2 { margin: 4px 0 6px; font: 600 25px Georgia, serif; }
+.workspace-setup-intro .sub { max-width: 70ch; line-height: 1.5; }
+.workspace-setup-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 4px 2px; border-top: 1px solid #e8e0e7; }
+.workspace-setup-footer h3 { margin: 3px 0 4px; font: 600 21px Georgia, serif; }
+.workspace-setup-footer .sub { margin: 0; }
+.is-league-setup .league-directory { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.is-league-setup .roster-scroll-card { max-height: 440px; }
+.is-league-setup .roster-scroll-card #rosterResults { max-height: 295px; }
+@media (max-width: 1050px) {
+  .is-league-setup .league-directory { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  #standings.is-draft-home .workspace-setup-panel { padding: 18px; }
+  .workspace-setup-footer { align-items: flex-start; flex-direction: column; }
 }
 
 @media (min-width: 1500px) {
