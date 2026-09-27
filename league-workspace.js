@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20260927-draft-pages-v23';
-import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-draft-pages-v23';
+import { db } from './supabase-client.js?v=20260927-nav-labels-v24';
+import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-nav-labels-v24';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -855,7 +855,7 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
   const renderVersion = workspaceVersion;
   const preparing = context.leagueStatus === 'setup' || context.leagueStatus === 'drafting';
   $('#league').classList.toggle('is-league-setup', preparing);
-  $('#league .league-title-head .eyebrow').textContent = preparing ? 'League setup' : 'League view';
+  $('#league .league-title-head .eyebrow').textContent = preparing ? 'League Draft' : 'League View';
   $('#league .league-title-head .sub').textContent = preparing
     ? 'Review managers, draft settings, the cast pool, and scoring rules.'
     : 'Browse teams, cast, and scoring rules.';
@@ -1135,14 +1135,6 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
       rosterSizeOverridden: data.league.roster_size_overridden,
       memberCount: data.members.length, castCount: data.cast.length,
       scoringStartsAfterWeek: data.league.scoring_starts_after_week };
-    const preparing = liveContext.leagueStatus === 'setup' || liveContext.leagueStatus === 'drafting';
-    for (const [view, label] of [['standings', preparing ? 'Draft Home' : 'Home'],
-      ['league', preparing ? 'League Setup' : 'League View']]) {
-      const button = document.querySelector(`#primaryNav [data-view="${view}"]`);
-      button.querySelector('.nav-label').textContent = label;
-      button.setAttribute('aria-label', label);
-      button.title = label;
-    }
     const teamNav = $('#myTeamNav');
     const teamNavLabel = liveContext.leagueStatus === 'active' ? 'My Team' : 'Draft';
     teamNav.querySelector('.nav-label').textContent = teamNavLabel;
