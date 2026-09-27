@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260927-nav-labels-v24';
+import { db } from '../supabase-client.js?v=20260927-ballroom-v25';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');
