@@ -292,6 +292,24 @@ Supabase Auth. Enable manual identity linking for the profile's Connect
 buttons; keep email/password login enabled until existing members have linked
 an identity. The website no longer offers new email/password registration.
 
+Before deploying the invite-sharing UI, enable Supabase Cron (`pg_cron`) and run
+`supabase/short-league-invite-codes.sql` in the Supabase SQL editor. Each new
+setup league receives a link and six-character code when it is created. The
+commissioner can retrieve the current pair or refresh it, invalidating the
+previous pair. Both expire after 48 hours. A minutely Cron job renews expired
+pairs in the background, and the next commissioner visit also renews any
+pair the job missed. Confirm the `rotate-mirrorball-league-invites` job is
+active in the Supabase Cron dashboard. Existing links without codes are
+replaced on the commissioner's next visit. Starting the draft revokes the pair immediately.
+The invite dialog displays the code only: Copy link copies just the URL, while
+Share passes a short message containing the URL and code to the device share sheet.
+Code entry requires sign-in and is limited to five attempts per account per
+hour. Enter codes from the account menu (or Manage invites before joining a
+league); the signed-out home never accepts a code. Commissioners invite an
+existing member by entering their exact username, without a people-search
+list. A shared link opens an invitation notice for signed-out visitors and
+appears with the other invitations in the account menu after sign-in.
+
 - Score Desk is the source of truth for dances, judges’ scores, and cast
   appearances.
 - Create a competitive dance ahead of the show with its couple, dance type,

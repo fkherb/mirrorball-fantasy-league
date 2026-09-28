@@ -106,6 +106,7 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .account-menu #accountProfileActions button { width: auto; flex: 1; margin: 0; }
 .account-profile-summary:has(+ #accountProfileFields:not([hidden])) { margin-bottom: 10px; }
 #joinInviteBanner:not(:empty) { max-width: 760px; margin: 0 0 24px; }
+#joinInviteBanner[hidden] { display: none; }
 @media (max-width: 520px) { .account-menu { right: -4px; max-height: calc(100dvh - 90px); } }
 
 /* League workspaces, invitations, and drafting. */
@@ -124,8 +125,14 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .workspace-invite-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .workspace-invite-row > div:last-child { display: flex; gap: 5px; }
 .workspace-onboarding,.workspace-invite-banner { margin-bottom: 18px; }
-.workspace-invite-banner h2 { margin: 0 0 8px; }
-.workspace-invite-banner a { margin-left: 10px; }
+.workspace-invite-banner { display: flex; align-items: center; gap: 15px; padding: 15px 18px; border-color: #d8c2d1; }
+.workspace-invite-banner .workspace-invite-mark { flex: 0 0 38px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #412b45; color: white; font: 700 20px Georgia,serif; }
+.workspace-invite-banner .eyebrow { margin: 0 0 3px; }
+.workspace-invite-banner h2 { margin: 0 0 3px; font-size: 20px; }
+.workspace-invite-banner .sub { margin: 0; }
+.workspace-invite-banner-actions { display: flex; gap: 8px; margin-top: 11px; }
+.workspace-invite-banner-actions button { margin: 0; }
+.invite-notification-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: #bd334d; color: #fff; font: 800 11px/1 sans-serif; }
 .invite-count { color: #786e79; font: 700 13px sans-serif; }
 .workspace-standings-list,.workspace-dance-list { display: grid; gap: 10px; }
 .workspace-setup-panel { margin-bottom: 15px; }
@@ -277,6 +284,25 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 .legacy-signin-fields label { display: block; margin-top: 10px; }
 .legacy-signin-fields button { margin-top: 14px; }
 .workspace-invite-link-actions { margin: 15px 0; }
+.workspace-invite-share { padding: 16px; border: 1px solid #e8e0e7; border-radius: 13px; background: #faf8fa; }
+.workspace-exact-invite-form { margin: 18px 0 20px; }
+.workspace-exact-invite-form > label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 750; }
+.workspace-exact-invite-row { display: flex; gap: 8px; align-items: stretch; }
+.workspace-exact-invite-row input { flex: 1; min-width: 0; margin: 0; }
+.workspace-exact-invite-row button { flex: 0 0 auto; margin: 0; }
+.workspace-exact-invite-form p { min-height: 0; margin: 6px 0 0; }
+.workspace-exact-invite-form p:empty { display: none; }
+.workspace-invite-code-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.workspace-invite-code-head small { display: block; color: #786e79; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
+.workspace-invite-code-head strong { display: block; margin-top: 5px; font-size: 25px; letter-spacing: .16em; }
+.workspace-invite-share .workspace-invite-link-actions { display: flex; flex-wrap: wrap; gap: 9px; margin: 12px 0; }
+.workspace-invite-share p.sub { line-height: 1.5; }
+.workspace-code-form { margin-top: 18px; }
+.workspace-code-form > label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 750; }
+.workspace-code-boxes { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 5px; width: min(100%, 312px); }
+.workspace-code-boxes input { box-sizing: border-box; width: 100%; min-width: 0; height: 46px; padding: 0; border: 1px solid #d9c9d5; border-radius: 9px; background: #fff; color: #302638; text-align: center; font-family: inherit; font-size: 20px; font-weight: 800; text-transform: uppercase; }
+.workspace-code-boxes input:focus { outline: 2px solid #ae8abb; outline-offset: 2px; }
+.workspace-code-form > button { margin-top: 14px; }
 .workspace-trades h3 { margin: 0; }
 .workspace-trade-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px; margin: 12px 0; border-radius: 8px; background: #f1ecf0; }
 .workspace-trade-tabs button { background: transparent; color: #786e79; }
@@ -1193,16 +1219,43 @@ dialog .close { display: grid; width: 42px; height: 42px; place-items: center; p
   .team-side-column { grid-template-columns: 1fr; }
 }
 
-/* During a draft, keep the roster compact and give the cast pool the width it needs. */
-.workspace-team-detail.is-drafting .public-team-columns { display: block; }
+/* During a draft, keep the roster and cast pool visible together on desktop. */
+.workspace-team-detail.is-drafting .public-team-columns { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; gap: 20px; }
 .workspace-team-detail.is-drafting .public-team-columns > section { margin-bottom: 20px; }
 .workspace-team-detail.is-drafting .team-side-column { display: block; height: auto; min-height: 0; }
 .workspace-team-detail.is-drafting .workspace-cast-list { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); align-content: start; max-height: none; overflow: visible; }
 .workspace-team-detail.is-drafting .workspace-cast-list > .sub { grid-column: 1 / -1; margin: 0; }
+.workspace-position-board { display: grid; gap: 15px; margin-top: 15px; }
+.workspace-position-group { min-width: 0; }
+.workspace-position-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 7px; }
+.workspace-position-heading-actions { display: flex; align-items: center; gap: 8px; }
+.workspace-position-heading h4 { margin: 0; color: #35243d; font: 700 14px/1.2 sans-serif; }
+.workspace-position-heading span { color: #786e79; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.workspace-position-toggle { display: none; }
+.workspace-position-slots { display: grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap: 8px; }
+.workspace-position-slot { display: grid; grid-template-columns: 43px minmax(0,1fr); align-items: center; gap: 7px; min-width: 0; min-height: 65px; padding: 6px 8px; border: 1px solid #ded3dd; border-radius: 10px; background: #fff; }
+.workspace-position-slot.is-open { border-style: dashed; background: #faf8fa; }
+.workspace-position-slot.is-filled { border-color: #d8c2d1; box-shadow: inset 3px 0 #b98d65; }
+.workspace-position-slot.is-retained { border-color: #c6a5ad; box-shadow: inset 3px 0 #a44d69; }
+.workspace-position-label { color: #8b7088; font-size: 9px; font-weight: 850; letter-spacing: .06em; }
+.workspace-position-label small { display: block; margin-top: 3px; color: #a44d69; font-size: 9px; letter-spacing: 0; }
+.workspace-open-position { color: #968a96; font-size: 12px; }
+.workspace-position-slot .workspace-cast-tile { grid-template-columns: 42px minmax(0,1fr); gap: 7px; padding: 0; border: 0; background: transparent; }
+.workspace-position-slot .workspace-cast-tile .workspace-profile-button { grid-template-columns: 42px minmax(0,1fr); gap: 7px; }
+.workspace-position-slot .workspace-cast-tile img { width: 42px; height: 42px; }
+.workspace-position-slot .workspace-cast-tile b { font-size: 11px; }
+.workspace-position-slot .workspace-cast-tile small { font-size: 10px; }
 .workspace-team-detail.is-drafting .available-cast-panel { display: block; padding: 16px; }
+.workspace-pool-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.workspace-pool-filters button { display: inline-flex; align-items: center; gap: 7px; margin: 0; padding: 7px 10px; border: 1px solid #e5d9e2; background: #fff; color: #514653; font-size: 11px; }
+.workspace-pool-filters button.selected { border-color: #35243d; background: #35243d; color: #fff; }
+.workspace-pool-filters button span { font-variant-numeric: tabular-nums; opacity: .75; }
 .workspace-team-detail.is-drafting .workspace-available-list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-auto-rows: max-content; align-content: start; max-height: min(460px, 52vh); padding-right: 5px; }
 .workspace-team-detail.is-drafting .workspace-cast-tile { min-width: 0; }
 .workspace-team-detail.is-drafting .workspace-cast-tile b { overflow-wrap: anywhere; }
+@media (max-width: 1050px) {
+  .workspace-team-detail.is-drafting .public-team-columns { display: block; }
+}
 .workspace-league-draft-banner { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: -2px 0 20px; padding: 14px 16px; border: 1px solid #d9c5d4; border-radius: 11px; background: linear-gradient(110deg,#f6eef4,#fcf8f1); }
 .workspace-league-draft-banner .eyebrow { margin-bottom: 4px; }
 .workspace-league-draft-banner strong { display: block; font: 600 17px Georgia,serif; }
@@ -1224,6 +1277,18 @@ dialog:has(.draft-claim-dialog) .close { position: absolute; top: 12px; right: 1
   .workspace-league-draft-banner button { padding: 8px; font-size: 11px; }
   .workspace-team-detail.is-drafting .workspace-cast-list,
   .workspace-team-detail.is-drafting .workspace-available-list { grid-template-columns: 1fr; }
+  .workspace-position-board { gap: 9px; margin-top: 10px; }
+  .workspace-position-group { padding: 7px 10px; border: 1px solid #e9dee6; border-radius: 10px; background: #fff; }
+  .workspace-position-heading { margin: 0; min-height: 28px; }
+  .workspace-position-toggle { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; background: #f1ecf0; color: #514653; font-size: 19px; line-height: 1; }
+  .workspace-position-group:not(.is-collapsed) .workspace-position-toggle { transform: rotate(180deg); }
+  .workspace-position-group.is-collapsed .workspace-position-slots { display: none; }
+  .workspace-position-slots { grid-template-columns: 1fr; gap: 5px; margin-top: 7px; }
+  .workspace-position-slot { min-height: 44px; padding: 4px 7px; }
+  .workspace-position-slot.is-open { min-height: 34px; }
+  .workspace-position-slot .workspace-cast-tile img { width: 36px; height: 36px; }
+  .workspace-position-slot .workspace-cast-tile .workspace-profile-button { grid-template-columns: 36px minmax(0,1fr); }
+  .workspace-position-slot .workspace-cast-tile { grid-template-columns: 36px minmax(0,1fr); }
   .workspace-team-detail.is-drafting .workspace-available-list { max-height: min(420px, 48vh); }
   .draft-claim-dialog .modal-actions { display: grid; grid-template-columns: 1fr 1fr; }
 }
@@ -1258,3 +1323,4 @@ body:not(.auth-ready) nav button[data-view]:not([data-view="standings"]) { displ
 .welcome-steps p { margin: 0; color: #786e79; font-size: 13px; line-height: 1.5; }
 .welcome-footnote { margin: 20px 0; color: #8a7d87; font-size: 11px; }
 @media (max-width: 700px) { .welcome-steps { grid-template-columns: 1fr; } .welcome-steps article { padding: 18px; } .welcome-steps h3 { margin-top: 9px; } .welcome-actions { align-items: stretch; flex-direction: column; } .welcome-actions button { width: 100%; } .welcome-actions .welcome-mobile-share:not([hidden]) { display: block; } }
+@media (max-width: 430px) { .workspace-code-boxes { width: min(100%, 285px); gap: 4px; } .workspace-code-boxes input { height: 43px; font-size: 18px; } .workspace-invite-code-head strong { font-size: 20px; } .workspace-exact-invite-row { flex-wrap: wrap; } .workspace-exact-invite-row input { flex-basis: 100%; } }

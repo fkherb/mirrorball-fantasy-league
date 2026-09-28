@@ -1,7 +1,7 @@
-import { db } from './supabase-client.js?v=20260927-signin-v31';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-signin-v31';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260927-signin-v31';
-import { danceImagesFor } from './dance-images.js?v=20260927-signin-v31';
+import { db } from './supabase-client.js?v=20260928-draft-layout-v42';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-draft-layout-v42';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260928-draft-layout-v42';
+import { danceImagesFor } from './dance-images.js?v=20260928-draft-layout-v42';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1189,7 +1189,8 @@ function openMyTeamEditor(team) {
     managerFirstName = displayName.split(/\s+/)[0] || '';
     managerLastName = displayName.split(/\s+/).slice(1).join(' ');
     managerTeamName = teamName; managerNavLabelMode = navMode; managerCustomNavLabel = customLabel || '';
-    $('#auth').textContent = managerFirstName || displayName;
+    const authLabel = [...$('#auth').childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+    if (authLabel) authLabel.textContent = managerFirstName || displayName;
     const teamNavLabel = navMode === 'custom' ? customLabel : navMode === 'team' ? teamName : 'My Team';
     $('#myTeamNav .nav-label').textContent = teamNavLabel;
     $('#myTeamNav').setAttribute('aria-label', teamNavLabel);

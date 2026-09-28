@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260927-signin-v31';
+import { db } from './supabase-client.js?v=20260928-draft-layout-v42';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
@@ -32,6 +32,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openView = (name, remember = true) => {
     if (!views.some((view) => view.id === name)) name = 'standings';
     views.forEach((view) => view.classList.toggle('active', view.id === name));
+    const invitationBanner = document.querySelector('#joinInviteBanner');
+    if (invitationBanner) invitationBanner.hidden = name !== 'standings';
     if (name === 'standings') requestAnimationFrame(() => window.workspaceOverviewResize?.());
     buttons.forEach((button) => button.classList.toggle('active', button.dataset.view === name));
     buttons.find((button) => button.dataset.view === name)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });

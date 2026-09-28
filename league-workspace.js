@@ -1,6 +1,6 @@
-import { db } from './supabase-client.js?v=20260927-signin-v31';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260927-signin-v31';
-import { danceImagesFor } from './dance-images.js?v=20260927-signin-v31';
+import { db } from './supabase-client.js?v=20260928-draft-layout-v42';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260928-draft-layout-v42';
+import { danceImagesFor } from './dance-images.js?v=20260928-draft-layout-v42';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -13,6 +13,9 @@ let workspaceDraftTimer = null;
 let refreshCurrentWorkspaceDraft = null;
 let workspaceDraftPollInFlight = false;
 let selectedDraftRound = null;
+let draftPoolFilter = 'All';
+const draftPositionExpanded = new Map();
+const draftPositionCounts = new Map();
 let selectedTeamWeekId = 'all';
 let workspaceTradeRefreshTimer = null;
 let refreshCurrentWorkspaceTrades = null;
@@ -159,26 +162,120 @@ async function completeProfileIfNeeded(context) {
 }
 
 function inviteRows(invites, context, membershipLimitReached) {
-  return invites.map((invite) => `<article class="workspace-invite-row"><span class="workspace-invite-mark" aria-hidden="true">${safe(invite.league_name.charAt(0).toUpperCase())}</span><div class="workspace-invite-copy"><b>${safe(invite.league_name)}</b><small>Invited by @${safe(invite.inviter_username)}</small></div><div class="workspace-invite-actions"><button data-invite-accept="${safe(invite.id)}" ${membershipLimitReached || context.leaguesError ? 'disabled' : ''}>Join</button><button class="secondary" data-invite-decline="${safe(invite.id)}">Decline</button></div></article>`).join('');
+  return invites.map((invite) => `<article class="workspace-invite-row"><span class="workspace-invite-mark" aria-hidden="true">${safe(invite.league_name.charAt(0).toUpperCase())}</span><div class="workspace-invite-copy"><b>${safe(invite.league_name)}</b><small>${invite.linkToken ? 'Shared invite link' : `Invited by @${safe(invite.inviter_username)}`}</small></div><div class="workspace-invite-actions"><button ${invite.linkToken ? `data-link-accept="${safe(invite.linkToken)}" data-link-league="${safe(invite.league_id)}"` : `data-invite-accept="${safe(invite.id)}"`} ${membershipLimitReached || context.leaguesError ? 'disabled' : ''}>Join</button><button class="secondary" ${invite.linkToken ? 'data-link-decline' : `data-invite-decline="${safe(invite.id)}"`}>Decline</button></div></article>`).join('');
+}
+
+function storedLinkKey(userId) {
+  return `mirrorball-pending-link-invite-${userId}`;
+}
+
+function clearStoredLink(context) {
+  sessionStorage.removeItem('mirrorball-guest-link-invite');
+  if (context.userId) localStorage.removeItem(storedLinkKey(context.userId));
 }
 
 function bindInviteActions(scope, context) {
-  scope.querySelectorAll('[data-invite-accept], [data-invite-decline]').forEach((button) => {
+  scope.querySelectorAll('[data-invite-accept], [data-invite-decline], [data-link-accept], [data-link-decline]').forEach((button) => {
+    if (button.hasAttribute('data-link-decline')) {
+      button.addEventListener('click', () => {
+        clearStoredLink(context);
+        const url = new URL(location.href);
+        url.searchParams.delete('join');
+        location.assign(url.toString());
+      });
+      return;
+    }
     button.addEventListener('click', () => runAction(
       async () => {
-        if (button.dataset.inviteAccept) {
+        if (button.dataset.inviteAccept || button.dataset.linkAccept) {
           const profile = await completeProfileIfNeeded(context);
           if (profile.error) return profile;
         }
+        if (button.dataset.linkAccept) return db.rpc('join_league_with_link', { p_token: button.dataset.linkAccept });
         return db.rpc('respond_to_league_invite', {
           p_invite_id: button.dataset.inviteAccept || button.dataset.inviteDecline,
           p_accept: Boolean(button.dataset.inviteAccept),
         });
       },
-      async () => { location.reload(); },
+      async () => {
+        if (button.dataset.linkAccept) {
+          clearStoredLink(context);
+          location.assign(leagueUrl(button.dataset.linkLeague));
+        }
+        else location.reload();
+      },
       button,
     ));
   });
+}
+
+async function redeemInviteCode(context, code, button, message) {
+  button.disabled = true;
+  message.textContent = 'Checking invitation…';
+  try {
+    const profile = await completeProfileIfNeeded(context);
+    if (profile.error) throw profile.error;
+    const { data, error } = await db.rpc('join_league_with_code', { p_code: code });
+    if (error) throw error;
+    if (data?.status === 'rate_limited') message.textContent = 'Too many attempts. Please try again in an hour or use the invite link.';
+    else if (data?.status !== 'joined') message.textContent = 'That code is invalid or expired. Check it with the person who invited you.';
+    else {
+      location.assign(leagueUrl(data.league_id));
+    }
+  } catch (error) {
+    message.textContent = errorMessage(error);
+  } finally { button.disabled = false; }
+}
+
+function inviteCodeBoxes(prefix) {
+  return `<div class="workspace-code-boxes" role="group" aria-label="Six-character invite code">${Array.from({ length: 6 }, (_, index) => `<input id="${prefix}${index}" type="text" maxlength="1" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Character ${index + 1} of 6">`).join('')}</div>`;
+}
+
+function bindInviteCodeBoxes(prefix, initialCode = '') {
+  const boxes = Array.from({ length: 6 }, (_, index) => $(`#${prefix}${index}`));
+  if (boxes.some((box) => !box)) return { get: () => '', set: () => {} };
+  const set = (value) => {
+    const characters = String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    boxes.forEach((box, index) => { box.value = characters[index] || ''; });
+    boxes[Math.min(characters.length, 5)].focus();
+  };
+  if (initialCode) set(initialCode);
+  boxes.forEach((box, index) => {
+    box.addEventListener('input', () => {
+      const characters = box.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (characters.length > 1) { set(characters); return; }
+      box.value = characters;
+      if (characters && index < 5) boxes[index + 1].focus();
+    });
+    box.addEventListener('keydown', (event) => {
+      if (event.key === 'Backspace' && !box.value && index > 0) boxes[index - 1].focus();
+      if (event.key === 'ArrowLeft' && index > 0) boxes[index - 1].focus();
+      if (event.key === 'ArrowRight' && index < 5) boxes[index + 1].focus();
+    });
+    box.addEventListener('paste', (event) => {
+      const pasted = event.clipboardData?.getData('text') || '';
+      if (!pasted) return;
+      event.preventDefault();
+      set(pasted);
+    });
+    box.addEventListener('focus', () => box.select());
+  });
+  return { get: () => boxes.map((box) => box.value).join('').toUpperCase(), set };
+}
+
+function openInviteCodeDialog(context) {
+  if (!context.signedIn) return;
+  dialog(`<p class="eyebrow">League invitation</p><h2>Enter invite code</h2><p class="sub">Use the six-character code from your friend’s invitation.</p><form id="accountInviteCodeForm" class="workspace-code-form" novalidate><label>Invite code</label>${inviteCodeBoxes('accountCodeBox')}<button id="accountInviteCodeSubmit" type="submit">Join league</button><p id="accountInviteCodeMessage" class="sub" role="status"></p></form>`);
+  const controls = bindInviteCodeBoxes('accountCodeBox');
+  $('#accountInviteCodeForm').onsubmit = async (event) => {
+    event.preventDefault();
+    const code = controls.get();
+    if (code.length !== 6) {
+      $('#accountInviteCodeMessage').textContent = 'Enter all six characters from your invitation.';
+      return;
+    }
+    await redeemInviteCode(context, code, $('#accountInviteCodeSubmit'), $('#accountInviteCodeMessage'));
+  };
 }
 
 function renderWelcomeActions(context, invites, invitesError) {
@@ -195,12 +292,13 @@ function renderWelcomeActions(context, invites, invitesError) {
   getStarted.textContent = noLeague ? context.leaguesError ? 'Try again' : 'Create league' : 'Create an account or sign in';
   inviteButton.hidden = !noLeague;
   shareButton.hidden = !noLeague;
-  inviteButton.textContent = context.leaguesError || invitesError ? 'Invites (—)' : `Invites (${invites.length})`;
+  inviteButton.innerHTML = `Manage invites${context.leaguesError || invitesError ? '' : invites.length ? ` <span class="invite-notification-count">${invites.length}</span>` : ''}`;
   status.hidden = !noLeague;
   status.textContent = noLeague ? context.leaguesError ? 'We couldn’t load your leagues. Please try again.' : 'Already invited? Check your invitations. Or create a league to get started.' : '';
   inviteButton.onclick = () => {
-    dialog(`<div class="welcome-invite-dialog"><p class="eyebrow">Your invitations</p><h2>League invites</h2><p class="sub">Join a league to start drafting with friends.</p>${invitesError ? '<div class="welcome-empty-invites"><b>Couldn’t load invitations</b><p>Refresh the page to try again.</p></div>' : invites.length ? `<div class="workspace-invite-list">${inviteRows(invites, context, false)}</div>` : '<div class="welcome-empty-invites"><b>No invitations yet</b><p>Ask a friend to invite you by username or send you a league link.</p></div>'}</div>`);
+    dialog(`<div class="welcome-invite-dialog"><p class="eyebrow">Your invitations</p><h2>League invites</h2><p class="sub">Join a league to start drafting with friends.</p>${invitesError ? '<div class="welcome-empty-invites"><b>Couldn’t load invitations</b><p>Refresh the page to try again.</p></div>' : invites.length ? `<div class="workspace-invite-list">${inviteRows(invites, context, false)}</div>` : '<div class="welcome-empty-invites"><b>No invitations yet</b><p>Ask a friend to invite you by username or send you a league link.</p></div>'}<button id="welcomeEnterInviteCode" type="button" class="secondary">Enter invite code</button></div>`);
     bindInviteActions($('#modalBody'), context);
+    $('#welcomeEnterInviteCode').onclick = () => openInviteCodeDialog(context);
   };
   shareButton.onclick = async () => {
     if (!context.username) {
@@ -233,29 +331,36 @@ export async function renderLeagueHub(context) {
     if (!result.error) invites = result.data || [];
     else { invitesError = true; console.error(result.error); }
   }
-  renderWelcomeActions(context, invites, invitesError);
-
-  const token = context.joinToken;
+  const token = context.joinToken || (signedIn
+    ? localStorage.getItem(storedLinkKey(context.userId)) || sessionStorage.getItem('mirrorball-guest-link-invite')
+    : sessionStorage.getItem('mirrorball-guest-link-invite'));
+  let linkInvite = null;
   if (token) {
+    if (signedIn) {
+      localStorage.setItem(storedLinkKey(context.userId), token);
+      sessionStorage.removeItem('mirrorball-guest-link-invite');
+    } else sessionStorage.setItem('mirrorball-guest-link-invite', token);
     const preview = await db.rpc('preview_league_invite_link', { p_token: token });
     if (version !== hubVersion) return;
     const league = preview.data?.[0];
-    joinBanner.innerHTML = league
-      ? `<div class="card pad workspace-invite-banner"><p class="eyebrow">League invitation</p><h2>Join ${safe(league.league_name)}</h2><p class="sub">${signedIn ? membershipLimitReached ? 'You already belong to the maximum of five leagues.' : context.onboardingCompleted ? 'You can join this league now.' : 'We’ll save your profile before joining.' : 'Continue with Google or Apple to join.'}</p><button id="joinSharedLeague" ${signedIn && !membershipLimitReached && !context.leaguesError ? '' : 'disabled'}>Join league</button>${signedIn ? '' : '<a href="#signin" id="joinSignInLink">Sign in</a>'}</div>`
-      : '<div class="card pad">This invitation link has expired or was revoked.</div>';
-    $('#joinSharedLeague')?.addEventListener('click', () => runAction(
-      async () => {
-        const profile = await completeProfileIfNeeded(context);
-        return profile.error ? profile : db.rpc('join_league_with_link', { p_token: token });
-      },
-      async () => { const id = league.league_id; location.assign(leagueUrl(id)); },
-      $('#joinSharedLeague'),
-    ));
-    $('#joinSignInLink')?.addEventListener('click', (event) => {
-      event.preventDefault();
-      $('#auth')?.click();
-    });
+    if (signedIn && league && !leagues.some((item) => item.league_id === league.league_id)) {
+      linkInvite = { league_id: league.league_id, league_name: league.league_name, linkToken: token };
+    }
+    if (!league || signedIn && !linkInvite) clearStoredLink(context);
+    joinBanner.innerHTML = signedIn ? '' : league
+      ? `<div class="card pad workspace-invite-banner"><span class="workspace-invite-mark" aria-hidden="true">${safe(league.league_name.charAt(0).toUpperCase())}</span><div><p class="eyebrow">League invitation</p><h2>${safe(league.league_name)}</h2><p class="sub">Sign in or create an account to respond to this invitation.</p><div class="workspace-invite-banner-actions"><button id="joinSignIn" type="button">Sign in</button><button id="joinSignUp" type="button" class="secondary">Create account</button></div></div></div>`
+      : '<div class="card pad workspace-invite-banner"><div><p class="eyebrow">League invitation</p><h2>Link unavailable</h2><p class="sub">This invitation has expired or was replaced. Ask the league commissioner for a new link or code.</p></div></div>';
+    ['#joinSignIn', '#joinSignUp'].forEach((selector) => $(selector)?.addEventListener('click', () => $('#auth')?.click()));
   } else joinBanner.innerHTML = '';
+
+  const visibleInvites = linkInvite && !invites.some((invite) => invite.league_id === linkInvite.league_id)
+    ? [linkInvite, ...invites] : invites;
+  renderWelcomeActions(context, visibleInvites, invitesError);
+  const accountBadge = $('#auth .invite-notification-count');
+  accountBadge?.remove();
+  if (signedIn && visibleInvites.length) {
+    $('#auth')?.insertAdjacentHTML('beforeend', `<span class="invite-notification-count" aria-label="${visibleInvites.length} pending invitations">${visibleInvites.length}</span>`);
+  }
 
   if (!signedIn) {
     container.innerHTML = '';
@@ -265,8 +370,9 @@ export async function renderLeagueHub(context) {
   const createDisabled = context.leaguesError || membershipLimitReached || ownedCount >= 2;
   const onboarding = !context.onboardingCompleted
     ? '<p class="account-league-note">Your profile details will be saved when you join or create a league.</p>' : '';
-  container.innerHTML = `${onboarding}<div class="workspace-section-head"><h2>Your leagues</h2><button id="createLeagueButton" type="button" ${createDisabled ? 'disabled' : ''}>Create</button></div>${context.leaguesError ? '<p class="account-league-note">Couldn’t load your leagues. Refresh to try again.</p><button id="retryAccountLeagues" type="button">Try again</button>' : `<div class="workspace-league-list">${leagues.map((league) => `<a class="workspace-league-link ${league.league_id === context.leagueId ? 'current' : ''}" href="${safe(leagueUrl(league.league_id))}" ${league.league_id === context.leagueId ? 'aria-current="page"' : ''}><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<p class="account-league-note">No leagues yet. Create one to invite friends.</p>'}</div><p class="account-league-limits">${leagues.length} of 5 joined · ${ownedCount} of 2 created</p>`}${invites.length ? `<section class="workspace-invites-mini"><div class="workspace-inbox-head"><h2>Invitations</h2><span>${invites.length}</span></div><div class="workspace-invite-list">${inviteRows(invites, context, membershipLimitReached)}</div></section>` : ''}`;
+  container.innerHTML = `${onboarding}<div class="workspace-section-head"><h2>Your leagues</h2><button id="createLeagueButton" type="button" ${createDisabled ? 'disabled' : ''}>Create</button></div>${context.leaguesError ? '<p class="account-league-note">Couldn’t load your leagues. Refresh to try again.</p><button id="retryAccountLeagues" type="button">Try again</button>' : `<div class="workspace-league-list">${leagues.map((league) => `<a class="workspace-league-link ${league.league_id === context.leagueId ? 'current' : ''}" href="${safe(leagueUrl(league.league_id))}" ${league.league_id === context.leagueId ? 'aria-current="page"' : ''}><span><b>${safe(league.name)}</b><small>${league.status === 'setup' ? 'Setting up' : league.status === 'drafting' ? 'Draft in progress' : 'Season in progress'} · ${safe(league.member_role)}</small></span><span aria-hidden="true">›</span></a>`).join('') || '<p class="account-league-note">No leagues yet. Create one to invite friends.</p>'}</div><p class="account-league-limits">${leagues.length} of 5 joined · ${ownedCount} of 2 created</p>`}<button id="enterLeagueInviteCode" type="button" class="secondary" ${context.leaguesError || membershipLimitReached ? 'disabled' : ''}>Enter invite code</button>${visibleInvites.length ? `<section class="workspace-invites-mini"><div class="workspace-inbox-head"><h2>Invitations</h2><span>${visibleInvites.length}</span></div><div class="workspace-invite-list">${inviteRows(visibleInvites, context, membershipLimitReached)}</div></section>` : ''}`;
   $('#retryAccountLeagues')?.addEventListener('click', () => location.reload());
+  $('#enterLeagueInviteCode')?.addEventListener('click', () => openInviteCodeDialog(context));
   $('#createLeagueButton')?.addEventListener('click', () => {
     dialog('<div class="workspace-create-league"><p class="eyebrow">New league</p><h2>Create a League</h2><p class="sub">Start a private league, then invite your friends.</p><label>League name<input id="newLeagueName" maxlength="80" placeholder="e.g. Saturday Night League"></label><div class="workspace-create-facts"><span><b>3–6 managers</b><small>Invite friends after creating</small></span><span><b>Auto-sized rosters</b><small>Preset adjusts as managers join</small></span></div><div class="modal-actions"><button id="confirmCreateLeague">Create league</button></div></div>');
     $('#confirmCreateLeague').addEventListener('click', () => {
@@ -293,6 +399,38 @@ function draftTurn(order, picks, rosterSize) {
 
 function castCategory(member) {
   return member.role === 'Pro' || member.role === 'Star' ? member.role : 'Bonus';
+}
+
+function draftPositionBoard(roster, picks, proLimit, starLimit, bonusLimit, flexLimit, leagueId) {
+  const pickOrder = new Map(picks.map((pick) => [pick.cast_member_id, pick.pick_number]));
+  const ordered = [...roster].sort((a, b) => (pickOrder.get(a.id) || Infinity) - (pickOrder.get(b.id) || Infinity));
+  const byCategory = (category) => ordered.filter((member) => castCategory(member) === category);
+  const pros = byCategory('Pro');
+  const stars = byCategory('Star');
+  const bonus = byCategory('Bonus');
+  const overflow = [...pros.slice(proLimit), ...stars.slice(starLimit)]
+    .sort((a, b) => (pickOrder.get(a.id) || Infinity) - (pickOrder.get(b.id) || Infinity));
+  const flex = overflow.slice(0, flexLimit);
+  const flexIds = new Set(flex.map((member) => member.id));
+  const groups = [
+    { label: 'Pros', short: 'PRO', members: pros.filter((member) => !flexIds.has(member.id)), limit: proLimit },
+    { label: 'Stars', short: 'STAR', members: stars.filter((member) => !flexIds.has(member.id)), limit: starLimit },
+    { label: 'Bonus', short: 'BONUS', members: bonus, limit: bonusLimit },
+    ...(flexLimit ? [{ label: 'Flex (Pro or Star)', short: 'FLEX', members: flex, limit: flexLimit }] : []),
+  ];
+  return `<div class="workspace-position-board" aria-label="Draft roster positions">${groups.map((group) => {
+    const key = `${leagueId}:${group.short}`;
+    const previousCount = draftPositionCounts.get(key);
+    if (previousCount !== undefined && group.members.length > previousCount) draftPositionExpanded.set(key, true);
+    draftPositionCounts.set(key, group.members.length);
+    const expanded = draftPositionExpanded.get(key) ?? (group.members.length > 0);
+    const slots = Array.from({ length: Math.max(group.limit, group.members.length) }, (_, index) => {
+      const member = group.members[index];
+      const retained = Boolean(member && index >= group.limit);
+      return `<div class="workspace-position-slot ${member ? 'is-filled' : 'is-open'} ${retained ? 'is-retained' : ''}"><span class="workspace-position-label">${group.short} ${index + 1}${retained ? '<small>Kept</small>' : ''}</span>${member ? castTile(member, '', 'article', true) : '<span class="workspace-open-position">Open slot</span>'}</div>`;
+    }).join('');
+    return `<section class="workspace-position-group ${expanded ? '' : 'is-collapsed'}"><div class="workspace-position-heading"><h4>${group.label}</h4><div class="workspace-position-heading-actions"><span>${group.members.length}/${group.limit}</span><button type="button" class="workspace-position-toggle" data-position-toggle="${group.short}" aria-label="${expanded ? 'Collapse' : 'Expand'} ${group.label} slots" aria-expanded="${expanded}">⌄</button></div></div><div class="workspace-position-slots">${slots}</div></section>`;
+  }).join('')}</div>`;
 }
 
 function leagueCategoryLimits(data) {
@@ -720,8 +858,22 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       : seasonSummary;
   const canClaim = isYourTurn || context.leagueStatus === 'active' && !airingLock;
   const castScrollTop = body.querySelector('.workspace-available-list')?.scrollTop || 0;
+  const drafting = context.leagueStatus === 'drafting';
+  const positionBoard = drafting ? draftPositionBoard(roster, data.picks, categoryLimits.Pro,
+    categoryLimits.Star, draftBonusLimit, draftFlex, context.leagueId) : '';
+  const rosterContent = drafting ? positionBoard
+    : `${rosterRule}<div class="workspace-cast-list">${roster.map((member) => castTile(member, '', 'article', true)).join('') || '<p class="sub">Your picks will appear here.</p>'}</div>`;
+  const filteredAvailable = drafting && draftPoolFilter !== 'All'
+    ? available.filter((member) => castCategory(member) === draftPoolFilter) : available;
+  const poolFilters = drafting ? `<div class="workspace-pool-filters" role="group" aria-label="Filter available cast by role">${[
+    ['All', 'All'], ['Pro', 'Pros'], ['Star', 'Stars'], ['Bonus', 'Bonus'],
+  ].map(([category, label]) => `<button type="button" data-draft-pool-filter="${category}" class="${draftPoolFilter === category ? 'selected' : ''}" aria-pressed="${draftPoolFilter === category}">${label} <span>${category === 'All' ? available.length : available.filter((member) => castCategory(member) === category).length}</span></button>`).join('')}</div>` : '';
+  const availableTiles = filteredAvailable.map((member) => {
+    const full = draftCategoryFull(member);
+    return castTile(member, canClaim ? `<button data-workspace-claim="${member.id}" ${full ? 'disabled title="Category limit reached"' : ''}>${full ? 'Limit reached' : 'Claim'}</button>` : '', 'article', true);
+  }).join('') || '<p class="sub">No cast members in this category are available.</p>';
   if (context.leagueStatus !== 'setup') {
-  body.innerHTML = `<section class="card public-team-detail workspace-team-detail">${draftStrip}${context.leagueStatus === 'drafting' ? `<section class="workspace-draft-rounds"><div class="public-section-head"><div><p class="eyebrow">Draft board</p><h3>Round ${draftRound} picks</h3></div><span>${data.picks.length} of ${data.order.length * context.rosterSize} picked</span></div><div class="workspace-round-tabs" role="group" aria-label="Draft rounds">${Array.from({ length: context.rosterSize }, (_, index) => `<button type="button" data-draft-round="${index + 1}" class="${draftRound === index + 1 ? 'selected' : ''}" aria-pressed="${draftRound === index + 1}">Round ${index + 1}</button>`).join('')}</div><div class="workspace-round-picks">${roundSlots}</div></section>` : ''}<div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Roster</p><h3>Team Roster · ${roster.length}/${context.rosterSize}</h3></div></div>${rosterRule}<div class="workspace-cast-list">${roster.map((member) => castTile(member, '', 'article', true)).join('') || '<p class="sub">Your picks will appear here.</p>'}</div></section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">${context.leagueStatus === 'drafting' ? 'Draft pool' : 'Free agents'}</p><h3>Available Cast</h3></div><span>${available.length} available</span></div><p class="sub">${airingLock ? 'Rosters are locked on show days. Claims reopen tomorrow.' : isYourTurn ? 'It is your turn. Claim one cast member below.' : context.draftPaused ? 'The draft is paused. Claims reopen when the owner resumes.' : context.leagueStatus === 'drafting' ? 'Claims open when it is your turn.' : context.leagueStatus === 'active' ? 'Claim a cast member by releasing one from your roster.' : 'Claims open after the draft starts.'}</p><div class="workspace-available-list">${available.map((member) => { const full = draftCategoryFull(member); return castTile(member, canClaim ? `<button data-workspace-claim="${member.id}" ${full ? 'disabled title="Category limit reached"' : ''}>${full ? 'Limit reached' : 'Claim'}</button>` : '', 'article', true); }).join('') || '<p class="sub">No cast members are available.</p>'}</div></section>${context.leagueStatus === 'active' ? '<section id="workspaceTradeCenter" class="card pad workspace-trades">Loading trades…</section>' : ''}</div></div></section>`;
+    body.innerHTML = `<section class="card public-team-detail workspace-team-detail">${draftStrip}${drafting ? `<section class="workspace-draft-rounds"><div class="public-section-head"><div><p class="eyebrow">Draft board</p><h3>Round ${draftRound} picks</h3></div><span>${data.picks.length} of ${data.order.length * context.rosterSize} picked</span></div><div class="workspace-round-tabs" role="group" aria-label="Draft rounds">${Array.from({ length: context.rosterSize }, (_, index) => `<button type="button" data-draft-round="${index + 1}" class="${draftRound === index + 1 ? 'selected' : ''}" aria-pressed="${draftRound === index + 1}">Round ${index + 1}</button>`).join('')}</div><div class="workspace-round-picks">${roundSlots}</div></section>` : ''}<div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Roster</p><h3>Team Roster · ${roster.length}/${context.rosterSize}</h3></div></div>${rosterContent}</section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">${drafting ? 'Draft pool' : 'Free agents'}</p><h3>Available Cast</h3></div><span>${drafting && draftPoolFilter !== 'All' ? `${filteredAvailable.length} of ${available.length}` : available.length} available</span></div><p class="sub">${airingLock ? 'Rosters are locked on show days. Claims reopen tomorrow.' : isYourTurn ? 'It is your turn. Claim one cast member below.' : context.draftPaused ? 'The draft is paused. Claims reopen when the owner resumes.' : drafting ? 'Claims open when it is your turn.' : context.leagueStatus === 'active' ? 'Claim a cast member by releasing one from your roster.' : 'Claims open after the draft starts.'}</p>${poolFilters}<div class="workspace-available-list">${availableTiles}</div></section>${context.leagueStatus === 'active' ? '<section id="workspaceTradeCenter" class="card pad workspace-trades">Loading trades…</section>' : ''}</div></div></section>`;
   }
   if (context.leagueStatus === 'setup') {
     body.innerHTML = `<section class="card public-team-detail workspace-team-detail is-setup"><div class="workspace-setup-intro"><p class="eyebrow">Before the draft</p><h2>Get ready to draft</h2><p class="sub">${context.leagueRole === 'owner' ? 'Invite managers and check their readiness. You can start once at least three managers have joined and every member is ready.' : 'Mark yourself ready when you can join the draft. You can change your status until the commissioner starts.'}</p></div>${draftStrip}<div class="workspace-setup-footer"><div><p class="eyebrow">Your team</p><h3>${safe(ownTeam.team_name || 'My Team')}</h3><p class="sub">${context.rosterSize} picks will fill your roster once the draft begins.</p></div><button type="button" class="secondary workspace-roster-edit">Edit team name</button></div></section>`;
@@ -773,6 +925,19 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   body.querySelectorAll('[data-draft-round]').forEach((button) => button.addEventListener('click', () => {
     selectedDraftRound = Number(button.dataset.draftRound);
     renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh);
+  }));
+  body.querySelectorAll('[data-draft-pool-filter]').forEach((button) => button.addEventListener('click', () => {
+    draftPoolFilter = button.dataset.draftPoolFilter;
+    const list = body.querySelector('.workspace-available-list');
+    if (list) list.scrollTop = 0;
+    renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh);
+  }));
+  body.querySelectorAll('[data-position-toggle]').forEach((button) => button.addEventListener('click', () => {
+    const group = button.closest('.workspace-position-group');
+    const expanded = group.classList.toggle('is-collapsed') === false;
+    draftPositionExpanded.set(`${context.leagueId}:${button.dataset.positionToggle}`, expanded);
+    button.setAttribute('aria-expanded', String(expanded));
+    button.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} ${group.querySelector('h4').textContent} slots`);
   }));
   if (context.leagueStatus === 'drafting' && !context.draftTimerDisabled) updateDraftClock(data.league.draft_pick_deadline_at, null, context.draftPaused);
   else {
@@ -1193,7 +1358,7 @@ function openLeagueSettings(context, refresh) {
 }
 
 function openInviteManager(context, refresh) {
-  dialog(`<p class="eyebrow">${safe(context.leagueName)}</p><h2>Invite Players</h2><p class="sub">${context.memberCount >= 6 ? 'This league is full. You can still review or cancel pending invitations.' : 'Search by username or create a link for someone who does not have an account yet.'}</p><label>Search username<input id="inviteUsernameSearch" autocomplete="off" placeholder="Search @username" ${context.memberCount >= 6 ? 'disabled' : ''}></label><div id="inviteSearchResults"></div><div class="workspace-invite-link-actions"><button id="generateInviteLink" class="secondary" ${context.memberCount >= 6 ? 'disabled' : ''}>Generate / replace invite link</button><button id="revokeInviteLink" class="secondary" hidden>Revoke link</button></div><div id="generatedInviteLink"></div><p id="inviteLinkStatus" class="sub"></p><div id="pendingLeagueInvites"></div>`);
+  dialog(`<p class="eyebrow">${safe(context.leagueName)}</p><h2>Invite Players</h2><p class="sub">${context.memberCount >= 6 ? 'This league is full. You can still review pending invitations.' : 'Share the league invitation or invite someone directly by exact username.'}</p><form id="inviteUsernameForm" class="workspace-exact-invite-form" novalidate><label for="inviteUsernameSearch">Invite by username</label><div class="workspace-exact-invite-row"><input id="inviteUsernameSearch" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Exact @username" maxlength="21" ${context.memberCount >= 6 ? 'disabled' : ''}><button id="inviteExactUsername" type="submit" ${context.memberCount >= 6 ? 'disabled' : ''}>Invite</button></div><p id="inviteUsernameStatus" class="sub" role="status"></p></form><div id="generatedInviteLink" aria-live="polite"><p class="sub">Loading invite code…</p></div><div id="pendingLeagueInvites"></div>`);
   const drawPending = async () => {
     const pending = await loadPendingInvites(context.leagueId);
     const container = $('#pendingLeagueInvites');
@@ -1206,57 +1371,98 @@ function openInviteManager(context, refresh) {
     )));
   };
   drawPending();
-  const updateLinkStatus = async () => {
-    const result = await db.from('league_invite_links').select('id,expires_at')
-      .eq('league_id', context.leagueId).is('revoked_at', null).maybeSingle();
-    if (!$('#inviteLinkStatus')) return;
-    const active = !result.error && result.data && new Date(result.data.expires_at) > new Date();
-    $('#inviteLinkStatus').textContent = active
-      ? `An invite link is active until ${new Date(result.data.expires_at).toLocaleDateString()}. Generate a new one to replace it.`
-      : 'No active invite link.';
-    $('#revokeInviteLink').hidden = !active;
-  };
-  updateLinkStatus();
-  const search = $('#inviteUsernameSearch');
-  let searchVersion = 0;
-  search.addEventListener('input', async () => {
-    const term = search.value.trim().toLowerCase().replace(/^@/, '');
-    const version = ++searchVersion;
-    if (term.length < 2) { $('#inviteSearchResults').innerHTML = ''; return; }
-    const result = await db.from('profile_directory').select('user_id,username,display_name,avatar_url')
-      .ilike('username', `${term}%`).limit(8);
-    if (version !== searchVersion || !search.isConnected || !$('#inviteSearchResults')) return;
-    $('#inviteSearchResults').innerHTML = result.error ? '<p class="sub">Search is unavailable.</p>'
-      : (result.data || []).map((profile) => `<div class="workspace-profile-result"><span><b>${safe(profile.display_name)}</b><small>@${safe(profile.username)}</small></span><button data-invite-username="${safe(profile.username)}">Invite</button></div>`).join('') || '<p class="sub">No matching usernames.</p>';
-    $('#inviteSearchResults').querySelectorAll('[data-invite-username]').forEach((button) => button.addEventListener('click', () => runAction(
-      () => db.rpc('invite_username', { p_league_id: context.leagueId, p_username: button.dataset.inviteUsername }),
-      async () => { search.value = ''; $('#inviteSearchResults').innerHTML = ''; await drawPending(); },
-      button,
-    )));
-  });
-  $('#generateInviteLink').onclick = async () => {
-    const button = $('#generateInviteLink');
-    button.disabled = true;
-    const { data: token, error } = await db.rpc('regenerate_league_invite_link', { p_league_id: context.leagueId });
-    if (!button.isConnected) return;
-    button.disabled = false;
-    if (error) return dialog(`<h2>Couldn’t create link</h2><p>${safe(errorMessage(error))}</p>`);
+  let currentInvite = null;
+  let inviteRefreshTimer = null;
+  $('#modal').addEventListener('close', () => clearTimeout(inviteRefreshTimer), { once: true });
+  const inviteUrl = () => {
     const url = new URL(location.href);
     url.search = '';
-    url.searchParams.set('join', token);
+    url.searchParams.set('join', currentInvite.token);
     url.hash = '#standings';
-    $('#generatedInviteLink').innerHTML = `<label>Share this link<input id="inviteLinkValue" readonly value="${safe(url.toString())}"></label><button id="copyInviteLink">Copy link</button><p class="sub">Generating another link revokes this one. The link expires in 14 days.</p>`;
-    updateLinkStatus();
-    $('#copyInviteLink').addEventListener('click', async () => {
-      await navigator.clipboard.writeText(url.toString());
-      $('#copyInviteLink').textContent = 'Copied';
-    });
+    return url.toString();
   };
-  $('#revokeInviteLink').addEventListener('click', () => runAction(
-    () => db.rpc('revoke_league_invite_link', { p_league_id: context.leagueId }),
-    async () => { $('#generatedInviteLink').innerHTML = ''; updateLinkStatus(); },
-    $('#revokeInviteLink'),
-  ));
+  const inviteMessage = () => {
+    const inviter = context.firstName || context.displayName || context.username || 'A friend';
+    return `${inviteUrl()}\n${inviter} invited you to join ${context.leagueName} on DWTS Fantasy League!\nInvite code: ${currentInvite.code}\n\nOpen the link and sign in, or enter the code on the site to join.`;
+  };
+  const loadInvite = async (refreshCode = false) => {
+    const container = $('#generatedInviteLink');
+    if (!container) return;
+    clearTimeout(inviteRefreshTimer);
+    container.innerHTML = '<p class="sub">Loading invite code…</p>';
+    const { data, error } = await db.rpc('get_league_invite', {
+      p_league_id: context.leagueId, p_refresh: refreshCode,
+    });
+    if (!container.isConnected) return;
+    if (error) {
+      container.innerHTML = `<p class="sub">Couldn’t load the invitation: ${safe(errorMessage(error))}</p><button id="retryInviteCode" type="button" class="secondary">Try again</button>`;
+      $('#retryInviteCode').onclick = () => loadInvite();
+      return;
+    }
+    currentInvite = data;
+    const expires = new Date(data.expires_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    container.innerHTML = `<div class="workspace-invite-share"><div class="workspace-invite-code-head"><span><small>Invite code</small><strong>${safe(data.code)}</strong></span></div><p class="sub">Link and code refresh every 48 hours · Expires ${safe(expires)}</p><div class="workspace-invite-link-actions"><button id="refreshInviteCode" type="button" class="secondary" ${context.memberCount >= 6 ? 'disabled' : ''}>Refresh code</button><button id="copyInviteLink" type="button" class="secondary" ${context.memberCount >= 6 ? 'disabled' : ''}>Copy link</button><button id="shareInvite" type="button" ${context.memberCount >= 6 ? 'disabled' : ''}>Share</button></div><p id="inviteShareStatus" class="sub" role="status"></p></div>`;
+    inviteRefreshTimer = setTimeout(() => {
+      if (container.isConnected && $('#modal')?.open) loadInvite();
+    }, Math.max(1000, new Date(data.expires_at).getTime() - Date.now() + 250));
+    $('#refreshInviteCode').onclick = () => loadInvite(true);
+    const copyInviteLink = async () => {
+      if (new Date(currentInvite.expires_at) <= new Date()) {
+        await loadInvite();
+        if ($('#inviteShareStatus')) $('#inviteShareStatus').textContent = 'Your invite refreshed. Select Copy link again.';
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(inviteUrl());
+        $('#inviteShareStatus').textContent = 'Invite link copied.';
+      } catch (copyError) {
+        $('#inviteShareStatus').textContent = 'Clipboard unavailable. Try Share instead.';
+      }
+    };
+    $('#copyInviteLink').onclick = copyInviteLink;
+    $('#shareInvite').onclick = async () => {
+      if (new Date(currentInvite.expires_at) <= new Date()) {
+        await loadInvite();
+        if ($('#inviteShareStatus')) $('#inviteShareStatus').textContent = 'Your invite refreshed. Select Share again.';
+        return;
+      }
+      if (!navigator.share) {
+        try {
+          await navigator.clipboard.writeText(inviteMessage());
+          $('#inviteShareStatus').textContent = 'Sharing is unavailable here; the invite message was copied instead.';
+        } catch (copyError) {
+          $('#inviteShareStatus').textContent = 'Sharing is unavailable on this device.';
+        }
+        return;
+      }
+      try { await navigator.share({ text: inviteMessage() }); }
+      catch (shareError) {
+        if (shareError.name !== 'AbortError') $('#inviteShareStatus').textContent = 'Sharing is unavailable. Try Copy link instead.';
+      }
+    };
+  };
+  loadInvite();
+  $('#inviteUsernameForm').onsubmit = async (event) => {
+    event.preventDefault();
+    const username = $('#inviteUsernameSearch').value.trim().toLowerCase().replace(/^@/, '');
+    const status = $('#inviteUsernameStatus');
+    if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+      status.textContent = 'Enter the complete username (3–20 letters, numbers, or underscores).';
+      return;
+    }
+    const button = $('#inviteExactUsername');
+    button.disabled = true;
+    status.textContent = 'Sending invitation…';
+    const { error } = await db.rpc('invite_username', { p_league_id: context.leagueId, p_username: username });
+    if (!button.isConnected) return;
+    button.disabled = false;
+    if (error) status.textContent = error.message || 'Could not send that invitation.';
+    else {
+      status.textContent = `Invitation sent to @${username}.`;
+      $('#inviteUsernameSearch').value = '';
+      await drawPending();
+    }
+  };
 }
 
 export async function renderSecondaryLeague(context, { silent = false } = {}) {
