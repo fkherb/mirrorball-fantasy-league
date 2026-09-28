@@ -262,6 +262,15 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .modal-actions { gap: 10px; margin-top: 20px; }
 .modal-actions button { min-height: 42px; }
 
+/* Team editing stays legible even when two league cards share one column. */
+.league-directory .team-card.editing .team-card-head { display: block; }
+.league-directory .team-card.editing .team-edit-fields { grid-template-columns: 1fr; gap: 12px; width: 100%; }
+.league-directory .team-card.editing .team-edit-fields label { display: block; font-size: 12px; font-weight: 750; letter-spacing: .01em; }
+.league-directory .team-card.editing .team-edit-fields input { box-sizing: border-box; display: block; width: 100%; min-height: 40px; margin-top: 5px; padding-inline: 11px; }
+.league-directory .team-card.editing .team-edit-buttons { justify-content: flex-start; gap: 8px; margin: 14px 0 18px; }
+.league-directory .team-card.editing .team-edit-buttons button { min-height: 38px; padding-inline: 14px; }
+.league-directory .team-card.editing .team-roster { padding-top: 14px; border-top: 1px solid #e8dfe5; }
+
 @media (max-width: 680px) {
   .dance-list { grid-template-columns: 1fr; }
   .dance-card-photo { height: clamp(190px, 54vw, 290px); }

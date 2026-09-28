@@ -1,7 +1,7 @@
-import { db } from './supabase-client.js?v=20260927-gallery-v28';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-gallery-v28';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260927-gallery-v28';
-import { danceImagesFor } from './dance-images.js?v=20260927-gallery-v28';
+import { db } from './supabase-client.js?v=20260927-gallery-v29';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-gallery-v29';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260927-gallery-v29';
+import { danceImagesFor } from './dance-images.js?v=20260927-gallery-v29';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -458,7 +458,7 @@ async function editTeamCard(teamId) {
   if (!card) return;
   const manager = managerMap.get(teamId);
   card.classList.add('editing');
-  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>Manager display name<input id="teamManagerDisplay-${teamId}" maxlength="80" value="${escapeHtml(manager?.display_name || team.manager_name || '')}" ${manager ? '' : 'disabled'}></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div></div>
+  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>Manager display name<input id="teamManagerDisplay-${teamId}" maxlength="80" value="${escapeHtml(manager?.display_name || team.manager_name || '')}" ${manager ? '' : 'disabled'}></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div>
     ${!manager ? '<p class="sub compact-note">Connect an account to this team before editing its manager name.</p>' : ''}${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
   document.querySelector(`[data-cancel-team-id="${teamId}"]`).addEventListener('click', loadTeams);
   document.querySelector(`[data-save-team-id="${teamId}"]`).addEventListener('click', async () => {
