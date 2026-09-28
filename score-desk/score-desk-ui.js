@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260928-draft-layout-v42';
+import { db } from '../supabase-client.js?v=20260928-five-manager-v43';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

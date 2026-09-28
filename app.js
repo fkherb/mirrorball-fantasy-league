@@ -1,7 +1,7 @@
-import { db } from './supabase-client.js?v=20260928-draft-layout-v42';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-draft-layout-v42';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260928-draft-layout-v42';
-import { danceImagesFor } from './dance-images.js?v=20260928-draft-layout-v42';
+import { db } from './supabase-client.js?v=20260928-five-manager-v43';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-five-manager-v43';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260928-five-manager-v43';
+import { danceImagesFor } from './dance-images.js?v=20260928-five-manager-v43';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';

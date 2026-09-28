@@ -213,7 +213,9 @@ website update. Setup leagues automatically size rosters as managers join:
 cast pool. Until three join, the 3-manager size is shown provisionally.
 This earlier migration allowed owners to override sizing before the draft starts;
 the later roster-balance migration removes that option for new leagues.
-Only 3–6 managers can start a draft. Once the final pick is made, the league
+At this migration step, 3–6 managers can start a draft; the later
+`three-to-five-manager-leagues.sql` migration lowers that limit to 3–5.
+Once the final pick is made, the league
 receives historical snapshots for every already-completed week using the
 original draft teams, so all earlier show points count. This migration also
 repairs completed secondary-league drafts that have the full pick record.
@@ -268,8 +270,9 @@ For the new-league roster rules, run
 `supabase/secondary-league-roster-balance-and-airing-lock.sql` after both
 `supabase/draft-readiness-and-untimed-mode.sql` and
 `supabase/add-week-airing-dates.sql`. It does not alter the original league.
-New/setup leagues use preset roster sizes, including seven cast members per
-team with six managers. During drafts and later swaps, each team may add at
+This migration originally used preset roster sizes, including seven cast
+members per team with six managers. The later 3–5-manager migration supersedes
+that size. During drafts and later swaps, each team may add at
 most the whole-number share of the remaining active pros and stars; eliminated
 cast and all other roles are Bonus. If a preset cannot be filled under those
 shares, the draft permits one extra active Pro **or** Star per team (not both),
@@ -283,6 +286,21 @@ Surprise cast in the cast editor so their new-league scoring is unambiguous.
 Cast profiles before and during the draft preview points from completed shows
 using the league's current appearance rates; these are not points already
 earned by a fantasy team.
+
+For the current 3–5 manager limit, run
+`supabase/three-to-five-manager-leagues.sql` after the roster-balance migration.
+New and setup leagues use exactly 12, 10, or 8 cast per team for 3, 4, or 5
+managers. A sixth member cannot join or start a draft. Existing six-manager
+drafts and completed leagues retain their rosters; a six-manager setup league
+must remove one manager before drafting. The draft start check also verifies
+that any Pro-or-Star Flex spots can be filled league-wide. A Flex pick cannot
+take a Pro or Star still needed for another manager's standard draft slot.
+Post-draft Pro and
+Star limits continue to recalculate as cast roles change: an existing player
+may remain above a lowered limit, but a free-agent claim, trade offer, or
+counteroffer cannot bring an active Pro or Star onto a roster that would
+remain above that limit. Swapping an over-limit player for Bonus cast is
+allowed.
 
 Google and Apple sign-in use the existing Supabase Auth users and profile
 trigger. New users finish onboarding by choosing a username and display name;
