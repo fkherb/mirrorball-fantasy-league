@@ -209,9 +209,10 @@ require an upload.
 
 Then run `supabase/finish-league-draft-setup.sql` before publishing the next
 website update. Setup leagues automatically size rosters as managers join:
-3 managers → 12 cast each, 4 → 10, 5 → 8, and 6 → 8, capped by the actual
+3 managers → 12 cast each, 4 → 10, 5 → 8, and 6 → 7, capped by the actual
 cast pool. Until three join, the 3-manager size is shown provisionally.
-Owners can override or restore automatic sizing before the draft starts.
+This earlier migration allowed owners to override sizing before the draft starts;
+the later roster-balance migration removes that option for new leagues.
 Only 3–6 managers can start a draft. Once the final pick is made, the league
 receives historical snapshots for every already-completed week using the
 original draft teams, so all earlier show points count. This migration also
@@ -263,6 +264,26 @@ commissioner can start only when all regular managers are ready. The start
 confirmation can disable both the two-minute timer and automatic picks for
 that draft. Existing drafts keep their timed behavior.
 
+For the new-league roster rules, run
+`supabase/secondary-league-roster-balance-and-airing-lock.sql` after both
+`supabase/draft-readiness-and-untimed-mode.sql` and
+`supabase/add-week-airing-dates.sql`. It does not alter the original league.
+New/setup leagues use preset roster sizes, including seven cast members per
+team with six managers. During drafts and later swaps, each team may add at
+most the whole-number share of the remaining active pros and stars; eliminated
+cast and all other roles are Bonus. If a preset cannot be filled under those
+shares, the draft permits one extra active Pro **or** Star per team (not both),
+with a corresponding Bonus-pick limit. That draft-only exception does not
+permit additional active cast through later swaps. An over-limit existing player is retained
+after an elimination but another cannot be added. Secondary-league roster
+changes are blocked on either airing date in Eastern time, and that day's
+roster snapshot is used for weekly scoring. Surprise cast in secondary leagues
+scores at the chosen normal Bonus-role rate plus two; classify any existing
+Surprise cast in the cast editor so their new-league scoring is unambiguous.
+Cast profiles before and during the draft preview points from completed shows
+using the league's current appearance rates; these are not points already
+earned by a fantasy team.
+
 Google and Apple sign-in use the existing Supabase Auth users and profile
 trigger. New users finish onboarding by choosing a username and display name;
 existing password users can connect either provider without changing their
@@ -289,8 +310,10 @@ an identity. The website no longer offers new email/password registration.
 - Trades are available only to signed-in accounts linked to fantasy teams.
   Open offers are private to the two involved managers, and accepting an offer
   invalidates any other pending offer involving either traded cast member.
-- Appearance rates in Rules are league-wide: changing one recalculates every
-  week. Surprise rates remain specific to each cast member in Cast Roster.
+- Appearance rates in Rules are league-wide. Completed secondary-league weeks
+  use the rate saved in their airing-day snapshot. The original league keeps
+  its cast-specific Surprise rates; secondary leagues use a normal Bonus-role
+  rate plus two.
 - Export or back up the Supabase data before making large commissioner edits.
 - `node scripts/check-cache-keys.mjs` verifies that every page references the
   same JavaScript and CSS cache key. The GitHub workflow runs this check on

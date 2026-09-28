@@ -1,7 +1,7 @@
-import { db } from './supabase-client.js?v=20260927-gallery-v29';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-gallery-v29';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260927-gallery-v29';
-import { danceImagesFor } from './dance-images.js?v=20260927-gallery-v29';
+import { db } from './supabase-client.js?v=20260927-gallery-v30';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-gallery-v30';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260927-gallery-v30';
+import { danceImagesFor } from './dance-images.js?v=20260927-gallery-v30';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -294,7 +294,7 @@ async function editPlayer(id) {
     openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${escapeHtml(displayImagePath(player))}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${escapeHtml(player.name)}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
       <label>Role<select id="editRole" ${player.role.startsWith('Eliminated') ? 'disabled' : ''}>${(player.role.startsWith('Eliminated') ? [player.role] : assignableRoles).map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select>${player.role.startsWith('Eliminated') ? '<span class="range-note">Eliminated roles are managed by completing a week.</span>' : ''}</label>
       <div id="roleDetailField" ${player.role === 'Judges + Hosts' ? '' : 'hidden'}><label>Type<select id="editRoleDetail"><option ${player.role_detail === 'Judge' ? 'selected' : ''}>Judge</option><option ${player.role_detail === 'Host' ? 'selected' : ''}>Host</option><option ${!player.role_detail || player.role_detail === 'Judge + Host' ? 'selected' : ''}>Judge + Host</option></select></label><label class="check-row"><input id="editIsHough" type="checkbox" ${player.is_hough || player.role === 'Hough' ? 'checked' : ''}> Hough scoring rate</label></div>
-      <label id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}>Points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label>
+      <div id="surpriseRate" ${player.role === 'Surprise' ? '' : 'hidden'}><label>Normal scoring role<select id="editSurpriseBaseRole"><option value="">Select a role</option>${['Eliminated Pro', 'Eliminated Star', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts'].map((role) => `<option ${player.surprise_base_role === role ? 'selected' : ''}>${role}</option>`).join('')}</select></label><p class="sub">New leagues score surprise cast at this role’s rate plus 2.</p><label>Original league points per appearance<input id="editRate" type="number" min="0" value="${player.custom_appearance_points ?? ''}"></label></div>
       <label id="partnerField" ${isAnyPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(activePairRole(player.role), players, partnerships, partner?.id)}</select></label>
       <label id="partnershipNameField" ${partner ? '' : 'hidden'}>Partnership name <span class="optional">(optional)</span><input id="partnershipName" value="${escapeHtml(partnership?.partnership_name || '')}" placeholder="e.g., Team Sparkle"></label>
       <label>Portrait position<input id="imagePosition" type="range" min="0" max="100" value="${player.image_position ?? 50}"><span class="range-note">Move left or right to center the image.</span></label>
@@ -320,9 +320,10 @@ async function editPlayer(id) {
       saveButton.disabled = true;
       const role = $('#editRole').value;
       if (role === 'Surprise' && $('#editRate').value === '') { saveButton.disabled = false; return alert('Enter the Surprise points per appearance.'); }
+      if (role === 'Surprise' && !$('#editSurpriseBaseRole').value) { saveButton.disabled = false; return alert('Choose the normal scoring role for this surprise cast member.'); }
       const partnerId = isAnyPairRole(role) ? $('#editPartner').value : '';
       const partnershipName = $('#editPartner').value ? $('#partnershipName').value.trim() || null : null;
-      const { error: saveError } = await db.rpc('save_cast_member_profile_atomic', {
+      const { error: saveError } = await db.rpc(role === 'Surprise' ? 'save_cast_member_profile_with_surprise_role' : 'save_cast_member_profile_atomic', {
         p_cast_member_id: id, p_name: player.name, p_role: role,
         p_image_path: player.image_path || storedImagePathFor(player.name), p_image_position: Number($('#imagePosition').value),
         p_custom_appearance_points: role === 'Surprise' ? Number($('#editRate').value) : null,
@@ -331,6 +332,7 @@ async function editPlayer(id) {
         p_partner_id: partnerId || null, p_partnership_name: partnershipName,
         p_bio: $('#editBio').value.trim() || null, p_career_highlights: $('#editCareerHighlights').value.trim() || null,
         p_mirrorball_wins: canHaveMirrorballWins(role, role === 'Judges + Hosts' && $('#editIsHough').checked) ? Number($('#editMirrorballWins').value || 0) : 0,
+        ...(role === 'Surprise' ? { p_surprise_base_role: $('#editSurpriseBaseRole').value } : {}),
       });
       if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save ${player.name}: ${saveError.message}`); }
       $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
@@ -347,7 +349,7 @@ async function openAddPlayer() {
     <label>Name<input id="newName" autocomplete="off" required></label>
     <label>Role<select id="newRole">${assignableRoles.map((role) => `<option>${role}</option>`).join('')}</select></label>
     <div id="newRoleDetailField" hidden><label>Type<select id="newRoleDetail"><option>Judge</option><option>Host</option><option>Judge + Host</option></select></label><label class="check-row"><input id="newIsHough" type="checkbox"> Hough scoring rate</label></div>
-    <label id="newSurpriseRate" hidden>Points per appearance<input id="newRate" type="number" min="0"></label>
+    <div id="newSurpriseRate" hidden><label>Normal scoring role<select id="newSurpriseBaseRole"><option value="">Select a role</option>${['Eliminated Pro', 'Eliminated Star', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts'].map((role) => `<option>${role}</option>`).join('')}</select></label><p class="sub">New leagues score surprise cast at this role’s rate plus 2.</p><label>Original league points per appearance<input id="newRate" type="number" min="0"></label></div>
     <label id="newPartnerField">Add partnership <span class="optional">(optional)</span><select id="newPartner"><option value="">No partner yet</option>${partnerOptions('Star', players, partnerships)}</select></label>
     <label>Biography <span class="optional">(optional)</span><textarea id="newBio" rows="4"></textarea></label>
     <label>Career highlights <span class="optional">(optional)</span><textarea id="newCareerHighlights" rows="3"></textarea></label>
@@ -368,10 +370,11 @@ async function openAddPlayer() {
     if (!name) return alert('Enter a cast member name first.');
     const role = $('#newRole').value;
     if (role === 'Surprise' && $('#newRate').value === '') return alert('Enter the Surprise points per appearance.');
+    if (role === 'Surprise' && !$('#newSurpriseBaseRole').value) return alert('Choose the normal scoring role for this surprise cast member.');
     const partnerId = isPairRole(role) ? $('#newPartner').value : '';
     const createButton = $('#createPlayer');
     createButton.disabled = true;
-    const { error } = await db.rpc('save_cast_member_profile_atomic', {
+    const { error } = await db.rpc(role === 'Surprise' ? 'save_cast_member_profile_with_surprise_role' : 'save_cast_member_profile_atomic', {
       p_cast_member_id: null, p_name: name, p_role: role, p_image_path: storedImagePathFor(name), p_image_position: 50,
       p_custom_appearance_points: role === 'Surprise' ? Number($('#newRate').value) : null,
       p_role_detail: role === 'Judges + Hosts' ? $('#newRoleDetail').value : null,
@@ -379,6 +382,7 @@ async function openAddPlayer() {
       p_partner_id: partnerId || null, p_partnership_name: null,
       p_bio: $('#newBio').value.trim() || null, p_career_highlights: $('#newCareerHighlights').value.trim() || null,
       p_mirrorball_wins: canHaveMirrorballWins(role, role === 'Judges + Hosts' && $('#newIsHough').checked) ? Number($('#newMirrorballWins').value || 0) : 0,
+      ...(role === 'Surprise' ? { p_surprise_base_role: $('#newSurpriseBaseRole').value } : {}),
     });
     if (error) { createButton.disabled = false; return alert(`Couldn’t create ${name}: ${error.message}`); }
     $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
