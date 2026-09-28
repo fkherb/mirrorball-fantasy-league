@@ -1,6 +1,6 @@
 -- Run after secondary-league-roster-balance-and-airing-lock.sql.
 -- New/setting-up leagues have 3–5 managers and fixed roster presets.
--- Existing six-manager drafts and completed leagues keep their rosters.
+-- The database membership trigger caps each secondary league at five active managers.
 begin;
 
 create or replace function public.suggest_league_roster_size(p_member_count integer)
@@ -37,8 +37,7 @@ $$;
 revoke all on function public.check_league_membership_capacity()
   from public, anon, authenticated;
 
--- Retain any already-started roster size. A six-manager setup league must
--- remove one manager before drafting; its roster becomes the five-person preset.
+-- Set each setup league to the current preset without changing started rosters.
 update public.leagues league
 set roster_size = public.suggest_league_roster_size(
       (select count(*)::integer from public.league_members member

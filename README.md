@@ -290,9 +290,9 @@ earned by a fantasy team.
 For the current 3–5 manager limit, run
 `supabase/three-to-five-manager-leagues.sql` after the roster-balance migration.
 New and setup leagues use exactly 12, 10, or 8 cast per team for 3, 4, or 5
-managers. A sixth member cannot join or start a draft. Existing six-manager
-drafts and completed leagues retain their rosters; a six-manager setup league
-must remove one manager before drafting. The draft start check also verifies
+managers. The commissioner counts toward the five-manager limit, and the
+database rejects a sixth active membership regardless of whether someone
+joins by username invite, link, or code. The draft start check also verifies
 that any Pro-or-Star Flex spots can be filled league-wide. A Flex pick cannot
 take a Pro or Star still needed for another manager's standard draft slot.
 Post-draft Pro and
