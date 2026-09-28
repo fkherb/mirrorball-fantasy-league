@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { episodeSpotlight, standingsSwitch, standingCard, overviewTeamDetail, danceCard } from '../postdraft-view.js';
 
 const week = { id: 'week-6', number: 6, title: 'Disney Night' };
@@ -28,5 +29,9 @@ assert.match(overviewTeamDetail({ name: 'Team Ferb', manager: 'Freddy', total: 7
 const dance = danceCard({ id: 'dance-1', kind: 'competitive', title: 'Pair', danceType: 'Samba', song: '',
   scores: [{ judge_name: 'Carrie Ann', score: 9 }, { judge_name: 'Derek', score: 10 }], castNames: [], scoreImage: (score) => `${score}.png` });
 assert.match(dance, /Judges total 19/);
+
+const experienceStyles = await readFile(new URL('../research-experience.css', import.meta.url), 'utf8');
+assert.match(experienceStyles, /\.card\s*\{[^}]*background:\s*var\(--experience-surface\)/);
+assert.match(experienceStyles, /#signin\s+\.signin-card\s*\{[^}]*background:\s*linear-gradient\(/);
 
 console.log('Research-led experience components verified.');

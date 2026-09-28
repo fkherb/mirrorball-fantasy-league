@@ -33,6 +33,12 @@ nav button[data-view].active:hover {
 }
 nav .nav-toggle { background: #fbf9fc; border-color: #d7c9dc; }
 .card { background: var(--experience-surface); box-shadow: 0 8px 28px #2820310b; }
+/* Keep the sign-in surface dark: the shared white card reset otherwise leaves
+   its white heading, provider button and form copy unreadable on mobile. */
+#signin .signin-card {
+  background: linear-gradient(135deg, #2b1f34, #493049);
+  color: #fff;
+}
 .view > .splithead { border-color: #e6dfe7; }
 .view > .splithead::after { background: linear-gradient(90deg, #8349a8, #ca5b91); }
 .eyebrow { color: #7a578a; }
