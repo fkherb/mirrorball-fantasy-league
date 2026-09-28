@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260927-research-v27';
+import { db } from './supabase-client.js?v=20260927-gallery-v28';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

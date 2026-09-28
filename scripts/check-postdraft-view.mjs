@@ -26,6 +26,11 @@ assert.match(castRosterRow({ id: member.id, name: member.name, roleDetails: 'Pro
 assert.match(danceCard({ id: 'dance-1', kind: 'competitive', title: member.name,
   danceType: 'Foxtrot', song: 'Song', scores: [], castNames: [member.name],
   scoreImage: () => '/paddle.png', pending: true }), /Awaiting scores/);
+assert.match(danceCard({ id: 'dance-photo', kind: 'competitive', title: 'Pair',
+  danceType: 'Foxtrot', song: 'Song', scores: [], castNames: [], scoreImage: () => '/paddle.png',
+  photos: ['Images/Dances/Week%201/Pair-1.jpeg'] }), /dance-card-photo/);
+assert.match(danceCard({ id: 'dance-poster', kind: 'performance', title: 'Opening',
+  scores: [], castNames: [], poster: true }), /dance-card-poster/);
 assert.match(teamPage({ weekHistory: '<button>Week 1</button>', total: 32, period: 'season',
   rosterRows: scoreRows(rows), available: 0, availableMarkup: '' }), /team-summary-strip/);
 assert.match(roleRatesTable([{ name: 'Surprise', appearance_points: null },
@@ -37,5 +42,7 @@ assert.match(danceDetail({ kind: 'competitive', title: member.name, danceType: '
   song: 'Song', scores: [{ judge_name: 'Judge', score: 8 }], scoreImage: () => '/paddle.png',
   teams: [{ name: 'Team', points: 8 }], castRows: [{ member, role: 'Pro', teamName: 'Team', points: 8 }],
   imageFor: () => '/portrait.png' }), /data-dance-cast-profile="cast-1"/);
+assert.match(danceDetail({ kind: 'competitive', title: 'Pair', scores: [], teams: [], castRows: [],
+  photos: ['/photo-1.jpeg', '/photo-2.jpeg'], imageFor: () => '' }), /data-dance-gallery-photo="\/photo-2.jpeg"/);
 
 console.log('Shared post-draft views verified.');

@@ -1,5 +1,6 @@
-import { db } from './supabase-client.js?v=20260927-research-v27';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-research-v27';
+import { db } from './supabase-client.js?v=20260927-gallery-v28';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260927-gallery-v28';
+import { danceImagesFor } from './dance-images.js?v=20260927-gallery-v28';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -855,10 +856,11 @@ function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week
   const totals = new Map();
   rows.forEach((row) => { if (row.teamId) totals.set(row.teamName, (totals.get(row.teamName) || 0) + row.points); });
   const title = star && pro ? `${star.name} & ${pro.name}` : dance.name || 'Performance';
-  dialog(danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
+  dialog(danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song, photos: danceImagesFor(week.number, title), weekNumber: week.number,
     scores, scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
     teams: [...totals].sort((a, b) => b[1] - a[1]).map(([name, points]) => ({ name, points })),
     castRows: rows, imageFor: castImage }));
+  bindDanceGallery($('#modalBody'));
   $('#modalBody').querySelectorAll('[data-dance-cast-profile]').forEach((button) => button.addEventListener('click', () => {
     const row = rows.find((item) => item.member.id === button.dataset.danceCastProfile);
     if (row) openWorkspaceCastProfile(row.member, row.teamName,
@@ -891,7 +893,7 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
     const judges = data.scores.filter((item) => item.dance_id === dance.id);
     const castNames = data.appearances.filter((item) => item.dance_id === dance.id)
       .map((appearance) => nameFor(appearance.cast_member_id));
-    return danceCard({ id: dance.id, kind: dance.kind, title: names,
+    return danceCard({ id: dance.id, kind: dance.kind, title: names, photos: danceImagesFor(week.number, names), poster: Number(week.number) <= 2,
       danceType: dance.dance_type, song: dance.song, scores: judges, castNames,
       scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
       pending: false });

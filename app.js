@@ -1,6 +1,7 @@
-import { db } from './supabase-client.js?v=20260927-research-v27';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-research-v27';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail } from './postdraft-view.js?v=20260927-research-v27';
+import { db } from './supabase-client.js?v=20260927-gallery-v28';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260927-gallery-v28';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260927-gallery-v28';
+import { danceImagesFor } from './dance-images.js?v=20260927-gallery-v28';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1297,7 +1298,7 @@ async function loadScoreDesk() {
   const readOnlyCards = dances.map((dance, index) => danceCard({ id: dance.id, kind: dance.kind,
     title: labelForDance(dance, index), danceType: dance.dance_type, song: dance.song,
     scores: scoresForDance(dance.id), castNames: dancers(dance.id).map((member) => member.name),
-    scoreImage: judgeScoreImage,
+    scoreImage: judgeScoreImage, photos: danceImagesFor(week.number, labelForDance(dance, index)), poster: Number(week.number) <= 2,
     pending: dance.kind === 'competitive' && scoresForDance(dance.id).length < 3 + (week.guest_judge_name ? 1 : 0) })).join('');
   $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canManageShow ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
     ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? (!editable && !weekEditing ? readOnlyCards : dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : !weekEditing ? '<span class="card-chevron" aria-hidden="true">›</span>' : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('')) : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
@@ -1364,10 +1365,11 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
   const teamLeaders = [...teamTotals].sort((a, b) => b[1] - a[1]);
   const sortedRows = [...detailRows].sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
   openModal(danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
-    scores, scoreImage: judgeScoreImage,
+    scores, scoreImage: judgeScoreImage, photos: danceImagesFor(week.number, title), weekNumber: week.number,
     teams: teamLeaders.map(([name, points]) => ({ name, points })),
     castRows: sortedRows.map((row) => ({ ...row, role: displayRole({ ...row.member, role: row.role }) })),
     imageFor: displayImagePath }));
+  bindDanceGallery($('#modalBody'));
   document.querySelectorAll('[data-dance-cast-profile]').forEach((button) => button.addEventListener('click', () => openCastDetail(button.dataset.danceCastProfile, null, () => openDanceDetail(week, dance, index, pairData, scores, cast, context))));
 }
 
