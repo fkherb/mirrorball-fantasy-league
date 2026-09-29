@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20260928-photo-resize-v56';
-import { prepareProfilePicture } from './profile-picture.js?v=20260928-photo-resize-v56';
+import { db } from './supabase-client.js?v=20260929-back-spacing-v67';
+import { prepareProfilePicture } from './profile-picture.js?v=20260929-back-spacing-v67';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

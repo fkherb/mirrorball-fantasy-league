@@ -45,16 +45,25 @@ assert.equal(weeklyPredictionFor('star-1', { ...weeks[1], is_complete: true }, r
 
 const profile = castProfile({ member: { id: 'star-1', name: 'Tatyana Ali', role: 'Star' },
   image: 'star.jpg', role: 'Star', partner: 'Pro Example', partnerMember: { id: 'pro-1', name: 'Pro Example' },
-  partnerImage: 'pro.jpg', teamId: 'team-1', teamName: 'Team', teamAvatar: 'manager.jpg', fantasyPoints: 12, appearanceCount: 1,
+  partnerImage: 'pro.jpg', partnershipName: 'Team Sparkle', teamId: 'team-1', teamName: 'Team', teamAvatar: 'manager.jpg', fantasyPoints: 12, appearanceCount: 1,
   seasonPredictions: season, weeklyPrediction: weekly, predictionWeekNumber: 3 });
 assert.match(profile, /33\.5%/);
 assert.match(profile, /Season 35<\/small><strong>3rd Place/);
 assert.match(profile, /14\.5%/);
 assert.match(profile, /data-partner-profile="pro-1"/);
-assert.match(profile, /data-expanded-label="View dance partner Pro Example" aria-expanded="false"/);
+assert.match(profile, /data-profile-reveal="partner" aria-expanded="false"/);
 assert.doesNotMatch(profile, /Partnered with|Current season cast/);
 assert.match(profile, /data-cast-team-detail="team-1"/);
-assert.match(profile, /data-expanded-label="View Team team" aria-expanded="false"/);
+assert.match(profile, /data-profile-reveal="team" aria-expanded="false"/);
+assert.match(profile, /class="cast-mobile-pill" data-profile-control="team"/);
+assert.match(profile, /class="cast-market-control cast-mobile-pill" data-profile-control="season"/);
+assert.match(profile, /class="cast-market-list-home" hidden/);
+assert.match(profile, /class="cast-profile-desktop-row"/);
+assert.match(profile, /class="cast-profile-desktop-pill" data-cast-team-detail="team-1"/);
+assert.match(profile, /class="cast-profile-desktop-pill" data-partner-profile="pro-1"/);
+assert.match(profile, /class="cast-profile-desktop-pill cast-desktop-season-toggle"/);
+assert.match(profile, /<small>Week 3<\/small><strong>Elimination<\/strong>/);
+assert.match(profile, /class="cast-partnership-name">Team Sparkle/);
 assert.match(profile, /manager\.jpg/);
 assert.doesNotMatch(profile, /Meet dance partner/);
 assert.match(profile, /Predictions provided by Kalshi/);
@@ -63,11 +72,20 @@ assert.match(profile, /prediction-ring-season/);
 assert.match(profile, /prediction-ring-risk/);
 assert.equal((profile.match(/class="cast-market-mini"/g) || []).length, 1);
 assert.match(profile, /Week 3<\/small><strong>Elimination/);
-assert.match(profile, /prediction-short-label" aria-hidden="true">3rd/);
-assert.match(profile, /prediction-short-label" aria-hidden="true">Elim/);
-assert.match(profile, /cast-market-weekly-toggle" data-detail-expanded="false"/);
+assert.match(profile, /data-profile-reveal="season" aria-expanded="false"/);
+assert.match(profile, /data-profile-reveal="weekly" aria-expanded="false"/);
+assert.match(profile, /class="cast-market-short-button" data-profile-reveal="season"[^>]*>3rd/);
+assert.match(profile, /class="cast-market-short-button" data-profile-reveal="weekly"[^>]*>Elim/);
+assert.match(profile, /class="cast-market-mini"[^>]*>[\s\S]*prediction-short-label" aria-hidden="true">Win/);
 assert.match(profile, /cast-profile-meta[\s\S]*cast-market-predictions[\s\S]*cast-profile-stats/);
 assert.match(profile, /id="castSeasonPredictions" hidden/);
+const pendingProfile = castProfile({ member: { id: 'star-1', name: 'Tatyana Ali', role: 'Star' },
+  image: 'star.jpg', role: 'Star', fantasyPoints: 0, showWeeklyPrediction: true,
+  predictionWeekNumber: 4, weeklyDanceId: 'dance-4' });
+assert.match(pendingProfile, /prediction-ring-tba[^>]*><strong>TBA<\/strong>/);
+assert.match(pendingProfile, /Week 4<\/small><strong>Elimination<\/strong>/);
+assert.equal((pendingProfile.match(/data-weekly-dance-detail="dance-4"/g) || []).length, 2);
+assert.doesNotMatch(pendingProfile, /Predictions provided by Kalshi|>0%<\/strong>/);
 const fullBio = `${'A detailed biography with complete sentences. '.repeat(20)}The final sentence must remain visible.`;
 const longProfile = castProfile({ member: { id: 'star-1', name: 'Tatyana Ali', role: 'Star', bio: fullBio },
   image: 'star.jpg', role: 'Star', fantasyPoints: 0 });
@@ -75,10 +93,11 @@ assert.match(longProfile, /cast-bio-preview/);
 assert.match(longProfile, /The final sentence must remain visible\.<\/p><\/details>/);
 assert.match(longProfile, /Show less/);
 const eliminated = castProfile({ member: { id: 'star-1', name: 'Tatyana Ali', role: 'Eliminated Star' },
-  image: 'star.jpg', role: 'Eliminated Star', fantasyPoints: 12,
+  image: 'star.jpg', role: 'Eliminated Star', partnershipName: 'Old Name', fantasyPoints: 12,
   seasonPredictions: season, weeklyPrediction: weekly });
 assert.match(eliminated, /Eliminated from the competition/);
 assert.doesNotMatch(eliminated, /cast-market-predictions/);
+assert.doesNotMatch(eliminated, /Old Name/);
 const eliminatedPair = castProfile({ member: { id: 'pro-1', name: 'Example Pro', role: 'Eliminated Pro' },
   image: 'pro.jpg', role: 'Eliminated Pro', partner: 'Example Star',
   partnerMember: { id: 'star-1', name: 'Example Star' }, partnerImage: 'star.jpg', fantasyPoints: 0 });

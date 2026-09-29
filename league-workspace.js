@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-photo-resize-v56';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle, openExpandedCastLink } from './postdraft-view.js?v=20260928-photo-resize-v56';
-import { danceImagesFor } from './dance-images.js?v=20260928-photo-resize-v56';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-photo-resize-v56';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-photo-resize-v56';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260928-photo-resize-v56';
+import { db } from './supabase-client.js?v=20260929-back-spacing-v67';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-back-spacing-v67';
+import { danceImagesFor } from './dance-images.js?v=20260929-back-spacing-v67';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-back-spacing-v67';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-back-spacing-v67';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-back-spacing-v67';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -39,6 +39,8 @@ function dialog(markup) {
   $('#modalClose').onclick = () => modal.close();
   modal.oncancel = null;
   if (!modal.open) modal.showModal();
+  modal.scrollTop = 0;
+  $('#modalBody').scrollTop = 0;
 }
 
 function errorMessage(error, fallback = 'Please try again.') {
@@ -115,6 +117,9 @@ function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction 
   const linkedPartner = partner && ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(partner.role);
   const predictionStarId = activePair ? pair.star_id : null;
   const predictionWeek = nextPredictionWeek(state?.data.weeks || []);
+  const showWeeklyPrediction = Boolean(activePair && predictionWeek && !predictionWeek.is_complete && !predictionWeek.is_finale);
+  const weeklyDance = showWeeklyPrediction ? state.data.dances.find((dance) => dance.week_id === predictionWeek.id
+    && dance.partnership_id === pair.id && dance.kind === 'competitive') : null;
   const activePredictions = activePartnershipPredictionRows(state?.predictions || [], state?.data.pairs, state?.data.cast);
   const partnerTeamId = state?.assignmentMap.get(partner?.id);
   const partnerTeam = state?.memberByTeam.get(partnerTeamId);
@@ -134,6 +139,7 @@ function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction 
   const projected = draftPreview ? projectedDraftCastPoints(cast, state.data, state.score) : null;
   dialog(castProfile({ member: cast, image: castImage(cast),
     role: cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role, teamName: currentTeamName,
+    partnershipName: activePair ? pair.partnership_name || '' : '',
     teamId, teamAvatar: teamMember?.avatar_url || '',
     fantasyPoints: projected?.fantasyPoints ?? totals.official + totals.appearances,
     judgesTotal: projected?.judgesTotal ?? totals.official,
@@ -148,18 +154,19 @@ function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction 
     partnerMember: linkedPartner ? partner : null, partnerImage: linkedPartner ? castImage(partner) : '',
     seasonPredictions: seasonPredictionsFor(predictionStarId, activePredictions),
     weeklyPrediction: weeklyPredictionFor(predictionStarId, predictionWeek, activePredictions),
-    predictionWeekNumber: predictionWeek?.number }));
+    predictionWeekNumber: predictionWeek?.number, showWeeklyPrediction, weeklyDanceId: weeklyDance?.id || '' }));
   bindCastPredictionToggle($('#modalBody'));
-  $('#profileBack')?.addEventListener('click', backAction);
-  $('#modalBody [data-partner-profile]')?.addEventListener('click', (event) => {
-    if (openExpandedCastLink(event.currentTarget)) openWorkspaceCastProfile(partner,
-      partnerTeam?.team_name || partnerTeam?.display_name || 'Available cast',
-      () => openWorkspaceCastProfile(cast, teamName, backAction, backLabel), 'profile');
-  });
-  $('#modalBody [data-cast-team-detail]')?.addEventListener('click', (event) => {
-    if (openExpandedCastLink(event.currentTarget)) openWorkspaceTeamDetail(teamId,
+  document.querySelectorAll('#modalBody [data-weekly-dance-detail]').forEach((button) => button.addEventListener('click', () => {
+    if (weeklyDance) openWorkspaceDanceDetail(state.data, state.score, state.assignmentMap,
+      state.memberByTeam, predictionWeek, weeklyDance,
       () => openWorkspaceCastProfile(cast, teamName, backAction, backLabel));
-  });
+  }));
+  $('#profileBack')?.addEventListener('click', backAction);
+  document.querySelectorAll('#modalBody [data-partner-profile]').forEach((button) => button.addEventListener('click', () => openWorkspaceCastProfile(partner,
+    partnerTeam?.team_name || partnerTeam?.display_name || 'Available cast',
+    () => openWorkspaceCastProfile(cast, teamName, backAction, backLabel), 'profile')));
+  document.querySelectorAll('#modalBody [data-cast-team-detail]').forEach((button) => button.addEventListener('click', () => openWorkspaceTeamDetail(teamId,
+    () => openWorkspaceCastProfile(cast, teamName, backAction, backLabel))));
 }
 
 function openWorkspaceTeamDetail(teamId, backAction = null) {
@@ -630,7 +637,7 @@ async function loadWorkspaceData(context) {
     roles: db.from('roles').select('id,name,appearance_points'),
     rates: db.from('league_role_rates').select('role_id,appearance_points').eq('league_id', leagueId),
     weeks: db.from('weeks').select('*').order('number'),
-    pairs: db.from('partnerships').select('id,star_id,pro_id,active'),
+    pairs: db.from('partnerships').select('id,star_id,pro_id,active,partnership_name'),
     dances: db.from('dances').select('id,week_id,kind,partnership_id,name,dance_type,song,sort_order').order('sort_order'),
     scores: db.from('dance_judge_scores').select('dance_id,judge_name,score'),
     appearances: db.from('dance_appearances').select('dance_id,cast_member_id'),
@@ -1188,7 +1195,7 @@ function openWorkspaceCounter(context, data, assignmentMap, offer, refresh) {
   render();
 }
 
-function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week, dance) {
+function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week, dance, backToProfile = null) {
   const castById = new Map(data.cast.map((cast) => [cast.id, cast]));
   const pair = data.pairs.find((item) => item.id === dance.partnership_id);
   const star = castById.get(pair?.star_id);
@@ -1214,17 +1221,18 @@ function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week
   const totals = new Map();
   rows.forEach((row) => { if (row.teamId) totals.set(row.teamName, (totals.get(row.teamName) || 0) + row.points); });
   const title = star && pro ? `${star.name} & ${pro.name}` : dance.name || 'Performance';
-  dialog(danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song, photos: danceImagesFor(week.number, title), weekNumber: week.number,
+  dialog(`${backToProfile ? '<div class="modal-back-row"><button class="profile-back-button secondary" id="danceBackToProfile" type="button" aria-label="Back to profile">← Back</button></div>' : ''}${danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song, photos: danceImagesFor(week.number, title), weekNumber: week.number,
     scores, scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
     weeklyPrediction: weeklyPredictionFor(star?.id, week,
       activePartnershipPredictionRows(data.marketPredictions || [], data.pairs, data.cast)),
     teams: [...totals].sort((a, b) => b[1] - a[1]).map(([name, points]) => ({ name, points })),
-    castRows: rows, imageFor: castImage }));
+    castRows: rows, imageFor: castImage })}`);
+  $('#danceBackToProfile')?.addEventListener('click', backToProfile);
   bindDanceGallery($('#modalBody'));
   $('#modalBody').querySelectorAll('[data-dance-cast-profile]').forEach((button) => button.addEventListener('click', () => {
     const row = rows.find((item) => item.member.id === button.dataset.danceCastProfile);
     if (row) openWorkspaceCastProfile(row.member, row.teamName,
-      () => openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week, dance), 'dance');
+      () => openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week, dance, backToProfile), 'dance');
   }));
 }
 
