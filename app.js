@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-shared-scoring-v69';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-shared-scoring-v69';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-shared-scoring-v69';
-import { danceImagesFor } from './dance-images.js?v=20260929-shared-scoring-v69';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-shared-scoring-v69';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-shared-scoring-v69';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-shared-scoring-v69';
+import { db } from './supabase-client.js?v=20260929-cutover-prep-v70';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-cutover-prep-v70';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-cutover-prep-v70';
+import { danceImagesFor } from './dance-images.js?v=20260929-cutover-prep-v70';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-cutover-prep-v70';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-cutover-prep-v70';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-cutover-prep-v70';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';

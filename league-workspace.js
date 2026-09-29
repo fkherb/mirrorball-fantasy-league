@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-shared-scoring-v69';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-shared-scoring-v69';
-import { danceImagesFor } from './dance-images.js?v=20260929-shared-scoring-v69';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-shared-scoring-v69';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-shared-scoring-v69';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-shared-scoring-v69';
-import { scoreLeague } from './scoring.js?v=20260929-shared-scoring-v69';
+import { db } from './supabase-client.js?v=20260929-cutover-prep-v70';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-cutover-prep-v70';
+import { danceImagesFor } from './dance-images.js?v=20260929-cutover-prep-v70';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-cutover-prep-v70';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-cutover-prep-v70';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-cutover-prep-v70';
+import { scoreLeague } from './scoring.js?v=20260929-cutover-prep-v70';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -756,6 +756,7 @@ function renderWorkspaceHighlights(data, score, rows) {
 }
 
 function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh) {
+  const enforceRoleBalance = context.leagueId !== defaultLeagueId;
   const ownTeam = data.teams.find((team) => team.id === context.fantasyTeamId);
   const body = $('#publicTeamResults');
   if (!ownTeam) { body.innerHTML = '<div class="card pad">Your team has not been connected yet.</div>'; return; }
@@ -835,7 +836,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   const regularMembers = data.members.filter((member) => member.member_role === 'member');
   const readyIds = new Set(data.readiness.filter((item) => item.ready_at).map((item) => item.user_id));
   const readyCount = regularMembers.filter((member) => readyIds.has(member.user_id)).length;
-  const enoughEligibleCast = draftHasCapacity(data, context.rosterSize);
+  const enoughEligibleCast = !enforceRoleBalance || draftHasCapacity(data, context.rosterSize);
   const canStartDraft = data.members.length >= 3 && data.members.length <= 5
     && readyCount === regularMembers.length && enoughEligibleCast && !context.draftAiringLocked;
   const ownReady = readyIds.has(context.userId);
@@ -851,6 +852,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   const activeCount = teamCategoryCount('Pro') + teamCategoryCount('Star');
   const draftCategoryUnavailable = (member) => {
     if (context.leagueStatus !== 'drafting') return '';
+    if (!enforceRoleBalance) return '';
     const category = castCategory(member);
     if (category === 'Bonus') return teamCategoryCount('Bonus') >= draftBonusLimit ? 'Limit reached' : '';
     if (teamCategoryCount(category) >= categoryLimits[category] + draftFlex
@@ -860,7 +862,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       ? 'Reserved' : '';
   };
   const airingLock = context.leagueStatus === 'active' && isTradeAiringLocked(data.weeks);
-  const rosterRule = `<p class="workspace-category-rule"><b>Roster balance</b> ${teamCategoryCount('Pro')}/${categoryLimits.Pro} active pros · ${teamCategoryCount('Star')}/${categoryLimits.Star} active stars · ${teamCategoryCount('Bonus')}${context.leagueStatus === 'drafting' ? `/${draftBonusLimit}` : ''} bonus.${draftFlex && context.leagueStatus !== 'active' ? ' One extra Pro or Star pick is available to make this preset draftable.' : ''} Eliminated cast and other roles count as bonus. Existing players stay when limits drop; a new active Pro or Star can join only if the resulting roster is within the current limit.</p>`;
+  const rosterRule = enforceRoleBalance ? `<p class="workspace-category-rule"><b>Roster balance</b> ${teamCategoryCount('Pro')}/${categoryLimits.Pro} active pros · ${teamCategoryCount('Star')}/${categoryLimits.Star} active stars · ${teamCategoryCount('Bonus')}${context.leagueStatus === 'drafting' ? `/${draftBonusLimit}` : ''} bonus.${draftFlex && context.leagueStatus !== 'active' ? ' One extra Pro or Star pick is available to make this preset draftable.' : ''} Eliminated cast and other roles count as bonus. Existing players stay when limits drop; a new active Pro or Star can join only if the resulting roster is within the current limit.</p>` : '';
   const draftStrip = context.leagueStatus === 'setup'
     ? `<div class="workspace-draft-setup"><div class="workspace-draft-strip"><div><small>Draft setup</small><strong>${regularMembers.length ? `${readyCount} of ${regularMembers.length} members ready` : 'Waiting for managers'}</strong><p class="sub">${data.members.length} managers · ${context.rosterSize} rounds · preset roster size</p></div>${context.leagueRole === 'owner' ? `<button id="startDraftFromTeam" ${canStartDraft ? '' : 'disabled'}>Start draft</button>` : `<button id="toggleDraftReady" type="button" class="${ownReady ? 'secondary' : ''}">${ownReady ? 'Unready' : 'Ready'}</button>`}</div><div class="workspace-ready-board"><div class="workspace-ready-heading"><h3>Managers</h3><span>${regularMembers.length ? `${readyCount}/${regularMembers.length} ready` : 'No members yet'}</span></div><ul class="workspace-ready-list">${readinessRows}</ul>${context.leagueRole === 'owner' && !canStartDraft ? `<p class="workspace-ready-note">${data.members.length < 3 ? `Invite ${3 - data.members.length} more ${3 - data.members.length === 1 ? 'manager' : 'managers'} to start.` : data.members.length > 5 ? 'Leagues can now draft with 3–5 managers. Remove one manager to continue.' : !enoughEligibleCast ? 'The current cast pool cannot fill every roster under the Pro, Star, and Bonus limits.' : context.draftAiringLocked ? 'Drafting resumes when this week is marked complete.' : 'Waiting for every regular manager to be ready.'}</p>` : ''}</div></div>`
     : context.leagueStatus === 'drafting'
@@ -995,7 +997,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
         $('#modalBody').querySelectorAll('[data-workspace-release]').forEach((item) => item.classList.toggle('selected', item === choice));
         const incomingCategory = castCategory(incoming);
         const outgoingCategory = castCategory(roster.find((member) => member.id === outgoingId));
-        const exceedsLimit = incomingCategory !== 'Bonus' && teamCategoryCount(incomingCategory)
+        const exceedsLimit = enforceRoleBalance && incomingCategory !== 'Bonus' && teamCategoryCount(incomingCategory)
           - Number(outgoingCategory === incomingCategory) + 1 > categoryLimits[incomingCategory];
         $('#confirmWorkspaceClaim').disabled = exceedsLimit;
         $('#workspaceSwapHint').textContent = exceedsLimit
@@ -1065,7 +1067,8 @@ async function renderWorkspaceTrades(context, data, assignmentMap, memberByTeam,
   }));
 }
 
-function tradeRoleLimitIssue(data, assignmentMap, firstTeamId, firstCastId, secondTeamId, secondCastId) {
+function tradeRoleLimitIssue(context, data, assignmentMap, firstTeamId, firstCastId, secondTeamId, secondCastId) {
+  if (context.leagueId === defaultLeagueId) return '';
   const castById = new Map(data.cast.map((member) => [member.id, member]));
   const limits = leagueCategoryLimits(data);
   for (const [teamId, outgoingId, incomingId] of [
@@ -1091,7 +1094,7 @@ function openWorkspaceTradeBuilder(context, data, assignmentMap, memberByTeam, r
   const state = { mine: null, team: null, theirs: null };
   const render = () => {
     const theirs = state.team ? data.cast.filter((member) => assignmentMap.get(member.id) === state.team) : [];
-    const issue = state.mine && state.team && state.theirs ? tradeRoleLimitIssue(data, assignmentMap,
+    const issue = state.mine && state.team && state.theirs ? tradeRoleLimitIssue(context, data, assignmentMap,
       context.fantasyTeamId, state.mine, state.team, state.theirs) : '';
     dialog(`<p class="eyebrow">New trade</p><h2>Propose a Trade</h2><p class="sub">Choose one of your cast members, another team, and the cast member you want. The other manager has 48 hours.</p><h3>You send</h3><div class="workspace-trade-picker">${own.map((member) => `<button class="${state.mine === member.id ? 'selected' : ''}" data-builder-mine="${member.id}">${castTile(member, '', 'span')}</button>`).join('')}</div><h3>Trade with</h3><div class="workspace-trade-team-picker">${others.map((team) => `<button class="${state.team === team.id ? 'selected' : ''}" data-builder-team="${team.id}">${safe(team.team_name || memberByTeam.get(team.id)?.display_name || 'Team')}</button>`).join('')}</div>${state.team ? `<h3>You receive</h3><div class="workspace-trade-picker">${theirs.map((member) => `<button class="${state.theirs === member.id ? 'selected' : ''}" data-builder-theirs="${member.id}">${castTile(member, '', 'span')}</button>`).join('')}</div>` : ''}${issue ? `<p class="sub" role="alert">${safe(issue)}</p>` : ''}<div class="modal-actions"><button id="sendWorkspaceTrade" ${state.mine && state.theirs && !issue ? '' : 'disabled'}>Send Trade</button></div>`);
     $('#modalBody').querySelectorAll('[data-builder-mine]').forEach((button) => button.addEventListener('click', () => { state.mine = button.dataset.builderMine; render(); }));
@@ -1117,7 +1120,7 @@ function openWorkspaceCounter(context, data, assignmentMap, offer, refresh) {
     const sideCard = (side, castId) => `<button type="button" class="workspace-counter-side ${state.side === side ? 'selected' : ''}" data-counter-side="${side}" ${state.replacement ? 'disabled' : ''}>${castTile(castById.get(state.side === side && state.replacement ? state.replacement : castId) || { name: 'Cast member', role: '' }, '', 'span')}</button>`;
     const initiatorCastId = state.side === 'initiator' && state.replacement ? state.replacement : offer.initiator_cast_member_id;
     const counterpartyCastId = state.side === 'counterparty' && state.replacement ? state.replacement : offer.counterparty_cast_member_id;
-    const issue = state.replacement ? tradeRoleLimitIssue(data, assignmentMap,
+    const issue = state.replacement ? tradeRoleLimitIssue(context, data, assignmentMap,
       offer.initiator_team_id, initiatorCastId, offer.counterparty_team_id, counterpartyCastId) : '';
     dialog(`<p class="eyebrow">Trade response</p><h2>Counter Offer</h2><p class="sub">Select the cast member to replace. Change one side only.</p><div class="workspace-counter-swap">${sideCard('initiator', offer.initiator_cast_member_id)}<span>⇄</span>${sideCard('counterparty', offer.counterparty_cast_member_id)}</div>${state.replacement ? '<button id="clearWorkspaceCounter" class="secondary">× Remove change</button>' : ''}${state.side && !state.replacement ? `<h3>Choose a replacement</h3><div class="workspace-trade-picker">${options.map((member) => `<button data-counter-replacement="${member.id}">${castTile(member, '', 'span')}</button>`).join('')}</div>` : ''}${issue ? `<p class="sub" role="alert">${safe(issue)}</p>` : ''}<div class="modal-actions"><button id="sendWorkspaceCounter" ${state.replacement && !issue ? '' : 'disabled'}>Send counter</button></div>`);
     $('#modalBody').querySelectorAll('[data-counter-side]').forEach((button) => button.addEventListener('click', () => { state.side = button.dataset.counterSide; render(); }));

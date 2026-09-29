@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260929-shared-scoring-v69';
+import { db } from '../supabase-client.js?v=20260929-cutover-prep-v70';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

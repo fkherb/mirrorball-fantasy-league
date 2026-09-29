@@ -30,7 +30,7 @@ const [teams, cast, pairs, weeks, dances, scores, appearances, snapshots, roles,
   rows('dances', 'id,week_id,kind,partnership_id'),
   rows('dance_judge_scores', 'dance_id,score'),
   rows('dance_appearances', 'dance_id,cast_member_id'),
-  rows('weekly_roster_snapshots', 'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role,appearance_points,manager_name,team_name', { league_id: leagueId }),
+  rows('weekly_roster_snapshots', 'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role,appearance_points,manager_name,team_name,created_at', { league_id: leagueId }),
   rows('roles', 'id,name,appearance_points'),
   rows('league_role_rates', 'role_id,appearance_points', { league_id: leagueId }),
   rows('league_roster_assignments', 'cast_member_id,fantasy_team_id', { league_id: leagueId }),
@@ -63,23 +63,36 @@ const rateById = new Map(rates.map((row) => [row.role_id, row.appearance_points]
 const rateMismatches = roles.filter((role) => Number(role.appearance_points) !== Number(rateById.get(role.id))
   && !(role.appearance_points == null && rateById.get(role.id) == null)).length;
 let sharedSnapshotMismatches = null;
+let sharedScoreMismatches = null;
 let sharedSnapshots = null;
 if (accessToken) {
   const sharedRows = await rows('league_weekly_roster_snapshots',
-    'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role,appearance_points,manager_name,team_name',
+    'week_id,cast_member_id,fantasy_team_id,cast_member_name,cast_role,appearance_points,manager_name,team_name,created_at',
     { league_id: leagueId });
   sharedSnapshots = sharedRows.length;
   const sharedByKey = new Map(sharedRows.map((row) => [`${row.week_id}:${row.cast_member_id}`, row]));
-  const fields = ['fantasy_team_id', 'cast_member_name', 'cast_role', 'appearance_points', 'manager_name', 'team_name'];
+  const fields = ['fantasy_team_id', 'cast_member_name', 'cast_role', 'appearance_points', 'manager_name', 'team_name', 'created_at'];
   sharedSnapshotMismatches = snapshots.filter((row) => {
     const sharedRow = sharedByKey.get(`${row.week_id}:${row.cast_member_id}`);
     return !sharedRow || fields.some((field) => String(row[field] ?? '') !== String(sharedRow[field] ?? ''));
   }).length + sharedRows.filter((row) => !snapshotByKey.has(`${row.week_id}:${row.cast_member_id}`)).length;
+  const sharedFromDatabase = scoreLeague({ ...scoped, snapshots: sharedRows },
+    { leagueStatus: 'active', scoringStartsAfterWeek: 0 });
+  sharedScoreMismatches = [];
+  for (const week of completed) for (const team of teams) {
+    const adaptedTotal = shared.pointsByWeekTeam.get(`${week.id}:${team.id}`) || 0;
+    const databaseTotal = sharedFromDatabase.pointsByWeekTeam.get(`${week.id}:${team.id}`) || 0;
+    if (adaptedTotal !== databaseTotal) sharedScoreMismatches.push({
+      week: week.number, teamId: team.id, adaptedTotal, databaseTotal,
+    });
+  }
 }
 
 console.log(JSON.stringify({
   completedWeeks: completed.length, teams: teams.length, legacySnapshots: snapshots.length,
   assignmentMismatches, rateMismatches, scoreMismatches: mismatches,
-  ...(accessToken ? { sharedSnapshots, sharedSnapshotMismatches } : {}),
+  ...(accessToken ? { sharedSnapshots, sharedSnapshotMismatches, sharedScoreMismatches }
+    : { sharedSnapshotVerification: 'requires an authenticated member token or the SQL cutover check' }),
 }, null, 2));
-if (assignmentMismatches || rateMismatches || mismatches.length || sharedSnapshotMismatches) process.exitCode = 1;
+if (assignmentMismatches || rateMismatches || mismatches.length || sharedSnapshotMismatches
+    || sharedScoreMismatches?.length) process.exitCode = 1;
