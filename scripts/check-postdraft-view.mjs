@@ -41,6 +41,12 @@ assert.match(castProfile({ member, image: '/portrait.png', role: 'Pro', teamName
 assert.match(castProfile({ member: { ...member, role: 'Star' }, image: '/portrait.png', role: 'Star',
   teamName: 'Team', seasonPredictions: [{ market_kind: 'winner', percent: 12.5,
     relative_position: 0.5 }] }), /Season 35<\/small><strong>Winner<\/strong>/);
+const availableProfile = castProfile({ member: { ...member, role: 'Star' }, image: '/portrait.png',
+  role: 'Star', teamName: 'Available cast', partner: 'Partner', partnerMember: { id: 'partner-1', name: 'Partner' },
+  partnerImage: '/partner.png', seasonPredictions: [{ market_kind: 'winner', percent: 12.5,
+    relative_position: 0.5 }] });
+assert.match(availableProfile, /<\/div><div class="cast-profile-meta"><span class="cast-profile-available">Available cast<\/span><button[^>]*class="cast-profile-link-pill"/);
+assert.match(availableProfile, /<\/div><section class="cast-market-predictions">/);
 assert.match(danceDetail({ kind: 'competitive', title: member.name, danceType: 'Foxtrot',
   song: 'Song', scores: [{ judge_name: 'Judge', score: 8 }], scoreImage: () => '/paddle.png',
   teams: [{ name: 'Team', points: 8 }], castRows: [{ member, role: 'Pro', teamName: 'Team', points: 8 }],

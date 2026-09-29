@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-airing-windows-v50';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-airing-windows-v50';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-airing-windows-v50';
-import { danceImagesFor } from './dance-images.js?v=20260928-airing-windows-v50';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-airing-windows-v50';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-airing-windows-v50';
+import { db } from './supabase-client.js?v=20260928-mobile-profile-v51';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-mobile-profile-v51';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-mobile-profile-v51';
+import { danceImagesFor } from './dance-images.js?v=20260928-mobile-profile-v51';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-mobile-profile-v51';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-mobile-profile-v51';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';

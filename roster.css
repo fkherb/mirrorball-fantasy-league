@@ -1328,15 +1328,23 @@ body:not(.auth-ready) nav button[data-view]:not([data-view="standings"]) { displ
 @media (max-width: 430px) { .workspace-code-boxes { width: min(100%, 285px); gap: 4px; } .workspace-code-boxes input { height: 43px; font-size: 18px; } .workspace-invite-code-head strong { font-size: 20px; } .workspace-exact-invite-row { flex-wrap: wrap; } .workspace-exact-invite-row input { flex-basis: 100%; } }
 
 /* Market graphics keep odds separate from fantasy scoring. */
-dialog:has(.cast-profile-hero) { max-height: min(92dvh, 960px); overflow-y: auto; overscroll-behavior: contain; }
-dialog:has(.cast-profile-hero) .cast-profile-hero { grid-template-columns: 170px minmax(0, 1fr); gap: 30px; align-items: start; margin-bottom: 14px; }
+dialog:has(.cast-profile-hero) { position: fixed; inset: 0; max-height: min(92dvh, 960px); margin: auto; overflow: hidden; }
+dialog:has(.cast-profile-hero) #modalBody { max-height: min(92dvh, 960px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+dialog:has(.cast-profile-hero) #modalClose { position: absolute; z-index: 2; top: 10px; right: 10px; margin: 0; }
+dialog:has(.cast-profile-hero) .cast-profile-hero { grid-template-columns: 170px minmax(0, 1fr); grid-template-rows: repeat(3, min-content); column-gap: 30px; row-gap: 0; align-items: start; margin-bottom: 14px; }
+dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-column: 1; grid-row: 1 / 4; }
+.cast-profile-hero .cast-profile-intro { grid-column: 2; grid-row: 1; }
+.cast-profile-hero .cast-profile-meta { grid-column: 2; grid-row: 2; }
+.cast-profile-hero .cast-eliminated-status { grid-column: 2; grid-row: 3; }
+.cast-profile-hero .cast-market-predictions { grid-column: 2; grid-row: 3; }
 .cast-profile-intro { min-width: 0; padding-top: 4px; }
 .cast-profile-intro .sub { margin-bottom: 12px; }
-.cast-profile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.modal .cast-profile-link-pill { display: inline-flex; align-items: center; gap: 7px; width: auto; max-width: 100%; height: 38px; margin: 0; padding: 4px 9px 4px 4px; border: 1px solid #e5dce4; border-radius: 999px; background: #faf7fa; color: #302638; text-align: left; box-shadow: none; }
+.cast-profile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.modal .cast-profile-link-pill { display: inline-flex; align-items: center; gap: 7px; width: auto; max-width: 100%; min-width: 0; height: 38px; margin: 0; padding: 4px 9px 4px 4px; overflow: hidden; border: 1px solid #e5dce4; border-radius: 999px; background: #faf7fa; color: #302638; text-align: left; box-shadow: none; }
 .cast-profile-link-pill:hover { border-color: #9b778b; background: #f7f0f6; }
 .cast-profile-link-pill:focus-visible, .cast-market-season-toggle:focus-visible { outline: 3px solid #c9a25c; outline-offset: 2px; }
-.cast-profile-link-pill img, .cast-team-initial { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 50%; object-fit: cover; background: #e8dce6; color: #654669; font-size: 12px; font-weight: 800; }
+.cast-profile-link-pill img, .cast-team-initial { display: block; width: 28px; height: 28px; min-width: 28px; min-height: 28px; max-width: 28px; max-height: 28px; flex: 0 0 28px; border-radius: 50%; object-fit: cover; background: #e8dce6; color: #654669; font-size: 12px; font-weight: 800; }
+.cast-team-initial { display: grid; place-items: center; }
 .cast-profile-link-pill strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .cast-profile-link-pill i { margin-left: 1px; font: normal 17px Georgia,serif; color: #927282; }
 .cast-profile-available { display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px; border-radius: 999px; background: #f0eaf0; font-size: 11px; font-weight: 750; }
@@ -1372,12 +1380,21 @@ dialog:has(.cast-profile-hero) .cast-profile-hero { grid-template-columns: 170px
 .cast-bio-expand .bio-less-label, .cast-bio-expand[open] .bio-more-label { display: none; }
 .cast-bio-expand[open] .bio-less-label { display: inline; }
 @media (max-width: 600px) {
-  dialog:has(.cast-profile-hero) .cast-profile-hero { grid-template-columns: 96px minmax(0,1fr); gap: 18px; }
-  dialog:has(.cast-profile-hero) .cast-profile-hero > img { width: 96px; height: 128px; }
+  dialog:has(.cast-profile-hero) .cast-profile-hero { grid-template-columns: 96px minmax(0,1fr); column-gap: 18px; row-gap: 0; }
+  dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-row: 1; width: 96px; height: 128px; }
+  .cast-profile-hero .cast-profile-intro { padding-right: 38px; }
+  .cast-profile-hero .cast-profile-meta, .cast-profile-hero .cast-market-predictions, .cast-profile-hero .cast-eliminated-status { grid-column: 1 / -1; grid-row: auto; }
+  .cast-profile-hero .cast-profile-meta { margin-top: 14px; }
+  .cast-profile-hero .cast-market-predictions { margin-top: 16px; }
   .cast-profile-meta { align-items: flex-start; }
   .cast-market-predictions { gap: 6px; }
   .cast-market-predictions > .cast-market-feature, .modal .cast-market-season-toggle { flex-basis: 100%; }
   .cast-market-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 360px) {
+  dialog:has(.cast-profile-hero) .cast-profile-hero { grid-template-columns: 80px minmax(0,1fr); column-gap: 12px; }
+  dialog:has(.cast-profile-hero) .cast-profile-hero > img { width: 80px; height: 108px; }
+  .cast-profile-hero .cast-profile-intro { padding-right: 0; }
 }
 @media (max-width: 680px) {
   .dance-row.has-dance-photo:has(.dance-market-prediction) { height: auto; min-height: 144px; }

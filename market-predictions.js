@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260928-airing-windows-v50';
+import { db } from './supabase-client.js?v=20260928-mobile-profile-v51';
 
 let cached = [];
 let loadedAt = 0;
