@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260928-judge-cards-v52';
+import { db } from './supabase-client.js?v=20260928-viewport-dialog-v53';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

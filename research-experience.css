@@ -359,3 +359,6 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
   .dance-row.has-dance-photo .judge-score-art { flex-basis: 34px; width: 34px; height: 34px; }
 }
 @media (prefers-reduced-motion: reduce) { .dance-card-photo img { transition: none; } }
+
+/* Modal dialogs must stay in the visual viewport even when opened from a scrolled list. */
+dialog[open] { position: fixed; inset: 0; margin: auto; }

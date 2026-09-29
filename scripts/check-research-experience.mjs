@@ -33,5 +33,6 @@ assert.match(dance, /Judges total 19/);
 const experienceStyles = await readFile(new URL('../research-experience.css', import.meta.url), 'utf8');
 assert.match(experienceStyles, /\.card\s*\{[^}]*background:\s*var\(--experience-surface\)/);
 assert.match(experienceStyles, /#signin\s+\.signin-card\s*\{[^}]*background:\s*linear-gradient\(/);
+assert.match(experienceStyles, /dialog\[open\]\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;/);
 
 console.log('Research-led experience components verified.');
