@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-score-desk-judges-v74';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-score-desk-judges-v74';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-score-desk-judges-v74';
-import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260929-score-desk-judges-v74';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-score-desk-judges-v74';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-score-desk-judges-v74';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-score-desk-judges-v74';
+import { db } from './supabase-client.js?v=20260929-score-picker-art-v75';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-score-picker-art-v75';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-score-picker-art-v75';
+import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260929-score-picker-art-v75';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-score-picker-art-v75';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-score-picker-art-v75';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-score-picker-art-v75';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1659,9 +1659,20 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
   const castPicker = (excludedIds = []) => players.filter((player) => !excludedIds.includes(player.id)).map((player) => `<label class="cast-choice" data-dance-cast-name="${escapeHtml(player.name.toLowerCase())}" data-dance-cast-category="${castCategory(player)}" data-dance-bonus-category="${bonusCastCategory(player)}"><input type="checkbox" value="${player.id}" ${existingAppearanceIds.some((appearance) => (appearance.cast_member_id || appearance) === player.id) ? 'checked' : ''}><span><b>${escapeHtml(player.name)}</b><small>${escapeHtml(displayRole(player))}</small></span></label>`).join('');
   const drawForm = (kind) => {
     const judgeNames = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
+    const judgeScoreSelectors = `<div class="judge-grid">${judgeNames.map((judge) => {
+      const savedScore = existingScores.find((score) => score.judge_name === judge)?.score;
+      const selectedScore = savedScore == null ? '' : String(savedScore);
+      const options = ['<option value="">Not entered</option>',
+        ...(selectedScore === '0' ? ['<option value="0" selected>0 (saved score)</option>'] : []),
+        ...Array.from({ length: 10 }, (_, index) => {
+          const value = index + 1;
+          return `<option value="${value}" ${selectedScore === String(value) ? 'selected' : ''}>${value}</option>`;
+        })];
+      return `<label>${escapeHtml(judge)}<select data-judge="${escapeHtml(judge)}" aria-label="${escapeHtml(judge)} score">${options.join('')}</select></label>`;
+    }).join('')}</div>`;
     const pairOptions = selectablePairs.map((pairing) => { const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id); return `<option value="${pairing.id}" ${pairing.id === existingDance?.partnership_id ? 'selected' : ''}>${escapeHtml(star.name)} & ${escapeHtml(pro.name)}</option>`; }).join('');
     const castEditor = scoresOnly ? '' : `<h3>Cast appearances</h3><input id="danceCastSearch" placeholder="Search cast" autocomplete="off"><div class="filter-tabs" id="danceCastTabs"><button class="selected" data-dance-filter="all">All</button><button data-dance-filter="pros">Pros</button><button data-dance-filter="stars">Stars</button><button data-dance-filter="bonus">Bonus</button></div><div id="bonusDanceFilters" class="mini-filters" hidden><button class="selected" data-dance-bonus-filter="all">All bonus</button><button data-dance-bonus-filter="troupe">Troupe</button><button data-dance-bonus-filter="nextpro">Next Pro</button><button data-dance-bonus-filter="judges">Judges + Hosts</button></div><div id="danceCastPicker" class="cast-picker">${castPicker()}</div>`;
-    const competitiveEditor = scoresOnly ? `<p class="sub">Update the individual judge scores for this competitive dance.</p><div class="judge-grid">${judgeNames.map((judge) => `<label>${escapeHtml(judge)}<input data-judge="${escapeHtml(judge)}" type="number" min="0" max="10" step="1" inputmode="numeric" value="${existingScores.find((score) => score.judge_name === judge)?.score ?? ''}"></label>`).join('')}</div>` : `<label class="couple-select">Couple<select id="dancePartnership"><option value="">Select couple</option>${pairOptions}</select></label><div class="dance-details"><label>Dance type <span class="optional">(optional)</span><input id="danceType" value="${escapeHtml(existingDance?.dance_type || '')}" placeholder="e.g., Cha-cha-cha"></label><label>Song <span class="optional">(optional)</span><input id="danceSong" value="${escapeHtml(existingDance?.song || '')}" placeholder="Song title"></label></div><p class="sub judge-hint">You can save the lineup now and enter judges’ scores during the show.</p><div class="judge-grid">${judgeNames.map((judge) => `<label>${escapeHtml(judge)}<input data-judge="${escapeHtml(judge)}" type="number" min="0" max="10" step="1" inputmode="numeric" value="${existingScores.find((score) => score.judge_name === judge)?.score ?? ''}"></label>`).join('')}</div>`;
+    const competitiveEditor = scoresOnly ? `<p class="sub">Update the individual judge scores for this competitive dance.</p>${judgeScoreSelectors}` : `<label class="couple-select">Couple<select id="dancePartnership"><option value="">Select couple</option>${pairOptions}</select></label><div class="dance-details"><label>Dance type <span class="optional">(optional)</span><input id="danceType" value="${escapeHtml(existingDance?.dance_type || '')}" placeholder="e.g., Cha-cha-cha"></label><label>Song <span class="optional">(optional)</span><input id="danceSong" value="${escapeHtml(existingDance?.song || '')}" placeholder="Song title"></label></div><p class="sub judge-hint">You can save the lineup now and enter judges’ scores during the show.</p>${judgeScoreSelectors}`;
     $('#danceForm').innerHTML = `${kind === 'competitive' ? competitiveEditor : `<label>Dance name <span class="optional">(optional)</span><input id="danceName" value="${escapeHtml(existingDance?.name || '')}" placeholder="Week ${week.number} Dance ${danceCount + 1}"></label>`}${castEditor}`;
     if (!scoresOnly) {
       let filter = 'all'; let bonusFilter = 'all'; let excluded = [];
@@ -1684,7 +1695,7 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
     const dance_type = kind === 'competitive' ? (scoresOnly ? existingDance.dance_type : $('#danceType').value.trim() || null) : null;
     const song = kind === 'competitive' ? (scoresOnly ? existingDance.song : $('#danceSong').value.trim() || null) : null;
     const scoreInputs = kind === 'competitive' ? [...document.querySelectorAll('[data-judge]')].filter((input) => input.value !== '') : [];
-    if (scoreInputs.some((input) => !Number.isInteger(Number(input.value)) || Number(input.value) < 0 || Number(input.value) > 10)) return alert('Each judge score must be a whole number from 0 to 10.');
+    if (scoreInputs.some((input) => !Number.isInteger(Number(input.value)) || Number(input.value) < 0 || Number(input.value) > 10)) return alert('Select a judge score from 1 to 10.');
     const selectedAppearanceIds = scoresOnly ? existingAppearanceIds.map((appearance) => appearance.cast_member_id || appearance) : [...document.querySelectorAll('#danceCastPicker input:checked')].map((input) => input.value);
     const saveButton = $('#saveDance'); saveButton.disabled = true;
     const atomicSave = await db.rpc('save_dance_atomic', {

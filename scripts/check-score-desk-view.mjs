@@ -8,6 +8,9 @@ assert.doesNotMatch(app, /readOnlyCards|danceCardPhotoFor/, 'Score Desk must not
 assert.match(app, /dances\.length \? dances\.map\(/, 'All weeks need the compact Score Desk dance rows.');
 assert.match(app, /score-desk-judge-scores/, 'Score Desk needs readable text scores.');
 assert.match(app, /judgePhoto: isScoreDeskSurface \? null : judgePhotoImage/, 'Portraits belong on the public dance page.');
+assert.match(app, /<select data-judge=/, 'Judge scores must use a native selector.');
+assert.match(app, /Array\.from\(\{ length: 10 \}/, 'The selector must offer scores 1 through 10.');
+assert.doesNotMatch(app, /<input data-judge=/, 'Judge scores should not need typed number entry.');
 assert.match(desk, /score-desk\.css\?v=/);
 assert.match(styles, /\.score-desk-page \.dance-gallery-stage \{[^}]*height: clamp\(/);
 assert.match(styles, /\.score-desk-page \.dance-gallery-stage \.dance-gallery-main \{[^}]*object-fit: contain/);

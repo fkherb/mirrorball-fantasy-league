@@ -4,6 +4,8 @@
 .score-desk-page .dance-row { min-height: 118px; padding: 15px 16px; }
 .score-desk-page .dance-row .dance-card-info h3 { font: 750 16px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .score-desk-page .dance-row .dance-details { margin: 8px 0 5px; }
+.score-desk-page .judge-grid label { width: min(120px, calc(50% - 5px)); }
+.score-desk-page .judge-grid select { width: 100%; min-height: 44px; padding: 9px 28px 9px 10px; cursor: pointer; }
 .score-desk-judge-scores { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; min-height: 22px; }
 .score-desk-judge-scores > span { padding: 4px 7px; border-radius: 6px; background: #f4f0f3; color: #483b48; font-size: 11px; }
 .score-desk-judge-scores > span b { margin-right: 3px; font-weight: 700; }

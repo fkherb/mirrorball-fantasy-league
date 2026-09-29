@@ -36,6 +36,8 @@ const scoredCard = danceCard({ id: 'dance-scored', kind: 'competitive', title: '
 assert.match(scoredCard, /Viennese Waltz/);
 assert.match(scoredCard, /class="judge-score-art" role="img" aria-label="Carrie Ann: 7"/);
 assert.match(scoredCard, /class="judge-score-art judge-score-initial" role="img" aria-label="Guest: 8"/);
+assert.match(scoredCard, /class="judge-score-icon" src="\/paddle\.png"/);
+assert.doesNotMatch(scoredCard, /<b aria-hidden="true">7<\/b>/);
 assert.match(scoredCard, /Judges total 15/);
 assert.equal(judgePortraitFor('Derek Hough'), 'Images/Cast Thumbnails/Derek Hough.webp');
 assert.equal(judgePortraitFor('Carrie Ann', '../'), '../Images/Cast Thumbnails/Carrie Ann Inaba.webp');

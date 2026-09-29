@@ -172,10 +172,13 @@ export function castThumbnailFor(image) {
 function judgeScoreArt(score, scoreImage, judgePhoto) {
   const portrait = judgePhoto?.(score.judge_name);
   const label = `${html(score.judge_name)}: ${Number(score.score)}`;
+  const scoreBadge = Number(score.score) >= 1 && Number(score.score) <= 10
+    ? `<img class="judge-score-icon" src="${html(scoreImage(score.score))}" alt="" aria-hidden="true" width="28" height="28" loading="lazy" decoding="async">`
+    : `<b aria-hidden="true">${Number(score.score)}</b>`;
   return portrait
-    ? `<span class="judge-score-art" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><img src="${html(portrait)}" alt="" width="48" height="48" loading="lazy" decoding="async"><b aria-hidden="true">${Number(score.score)}</b></span>`
+    ? `<span class="judge-score-art" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><img class="judge-score-portrait" src="${html(portrait)}" alt="" width="48" height="48" loading="lazy" decoding="async">${scoreBadge}</span>`
     : judgePhoto
-      ? `<span class="judge-score-art judge-score-initial" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><i aria-hidden="true">${html(String(score.judge_name || 'J').charAt(0).toUpperCase())}</i><b aria-hidden="true">${Number(score.score)}</b></span>`
+      ? `<span class="judge-score-art judge-score-initial" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><i aria-hidden="true">${html(String(score.judge_name || 'J').charAt(0).toUpperCase())}</i>${scoreBadge}</span>`
     : `<span class="judge-score-art judge-score-paddle"><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"></span>`;
 }
 
