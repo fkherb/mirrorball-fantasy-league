@@ -6,6 +6,8 @@ const html = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => (
 const imagePosition = (value) => value != null && Number.isFinite(Number(value)) ? Number(value) : 50;
 const marketLabels = { winner: 'Winner', second: '2nd Place', third: '3rd Place',
   top_three: 'Top 3', finalist: 'Finalist' };
+const marketShortLabels = { winner: 'Win', second: '2nd', third: '3rd',
+  top_three: 'Top 3', finalist: 'Final' };
 const marketPercent = (value) => Number.isInteger(Number(value)) ? `${Number(value)}%` : `${Number(value).toFixed(1)}%`;
 function predictionColor(position) {
   const stops = ['#16835e', '#84a83a', '#c38a2f', '#d36634', '#b63955'];
@@ -27,11 +29,9 @@ function predictionRing(percent, tone = 'season', size = '', relativePosition = 
 function marketPredictionMarkup(seasonPredictions = [], weeklyPrediction = null, weekNumber = null) {
   if (!seasonPredictions.length && !weeklyPrediction) return { main: '', expanded: '' };
   const best = seasonPredictions[0];
-  const seasonGraphic = best ? `<span class="cast-market-feature">${predictionRing(best.percent, 'season', 'small', best.relative_position)}<span class="prediction-label"><small>Season 35</small><strong>${html(marketLabels[best.market_kind])}</strong></span>${seasonPredictions.length > 1 ? '<i class="prediction-expand-icon" aria-hidden="true">⌄</i>' : ''}</span>` : '';
-  const season = seasonPredictions.length > 1
-    ? `<button type="button" class="cast-market-season-toggle" aria-expanded="false" aria-controls="castSeasonPredictions" aria-label="Show all season predictions">${seasonGraphic}</button>`
-    : seasonGraphic;
-  const weekly = weeklyPrediction ? `<span class="cast-market-feature">${predictionRing(weeklyPrediction.percent, 'risk', 'small', weeklyPrediction.relative_position)}<span class="prediction-label"><small>Week ${Number(weekNumber) || ''}</small><strong>Elimination</strong></span></span>` : '';
+  const seasonGraphic = best ? `<span class="cast-market-feature">${predictionRing(best.percent, 'season', 'small', best.relative_position)}<span class="prediction-label"><small>Season 35</small><strong>${html(marketLabels[best.market_kind])}</strong></span><span class="prediction-short-label" aria-hidden="true">${html(marketShortLabels[best.market_kind])}</span>${seasonPredictions.length > 1 ? '<i class="prediction-expand-icon" aria-hidden="true">⌄</i>' : ''}</span>` : '';
+  const season = best ? `<button type="button" class="cast-market-button cast-market-season-toggle" data-detail-expanded="false" aria-expanded="false" ${seasonPredictions.length > 1 ? 'aria-controls="castSeasonPredictions"' : ''} aria-label="Show ${html(marketLabels[best.market_kind])} prediction details">${seasonGraphic}</button>` : '';
+  const weekly = weeklyPrediction ? `<button type="button" class="cast-market-button cast-market-weekly-toggle" data-detail-expanded="false" aria-expanded="false" aria-label="Show elimination prediction details"><span class="cast-market-feature">${predictionRing(weeklyPrediction.percent, 'risk', 'small', weeklyPrediction.relative_position)}<span class="prediction-label"><small>Week ${Number(weekNumber) || ''}</small><strong>Elimination</strong></span><span class="prediction-short-label" aria-hidden="true">Elim</span></span></button>` : '';
   const expanded = seasonPredictions.length > 1 ? `<div class="cast-market-list" id="castSeasonPredictions" hidden>${seasonPredictions.slice(1).map((row) => `<span class="cast-market-mini">${predictionRing(row.percent, 'season', 'small', row.relative_position)}<span class="prediction-label"><small>Season 35</small><strong>${html(marketLabels[row.market_kind])}</strong></span></span>`).join('')}</div>` : '';
   return { main: `<section class="cast-market-predictions">${season}${weekly}</section>`, expanded };
 }
@@ -39,14 +39,37 @@ const predictionNote = '<p class="market-source-note">*Predictions provided by K
 
 export function bindCastPredictionToggle(container) {
   const button = container.querySelector('.cast-market-season-toggle');
+  const weeklyButton = container.querySelector('.cast-market-weekly-toggle');
   const details = container.querySelector('#castSeasonPredictions');
-  if (!button || !details) return;
-  button.addEventListener('click', () => {
+  button?.addEventListener('click', () => {
+    if (window.matchMedia('(max-width: 600px)').matches && button.dataset.detailExpanded !== 'true') {
+      button.dataset.detailExpanded = 'true';
+      button.setAttribute('aria-label', details ? 'Show all season predictions' : 'Hide season prediction details');
+      return;
+    }
+    if (!details) {
+      button.dataset.detailExpanded = 'false';
+      button.setAttribute('aria-label', 'Show season prediction details');
+      return;
+    }
     const expanded = button.getAttribute('aria-expanded') !== 'true';
     button.setAttribute('aria-expanded', String(expanded));
     button.setAttribute('aria-label', expanded ? 'Hide other season predictions' : 'Show all season predictions');
     details.hidden = !expanded;
   });
+  weeklyButton?.addEventListener('click', () => {
+    const expanded = weeklyButton.dataset.detailExpanded !== 'true';
+    weeklyButton.dataset.detailExpanded = String(expanded);
+    weeklyButton.setAttribute('aria-expanded', String(expanded));
+    weeklyButton.setAttribute('aria-label', expanded ? 'Hide elimination prediction details' : 'Show elimination prediction details');
+  });
+}
+
+export function openExpandedCastLink(button) {
+  if (!window.matchMedia('(max-width: 600px)').matches || button.getAttribute('aria-expanded') === 'true') return true;
+  button.setAttribute('aria-expanded', 'true');
+  button.setAttribute('aria-label', button.dataset.expandedLabel);
+  return false;
 }
 
 export function episodeSpotlight({ week, state = 'upcoming', date = '', scored = 0, performances = 0, teamPoints = null, portrait = '' }) {
@@ -147,9 +170,9 @@ export function castProfile({ member, image, role, teamName, fantasyPoints, judg
   const preview = longBio ? `${words.slice(0, 65).join(' ')}…` : bio;
   const bioMarkup = `<div class="cast-bio-body"><p class="cast-bio-preview">${html(preview)}</p>${longBio ? `<details class="cast-bio-expand"><summary><span class="bio-more-label">Continue reading</span><span class="bio-less-label">Show less</span></summary><p>${html(bio)}</p></details>` : ''}</div>`;
   const partnerCard = partnerMember && ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(member.role)
-    ? `<button type="button" class="cast-profile-link-pill" data-partner-profile="${html(partnerMember.id)}" aria-label="View dance partner ${html(partnerMember.name)}"><img src="${html(partnerImage)}" alt=""><strong>${html(partnerMember.name)}</strong><i aria-hidden="true">›</i></button>` : '';
+    ? `<button type="button" class="cast-profile-link-pill" data-partner-profile="${html(partnerMember.id)}" data-expanded-label="View dance partner ${html(partnerMember.name)}" aria-expanded="false" aria-label="Show dance partner ${html(partnerMember.name)}"><img src="${html(partnerImage)}" alt=""><strong>${html(partnerMember.name)}</strong><i aria-hidden="true">›</i></button>` : '';
   const teamAvatarMarkup = teamAvatar ? `<img src="${html(teamAvatar)}" alt="">` : `<span class="cast-team-initial" aria-hidden="true">${html(String(teamName || 'T').charAt(0).toUpperCase())}</span>`;
-  const teamCard = teamId ? `<button type="button" class="cast-profile-link-pill" data-cast-team-detail="${html(teamId)}" aria-label="View ${html(teamName)} team">${teamAvatarMarkup}<strong>${html(teamName)}</strong><i aria-hidden="true">›</i></button>` : `<span class="cast-profile-available">${html(teamName || 'Available cast')}</span>`;
+  const teamCard = teamId ? `<button type="button" class="cast-profile-link-pill" data-cast-team-detail="${html(teamId)}" data-expanded-label="View ${html(teamName)} team" aria-expanded="false" aria-label="Show ${html(teamName)} team">${teamAvatarMarkup}<strong>${html(teamName)}</strong><i aria-hidden="true">›</i></button>` : `<span class="cast-profile-available">${html(teamName || 'Available cast')}</span>`;
   const eliminated = member.role?.startsWith('Eliminated') ? '<p class="cast-eliminated-status">Eliminated from the competition</p>' : '';
   const predictions = member.role?.startsWith('Eliminated')
     ? { main: '', expanded: '' } : marketPredictionMarkup(seasonPredictions, weeklyPrediction, predictionWeekNumber);

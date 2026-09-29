@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260928-profile-copy-v54';
+import { db } from './supabase-client.js?v=20260928-compact-profile-v55';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

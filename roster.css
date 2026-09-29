@@ -1342,7 +1342,7 @@ dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-column: 1; grid-r
 .cast-profile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .modal .cast-profile-link-pill { display: inline-flex; align-items: center; gap: 7px; width: auto; max-width: 100%; min-width: 0; height: 38px; margin: 0; padding: 4px 9px 4px 4px; overflow: hidden; border: 1px solid #e5dce4; border-radius: 999px; background: #faf7fa; color: #302638; text-align: left; box-shadow: none; }
 .cast-profile-link-pill:hover { border-color: #9b778b; background: #f7f0f6; }
-.cast-profile-link-pill:focus-visible, .cast-market-season-toggle:focus-visible { outline: 3px solid #c9a25c; outline-offset: 2px; }
+.cast-profile-link-pill:focus-visible, .cast-market-button:focus-visible { outline: 3px solid #c9a25c; outline-offset: 2px; }
 .cast-profile-link-pill img, .cast-team-initial { display: block; width: 28px; height: 28px; min-width: 28px; min-height: 28px; max-width: 28px; max-height: 28px; flex: 0 0 28px; border-radius: 50%; object-fit: cover; background: #e8dce6; color: #654669; font-size: 12px; font-weight: 800; }
 .cast-team-initial { display: grid; place-items: center; }
 .cast-profile-link-pill strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
@@ -1356,11 +1356,12 @@ dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-column: 1; grid-r
 .prediction-ring-small::before { inset: 5px; }
 .prediction-ring-small strong { font-size: 11px; }
 .cast-market-predictions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 7px 12px; margin-top: 15px; }
-.modal .cast-market-season-toggle { display: block; flex: 1 1 150px; min-width: 0; width: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; box-shadow: none; }
-.modal .cast-market-season-toggle:hover { background: transparent; color: inherit; }
+.modal .cast-market-button { display: block; flex: 1 1 150px; min-width: 0; width: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; box-shadow: none; }
+.modal .cast-market-button:hover { background: transparent; color: inherit; }
 .cast-market-predictions > .cast-market-feature { flex: 1 1 150px; }
 .cast-market-feature { display: flex; align-items: center; gap: 8px; min-height: 49px; min-width: 0; }
-.cast-market-season-toggle .cast-market-feature { width: 100%; }
+.cast-market-button .cast-market-feature { width: 100%; }
+.prediction-short-label { display: none; }
 .cast-market-feature .prediction-label, .cast-market-mini .prediction-label, .dance-market-prediction .prediction-label, .dance-detail-market .prediction-label { display: grid; gap: 3px; min-width: 0; }
 .prediction-label small { color: #816c7b; font-size: 10px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
 .prediction-label strong { color: #352a37; font-size: 14px; line-height: 1.2; }
@@ -1386,9 +1387,21 @@ dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-column: 1; grid-r
   .cast-profile-hero .cast-profile-meta, .cast-profile-hero .cast-market-predictions, .cast-profile-hero .cast-eliminated-status { grid-column: 1 / -1; grid-row: auto; }
   .cast-profile-hero .cast-profile-meta { margin-top: 14px; }
   .cast-profile-hero .cast-market-predictions { margin-top: 16px; }
-  .cast-profile-meta { align-items: flex-start; }
-  .cast-market-predictions { gap: 6px; }
-  .cast-market-predictions > .cast-market-feature, .modal .cast-market-season-toggle { flex-basis: 100%; }
+  .cast-profile-meta { align-items: center; gap: 8px; }
+  .modal .cast-profile-link-pill[aria-expanded="false"] { width: 38px; min-width: 38px; padding: 4px; }
+  .cast-profile-link-pill[aria-expanded="false"] strong, .cast-profile-link-pill[aria-expanded="false"] i { display: none; }
+  .modal .cast-profile-link-pill[aria-expanded="true"] { width: auto; max-width: 100%; }
+  .cast-profile-link-pill[aria-expanded="true"] strong { white-space: normal; }
+  .cast-market-predictions { gap: 8px; }
+  .modal .cast-market-button { flex: 0 0 calc(50% - 4px); }
+  .modal .cast-market-button[data-detail-expanded="true"] { flex-basis: 100%; }
+  .cast-market-button .cast-market-feature { flex-direction: column; align-items: center; gap: 4px; }
+  .cast-market-button .prediction-short-label { display: block; color: #514052; font-size: 11px; font-weight: 800; line-height: 1.2; text-align: center; }
+  .cast-market-button[data-detail-expanded="false"] .prediction-label, .cast-market-button[data-detail-expanded="false"] .prediction-expand-icon { display: none; }
+  .cast-market-button[data-detail-expanded="true"] .cast-market-feature { flex-direction: row; justify-content: flex-start; gap: 10px; }
+  .cast-market-button[data-detail-expanded="true"] .prediction-short-label { display: none; }
+  .cast-market-button .prediction-ring-small { width: 58px; }
+  .cast-market-button .prediction-ring-small strong { font-size: 12px; }
   .cast-market-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media (max-width: 360px) {

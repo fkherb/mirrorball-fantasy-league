@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-profile-copy-v54';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-profile-copy-v54';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-profile-copy-v54';
-import { danceImagesFor } from './dance-images.js?v=20260928-profile-copy-v54';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-profile-copy-v54';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-profile-copy-v54';
+import { db } from './supabase-client.js?v=20260928-compact-profile-v55';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-compact-profile-v55';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle, openExpandedCastLink } from './postdraft-view.js?v=20260928-compact-profile-v55';
+import { danceImagesFor } from './dance-images.js?v=20260928-compact-profile-v55';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-compact-profile-v55';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-compact-profile-v55';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -302,10 +302,14 @@ async function openCastDetail(castMemberId, returnTeamId = null, returnAction = 
     predictionWeekNumber: predictionWeek?.number }));
   bindCastPredictionToggle($('#modalBody'));
   $('#profileBack')?.addEventListener('click', () => returnAction ? returnAction() : openTeamDetail(returnTeamId));
-  $('#modalBody [data-partner-profile]')?.addEventListener('click', () => openCastDetail(partner.id, null,
-    () => openCastDetail(member.id, returnTeamId, returnAction, backLabel), 'profile'));
-  $('#modalBody [data-cast-team-detail]')?.addEventListener('click', () => openTeamDetail(team.id,
-    () => openCastDetail(member.id, returnTeamId, returnAction, backLabel)));
+  $('#modalBody [data-partner-profile]')?.addEventListener('click', (event) => {
+    if (openExpandedCastLink(event.currentTarget)) openCastDetail(partner.id, null,
+      () => openCastDetail(member.id, returnTeamId, returnAction, backLabel), 'profile');
+  });
+  $('#modalBody [data-cast-team-detail]')?.addEventListener('click', (event) => {
+    if (openExpandedCastLink(event.currentTarget)) openTeamDetail(team.id,
+      () => openCastDetail(member.id, returnTeamId, returnAction, backLabel));
+  });
 }
 
 function rosterDetail(player, partnerships, players, weeks, teams) {

@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-profile-copy-v54';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-profile-copy-v54';
-import { danceImagesFor } from './dance-images.js?v=20260928-profile-copy-v54';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-profile-copy-v54';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-profile-copy-v54';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260928-profile-copy-v54';
+import { db } from './supabase-client.js?v=20260928-compact-profile-v55';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle, openExpandedCastLink } from './postdraft-view.js?v=20260928-compact-profile-v55';
+import { danceImagesFor } from './dance-images.js?v=20260928-compact-profile-v55';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-compact-profile-v55';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-compact-profile-v55';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260928-compact-profile-v55';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -151,11 +151,15 @@ function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction 
     predictionWeekNumber: predictionWeek?.number }));
   bindCastPredictionToggle($('#modalBody'));
   $('#profileBack')?.addEventListener('click', backAction);
-  $('#modalBody [data-partner-profile]')?.addEventListener('click', () => openWorkspaceCastProfile(partner,
-    partnerTeam?.team_name || partnerTeam?.display_name || 'Available cast',
-    () => openWorkspaceCastProfile(cast, teamName, backAction, backLabel), 'profile'));
-  $('#modalBody [data-cast-team-detail]')?.addEventListener('click', () => openWorkspaceTeamDetail(teamId,
-    () => openWorkspaceCastProfile(cast, teamName, backAction, backLabel)));
+  $('#modalBody [data-partner-profile]')?.addEventListener('click', (event) => {
+    if (openExpandedCastLink(event.currentTarget)) openWorkspaceCastProfile(partner,
+      partnerTeam?.team_name || partnerTeam?.display_name || 'Available cast',
+      () => openWorkspaceCastProfile(cast, teamName, backAction, backLabel), 'profile');
+  });
+  $('#modalBody [data-cast-team-detail]')?.addEventListener('click', (event) => {
+    if (openExpandedCastLink(event.currentTarget)) openWorkspaceTeamDetail(teamId,
+      () => openWorkspaceCastProfile(cast, teamName, backAction, backLabel));
+  });
 }
 
 function openWorkspaceTeamDetail(teamId, backAction = null) {
