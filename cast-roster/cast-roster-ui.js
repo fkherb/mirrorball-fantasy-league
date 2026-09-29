@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260929-back-spacing-v67';
+import { db } from '../supabase-client.js?v=20260929-audit-fixes-v68';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

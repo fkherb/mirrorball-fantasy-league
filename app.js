@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260929-back-spacing-v67';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-back-spacing-v67';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-back-spacing-v67';
-import { danceImagesFor } from './dance-images.js?v=20260929-back-spacing-v67';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-back-spacing-v67';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-back-spacing-v67';
+import { db } from './supabase-client.js?v=20260929-audit-fixes-v68';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-audit-fixes-v68';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-audit-fixes-v68';
+import { danceImagesFor } from './dance-images.js?v=20260929-audit-fixes-v68';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-audit-fixes-v68';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-audit-fixes-v68';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -58,7 +58,8 @@ let managerDisplayName = '';
 let managerTeamName = '';
 let managerNavLabelMode = 'default';
 let managerCustomNavLabel = '';
-let supportsDatabaseHardening = false;
+let rosterCache = null;
+let rosterFetch = null;
 let scoreDeskLoadVersion = 0;
 let tradeViewMode = 'active';
 let tradeCountdownTimer = null;
@@ -66,6 +67,11 @@ let tradeLoadVersion = 0;
 const loadVersions = { roster: 0, teams: 0, standings: 0, settings: 0, rules: 0 };
 
 const friendlyError = (context = 'complete that request') => `We couldn’t ${context}. Please try again.`;
+const userError = (error, context = 'complete that request') => {
+  if (error?.code === 'P0001' && error.message) return error.message;
+  console.error(error);
+  return friendlyError(context);
+};
 const loadingMarkup = (label = 'Loading') => `<div class="loading-state" role="status" aria-live="polite"><span class="loading-shimmer"></span><span class="loading-shimmer"></span><span class="loading-shimmer short"></span><p>${escapeHtml(label)}…</p></div>`;
 
 function showNotice(message, title = 'Something went wrong') {
@@ -97,8 +103,7 @@ function openConfirmation({ title, message, confirmLabel = 'Confirm', destructiv
       button.disabled = false;
       button.textContent = original;
       $('#confirmActionError').hidden = false;
-      $('#confirmActionError').textContent = friendlyError('complete this action');
-      console.error(error);
+      $('#confirmActionError').textContent = userError(error, 'complete this action');
     }
   });
 }
@@ -128,9 +133,10 @@ function displayRole(memberOrRole) {
 }
 
 async function getTeamManagerMap() {
-  const { data, error } = await db.rpc('get_league_team_managers');
+  const { data, error } = await db.rpc('list_league_members', { p_league_id: defaultLeagueId });
   if (error) { console.error(error); return new Map(); }
-  return new Map((data || []).map((person) => [person.fantasy_team_id, { ...person, name: person.display_name || [person.first_name, person.last_name].filter(Boolean).join(' ') }]));
+  return new Map((data || []).filter((person) => person.fantasy_team_id)
+    .map((person) => [person.fantasy_team_id, { ...person, name: person.display_name || 'Manager' }]));
 }
 
 function managerNameFor(team, managerMap) {
@@ -200,13 +206,13 @@ document.addEventListener('click', (event) => {
 async function getPairingData() {
   const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }, { data: teams, error: teamError }, managerMap] = await Promise.all([
     db.from('cast_members').select('*').order('name'),
-    db.from('partnerships').select('id,star_id,pro_id,active,partnership_name').eq('active', true),
+    db.from('partnerships').select('id,star_id,pro_id,active,partnership_name'),
     db.from('weeks').select('*').order('number', { ascending: false }),
     db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId),
     getTeamManagerMap(),
   ]);
   if (playerError || pairingError || weekError || teamError) throw new Error(playerError?.message || pairingError?.message || weekError?.message || teamError?.message);
-  return { players, partnerships, weeks, teams: teams.map((team) => ({ ...team, manager_name: managerNameFor(team, managerMap), manager_user_id: managerMap.get(team.id)?.user_id })) };
+  return { players, partnerships, weeks, teams: teams.map((team) => ({ ...team, manager_name: managerNameFor(team, managerMap), manager_user_id: managerMap.get(team.id)?.user_id, manager_avatar: managerMap.get(team.id)?.avatar_url })) };
 }
 
 function partnerFor(player, partnerships, players) {
@@ -218,7 +224,7 @@ function partnerFor(player, partnerships, players) {
 
 function partnerOptions(role, players, partnerships, selectedId = '') {
   if (!isPairRole(role)) return '';
-  const pairedIds = new Set(partnerships.flatMap((pairing) => [pairing.star_id, pairing.pro_id]));
+  const pairedIds = new Set(partnerships.filter((pairing) => pairing.active).flatMap((pairing) => [pairing.star_id, pairing.pro_id]));
   return players
     .filter((person) => (person.role === oppositeRole(role) || person.id === selectedId) && (!pairedIds.has(person.id) || person.id === selectedId))
     .map((person) => `<option value="${person.id}" ${person.id === selectedId ? 'selected' : ''}>${escapeHtml(person.name)}</option>`)
@@ -232,8 +238,12 @@ async function loadRoster() {
   const query = $('#rosterSearch').value.trim();
   $('#rosterResults').innerHTML = loadingMarkup('Loading cast');
   let rosterData;
-  try { rosterData = await getPairingData(); } catch (error) { console.error(error); return renderLoadError($('#rosterResults'), 'load the cast', loadRoster); }
+  const request = rosterCache ? null : rosterFetch || getPairingData();
+  if (request) rosterFetch = request;
+  try { rosterData = rosterCache || await request; } catch (error) { console.error(error); return renderLoadError($('#rosterResults'), 'load the cast', loadRoster); }
+  finally { if (rosterFetch === request) rosterFetch = null; }
   if (loadVersion !== loadVersions.roster) return;
+  rosterCache = rosterData;
   const { players: allPlayers, partnerships, weeks, teams } = rosterData;
   const players = allPlayers.filter((player) => player.name.toLowerCase().includes(query.toLowerCase()) && (rosterFilter === 'all' || castCategory(player) === rosterFilter));
   if (!players.length) return showRosterMessage(canManageCast ? 'No cast members yet. Add the first one here.' : 'No cast members match this view.');
@@ -251,6 +261,12 @@ async function loadRoster() {
   });
 }
 
+function refreshRoster() {
+  rosterCache = null;
+  rosterFetch = null;
+  return loadRoster();
+}
+
 async function openCastDetail(castMemberId, returnTeamId = null, returnAction = null, backLabel = null) {
   if (!standingsSnapshot && !isOwnerSurface) await loadStandings();
   const [{ data: member, error: memberError }, pairingData, predictions] = await Promise.all([
@@ -262,13 +278,8 @@ async function openCastDetail(castMemberId, returnTeamId = null, returnAction = 
     console.error(memberError || pairingData.error);
     return showNotice(friendlyError('load this cast member'));
   }
-  const historicalPair = member.role?.startsWith('Eliminated')
-    ? await db.from('partnerships').select('id,star_id,pro_id,active')
-      .eq(member.role === 'Eliminated Star' ? 'star_id' : 'pro_id', member.id)
-      .order('active', { ascending: false }).limit(1).maybeSingle()
-    : null;
   const linkedPair = pairingData.partnerships.find((item) => item.star_id === member.id || item.pro_id === member.id)
-    || historicalPair?.data;
+    || null;
   const partnerId = linkedPair?.star_id === member.id ? linkedPair.pro_id : linkedPair?.star_id;
   const partner = pairingData.players.find((item) => item.id === partnerId);
   const activePair = linkedPair?.active && ['Star', 'Pro'].includes(member.role) && partner && ['Star', 'Pro'].includes(partner.role);
@@ -285,9 +296,6 @@ async function openCastDetail(castMemberId, returnTeamId = null, returnAction = 
   const weeklyDance = weeklyDanceResult?.data;
   const activePredictions = activePartnershipPredictionRows(predictions, pairingData.partnerships, pairingData.players);
   const team = pairingData.teams.find((item) => item.id === member.fantasy_team_id);
-  const teamProfile = team?.manager_user_id
-    ? await db.from('profile_directory').select('avatar_url').eq('user_id', team.manager_user_id).maybeSingle()
-    : null;
   const scoreEntry = standingsSnapshot ? [...standingsSnapshot.weekMemberPoints.values()].reduce((total, weekPoints) => {
     const entry = weekPoints.get(member.id);
     total.official += Number(entry?.official || 0);
@@ -297,9 +305,9 @@ async function openCastDetail(castMemberId, returnTeamId = null, returnAction = 
   }, { official: 0, appearances: 0, appearanceCount: 0 }) : { official: 0, appearances: 0, appearanceCount: 0 };
   const fantasyPoints = Number(scoreEntry.official || 0) + Number(scoreEntry.appearances || 0);
   openModal(castProfile({ member, image: displayImagePath(member), role: displayRole(member),
-    partnershipName: pair?.partnership_name || '',
+    partnershipName: linkedPair?.partnership_name || '',
     teamName: team?.team_name || (team ? defaultTeamName(team.manager_name) : 'Available cast'),
-    teamId: team?.id, teamAvatar: teamProfile?.data?.avatar_url || '',
+    teamId: team?.id, teamAvatar: team?.manager_avatar || '',
     fantasyPoints, judgesTotal: scoreEntry.official, appearanceCount: scoreEntry.appearanceCount,
     showJudges: isAnyPairRole(member.role), showWins: canHaveMirrorballWins(member.role, member.is_hough),
     details: member.profile_details && typeof member.profile_details === 'object'
@@ -397,9 +405,9 @@ async function editPlayer(id) {
         ...(role === 'Surprise' ? { p_surprise_base_role: $('#editSurpriseBaseRole').value } : {}),
       });
       if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save ${player.name}: ${saveError.message}`); }
-      $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
+      $('#modal').close(); refreshRoster(); loadTeams(); loadStandings();
     });
-    $('#deletePlayer').addEventListener('click', () => openConfirmation({ title: `Delete ${player.name}?`, message: 'This permanently removes the cast member and cannot be undone.', confirmLabel: 'Delete cast member', destructive: true, onCancel: () => editPlayer(id), onConfirm: async () => { const { error } = await db.rpc('delete_cast_member_atomic', { p_cast_member_id: id }); if (!error) { loadRoster(); loadTeams(); loadStandings(); } return error; } }));
+    $('#deletePlayer').addEventListener('click', () => openConfirmation({ title: `Delete ${player.name}?`, message: 'This permanently removes the cast member and cannot be undone.', confirmLabel: 'Delete cast member', destructive: true, onCancel: () => editPlayer(id), onConfirm: async () => { const { error } = await db.rpc('delete_cast_member_atomic', { p_cast_member_id: id }); if (!error) { refreshRoster(); loadTeams(); loadStandings(); } return error; } }));
   } catch (error) { alert(`Couldn’t open this cast member: ${error.message}`); }
 }
 
@@ -447,7 +455,7 @@ async function openAddPlayer() {
       ...(role === 'Surprise' ? { p_surprise_base_role: $('#newSurpriseBaseRole').value } : {}),
     });
     if (error) { createButton.disabled = false; return alert(`Couldn’t create ${name}: ${error.message}`); }
-    $('#modal').close(); loadRoster(); loadTeams(); loadStandings();
+    $('#modal').close(); refreshRoster(); loadTeams(); loadStandings();
   });
 }
 
@@ -528,17 +536,15 @@ async function editTeamCard(teamId) {
   if (!card) return;
   const manager = managerMap.get(teamId);
   card.classList.add('editing');
-  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><label>Manager display name<input id="teamManagerDisplay-${teamId}" maxlength="80" value="${escapeHtml(manager?.display_name || team.manager_name || '')}" ${manager ? '' : 'disabled'}></label><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div>
-    ${!manager ? '<p class="sub compact-note">Connect an account to this team before editing its manager name.</p>' : ''}${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
+  card.innerHTML = `<div class="team-card-head"><div class="team-edit-fields"><p class="sub">Manager: ${escapeHtml(manager?.display_name || team.manager_name || '')}</p><label>Team name <span class="optional">(optional)</span><input id="teamName-${teamId}" value="${escapeHtml(team.team_name || '')}"></label></div></div><div class="team-edit-buttons"><button class="secondary" data-cancel-team-id="${teamId}">Cancel</button><button data-save-team-id="${teamId}">Save</button></div>
+    ${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${escapeHtml(member.name)}</span><small>${escapeHtml(displayRole(member))}</small></li>`).join('')}</ul>` : '<p class="sub">No cast members assigned yet.</p>'}`;
   document.querySelector(`[data-cancel-team-id="${teamId}"]`).addEventListener('click', loadTeams);
   document.querySelector(`[data-save-team-id="${teamId}"]`).addEventListener('click', async () => {
     const saveButton = document.querySelector(`[data-save-team-id="${teamId}"]`);
     if (saveButton.disabled) return;
     saveButton.disabled = true;
     const team_name = $(`#teamName-${teamId}`).value.trim();
-    const displayName = $(`#teamManagerDisplay-${teamId}`).value.trim();
-    if (manager && !displayName) { saveButton.disabled = false; return alert('Enter a manager display name.'); }
-    const { error: saveError } = await db.rpc('update_team_profile_from_profile', { p_team_id: teamId, p_team_name: team_name || null, p_manager_user_id: manager?.user_id || null, p_display_name: manager ? displayName : null });
+    const { error: saveError } = await db.rpc('update_team_profile_from_profile', { p_team_id: teamId, p_team_name: team_name || null });
     if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save this team: ${saveError.message}`); }
     loadTeams(); loadStandings();
   });
@@ -613,7 +619,7 @@ async function loadStandings() {
     db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId).order('manager_name'),
     db.from('cast_members').select('*').order('name'),
     db.from('roles').select('name,appearance_points'),
-    db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
+    db.from('partnerships').select('id,star_id,pro_id'),
     db.from('weeks').select('*').order('number'),
     db.from('dances').select('id,kind,partnership_id,week_id'),
     db.from('dance_judge_scores').select('dance_id,score'),
@@ -1046,7 +1052,7 @@ function openTradeConfirmation({ trade, title, message, confirmLabel, destructiv
       button.disabled = false;
       const errorBox = $('#tradeConfirmError');
       errorBox.hidden = false;
-      errorBox.textContent = friendlyError('complete this trade action');
+      errorBox.textContent = userError(error, 'complete this trade action');
       console.error(error);
       return;
     }
@@ -1178,7 +1184,7 @@ function openNewTrade() {
         await loadTrades();
         button.disabled = false;
         console.error(error);
-        const errorBox = $('#tradeBuilderError'); errorBox.hidden = false; errorBox.textContent = friendlyError('send this trade');
+        const errorBox = $('#tradeBuilderError'); errorBox.hidden = false; errorBox.textContent = userError(error, 'send this trade');
         return;
       }
       $('#modal').close();
@@ -1220,7 +1226,7 @@ function openCounterTrade(trade) {
         await loadTrades();
         button.disabled = false;
         console.error(error);
-        const errorBox = $('#counterTradeError'); errorBox.hidden = false; errorBox.textContent = friendlyError('send this counter offer');
+        const errorBox = $('#counterTradeError'); errorBox.hidden = false; errorBox.textContent = userError(error, 'send this counter offer');
         return;
       }
       $('#modal').close();
@@ -1356,10 +1362,6 @@ async function loadScoreDesk() {
   const competitiveCount = dances.filter((dance) => dance.kind === 'competitive').length;
   const performanceCount = dances.length - competitiveCount;
   const supportsCompletion = Object.prototype.hasOwnProperty.call(week, 'is_complete');
-  if (supportsCompletion !== supportsDatabaseHardening) {
-    supportsDatabaseHardening = supportsCompletion;
-    if (!isScoreDeskSurface) loadRules();
-  }
   const airing = weekAiringLabel(week);
   const completionStatus = week.is_complete ? 'Week complete' : !isScoreDeskSurface ? 'Upcoming week' : week.is_finale ? 'No elimination · ready to complete' : `${week.double_elimination ? 'Double elimination' : 'Standard elimination'} · elimination not set`;
   const weekStatus = [airing, week.is_season_finale ? 'Season finale' : '', completionStatus].filter(Boolean).join(' · ');
@@ -1467,7 +1469,7 @@ async function openWeekLedger(week) {
     db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId),
     db.from('roles').select('name,appearance_points'),
     db.from('weeks').select('*').order('number'),
-    db.from('partnerships').select('id,star_id,pro_id').eq('active', true),
+    db.from('partnerships').select('id,star_id,pro_id'),
     db.from('dances').select('id,kind,partnership_id,name,sort_order,week_id').eq('week_id', week.id).order('sort_order'),
   ]);
   let error = [membersResult, teamsResult, rolesResult, weeksResult, partnershipsResult, dancesResult].find((result) => result.error)?.error;
@@ -1622,7 +1624,7 @@ async function saveInlineWeek(week, dances) {
   saveButton.disabled = false;
   if (error) return alert(`Couldn’t save Week ${week.number}: ${error.message}`);
   editingWeekId = null;
-  loadScoreDesk(); loadRoster(); loadStandings();
+  loadScoreDesk(); refreshRoster(); loadStandings();
 }
 
 function attachDanceReorder() {
@@ -1668,7 +1670,7 @@ async function openCompleteWeek(week) {
   const { data: competitiveDances, error } = await db.from('dances').select('partnership_id').eq('week_id', week.id).eq('kind', 'competitive');
   if (error) return alert(`Couldn’t prepare completion: ${error.message}`);
   const dancedPairIds = new Set(competitiveDances.map((dance) => dance.partnership_id));
-  const eligiblePairs = partnerships.filter((pair) => dancedPairIds.has(pair.id)).map((pair) => {
+  const eligiblePairs = partnerships.filter((pair) => pair.active && dancedPairIds.has(pair.id)).map((pair) => {
     const star = players.find((player) => player.id === pair.star_id);
     const pro = players.find((player) => player.id === pair.pro_id);
     return { ...pair, label: star && pro ? `${star.name} & ${pro.name}` : 'Unnamed couple' };
@@ -1684,7 +1686,7 @@ async function openCompleteWeek(week) {
     const { error: completionError } = await db.rpc('complete_week', { p_week_id: week.id, p_eliminated_partnership_ids: eliminated });
     if (completionError) { completeButton.disabled = false; return alert(`Couldn’t complete the week: ${completionError.message}`); }
     $('#modal').close();
-    loadScoreDesk(); loadRoster(); loadTeams(); loadStandings(); loadRules();
+    loadScoreDesk(); refreshRoster(); loadTeams(); loadStandings(); loadRules();
   });
 }
 
@@ -1740,7 +1742,7 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
       p_judge_scores: scoreInputs.map((input) => ({ judge_name: input.dataset.judge, score: Number(input.value) })),
       p_cast_member_ids: selectedAppearanceIds, p_scores_only: scoresOnly,
     });
-    if (!atomicSave.error) { $('#modal').close(); loadScoreDesk(); loadRoster(); loadStandings(); return; }
+    if (!atomicSave.error) { $('#modal').close(); loadScoreDesk(); refreshRoster(); loadStandings(); return; }
     saveButton.disabled = false;
     const migrationHint = missingRpc(atomicSave.error) ? ' Run the current workflow-hardening SQL migration first.' : '';
     alert(`Couldn’t save this dance: ${atomicSave.error.message}${migrationHint}`);
@@ -1771,7 +1773,7 @@ async function loadRules() {
   const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
   const rates = [...roleRows].sort((a, b) => (roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)) || a.name.localeCompare(b.name));
   $('#roleRatesContent').innerHTML = roleRatesTable(rates);
-  $('#editRules').hidden = !canEdit || !supportsDatabaseHardening;
+  $('#editRules').hidden = !canEdit;
   $('#editRules').onclick = () => openRulesEditor(rates);
 }
 
@@ -1817,7 +1819,7 @@ if (isScoreDeskSurface) {
   window.addEventListener('mirrorball-auth-change', (event) => {
     canManageCast = event.detail.isPlatformAdmin === true;
     $('#newPlayer').hidden = !canManageCast;
-    if (canManageCast) loadRoster();
+    if (canManageCast) refreshRoster();
     else $('#rosterResults').innerHTML = '';
   });
 } else {
@@ -1879,7 +1881,7 @@ if (isScoreDeskSurface) {
     if (managerTeamId) selectedPublicTeamId = managerTeamId;
     loadLeagueSettings();
     loadStandings();
-    loadRoster();
+    refreshRoster();
     loadTeams();
     loadScoreDesk();
     loadRules();

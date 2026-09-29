@@ -5,7 +5,8 @@ browser is the interface; Supabase stores the shared league data.
 
 ## How it is structured
 
-- `index.html`, `styles.css`, `roster.css`, `app.js`, and `ui.js` are the site.
+- `index.html`, `styles.css`, `roster.css`, `app.js`, and `ui.js` serve the original league.
+- `league-workspace.js` serves other leagues; `postdraft-view.js` contains shared views.
 - `supabase-client.js` is the single shared Supabase browser client.
 - `Images/` holds cast portraits, the DWTS logo, and judge-score graphics.
 - `supabase/` contains the database migrations and policies that have been
@@ -37,9 +38,8 @@ commissioner controls, and platform-owner show administration.
   cast roster, and role rates. Commissioners manage league names, fantasy
   teams, assignments, and role rates without changing canonical cast facts.
 - **Rules** is a compact header popup rather than a full navigation page.
-- Signed-in users have first and last names. The header uses only their first
-  name instead of exposing the account email; their full name remains the
-  fantasy team's manager name.
+- Signed-in users choose their own display names in their account profile.
+  Commissioners may edit fantasy-team names, not another member's display name.
 
 ## Local preview
 
@@ -51,6 +51,8 @@ the module imports and Supabase connection are designed for a web origin.
 
 This is an existing, migrated project. Do **not** run `supabase/schema.sql` on
 the current project: it describes the original pre-migration `players` model.
+The current migration/cleanup sequence and live-season boundaries are in
+[`docs/efficiency-and-data-integrity-plan.md`](docs/efficiency-and-data-integrity-plan.md).
 
 For a fresh rebuild, begin with the original schema and then apply migrations
 in their documented dependency order. For this existing league, only run a new

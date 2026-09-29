@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260929-back-spacing-v67';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-back-spacing-v67';
-import { danceImagesFor } from './dance-images.js?v=20260929-back-spacing-v67';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-back-spacing-v67';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-back-spacing-v67';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-back-spacing-v67';
+import { db } from './supabase-client.js?v=20260929-audit-fixes-v68';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-audit-fixes-v68';
+import { danceImagesFor } from './dance-images.js?v=20260929-audit-fixes-v68';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-audit-fixes-v68';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-audit-fixes-v68';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-audit-fixes-v68';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -45,7 +45,7 @@ function dialog(markup) {
 
 function errorMessage(error, fallback = 'Please try again.') {
   console.error(error);
-  return error?.message || fallback;
+  return error?.code === 'P0001' && error.message ? error.message : fallback;
 }
 
 function leagueUrl(leagueId, view = 'standings') {
@@ -139,7 +139,7 @@ function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction 
   const projected = draftPreview ? projectedDraftCastPoints(cast, state.data, state.score) : null;
   dialog(castProfile({ member: cast, image: castImage(cast),
     role: cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role, teamName: currentTeamName,
-    partnershipName: activePair ? pair.partnership_name || '' : '',
+    partnershipName: pair?.partnership_name || '',
     teamId, teamAvatar: teamMember?.avatar_url || '',
     fantasyPoints: projected?.fantasyPoints ?? totals.official + totals.appearances,
     judgesTotal: projected?.judgesTotal ?? totals.official,
@@ -147,7 +147,7 @@ function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction 
     pointsLabel: draftPreview ? 'Projected fantasy points' : 'Fantasy points',
     pointsNote: draftPreview ? 'From completed shows and this league’s current appearance rates. These are a draft preview, not points earned by a team.' : '',
     showJudges: ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(cast.role),
-    showWins: ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(cast.role) || cast.is_hough,
+    showWins: ['Pro', 'Eliminated Pro'].includes(cast.role) || (cast.role === 'Judges + Hosts' && cast.is_hough),
     details: cast.profile_details && typeof cast.profile_details === 'object'
       ? Object.entries(cast.profile_details).filter(([, value]) => value) : [],
     backLabel: backAction ? backLabel : '',

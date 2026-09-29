@@ -1,4 +1,4 @@
-import { airingWindows, easternDateTime } from './market-prediction-model.js?v=20260929-back-spacing-v67';
+import { airingWindows, easternDateTime } from './market-prediction-model.js?v=20260929-audit-fixes-v68';
 
 function shiftedEasternClock(clock, minutes) {
   const [date, time] = clock.split('T');
