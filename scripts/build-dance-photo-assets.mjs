@@ -12,6 +12,11 @@ const imagePattern = /^(.+)-(\d+)\.(jpe?g|png|webp)$/i;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 16);
 const relativePath = (url) => path.relative(fileURLToPath(root), fileURLToPath(url)).split(path.sep).join('/');
 const entries = [];
+let previousEntries = new Map();
+try {
+  previousEntries = new Map(JSON.parse(await readFile(manifestUrl, 'utf8')).entries
+    .map((item) => [item.path, item.sha]));
+} catch { /* First run has no manifest. */ }
 let optimized = 0;
 let originalBytes = 0;
 let finalBytes = 0;
@@ -43,10 +48,17 @@ for (const folder of folders) {
         sourceBytes = smaller;
         optimized += 1;
       }
-      const cardBytes = await sharp(sourceBytes).rotate()
-        .resize(640, 640, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 76, effort: 5 }).toBuffer();
-      await writeFile(card, cardBytes);
+      const originalPath = relativePath(original);
+      const cardPath = relativePath(card);
+      let existingCard = null;
+      try { existingCard = await readFile(card); } catch { /* New photo. */ }
+      if (!existingCard || previousEntries.get(originalPath) !== hash(sourceBytes)
+        || previousEntries.get(cardPath) !== hash(existingCard)) {
+        const cardBytes = await sharp(sourceBytes).rotate()
+          .resize(640, 640, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 76, effort: 5 }).toBuffer();
+        await writeFile(card, cardBytes);
+      }
     }
     finalBytes += sourceBytes.length;
     const cardBytes = await readFile(card);
