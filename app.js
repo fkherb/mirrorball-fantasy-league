@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-compact-profile-v55';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-compact-profile-v55';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle, openExpandedCastLink } from './postdraft-view.js?v=20260928-compact-profile-v55';
-import { danceImagesFor } from './dance-images.js?v=20260928-compact-profile-v55';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-compact-profile-v55';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-compact-profile-v55';
+import { db } from './supabase-client.js?v=20260928-photo-resize-v56';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-photo-resize-v56';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle, openExpandedCastLink } from './postdraft-view.js?v=20260928-photo-resize-v56';
+import { danceImagesFor } from './dance-images.js?v=20260928-photo-resize-v56';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-photo-resize-v56';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-photo-resize-v56';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';

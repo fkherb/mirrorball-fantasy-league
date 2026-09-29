@@ -1,4 +1,5 @@
-import { db } from './supabase-client.js?v=20260928-compact-profile-v55';
+import { db } from './supabase-client.js?v=20260928-photo-resize-v56';
+import { prepareProfilePicture } from './profile-picture.js?v=20260928-photo-resize-v56';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
@@ -63,6 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const picturePreview = document.querySelector('#accountPicturePreview');
   const pictureInitial = document.querySelector('#accountPictureInitial');
   const pictureFile = document.querySelector('#accountPictureFile');
+  const pictureHint = document.querySelector('.account-picture-hint');
+  const defaultPictureHint = pictureHint.textContent;
   const picturePicker = document.querySelector('#chooseCastPicture');
   const pictureClear = document.querySelector('#clearAccountPicture');
   const pictureButton = document.querySelector('#accountPictureButton');
@@ -89,6 +92,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let previewObjectUrl = null;
   let profileEditing = false;
   let pictureDirty = false;
+  let pictureVersion = 0;
+  let pictureProcessing = false;
   let providerRefreshVersion = 0;
   const refreshLinkedProviders = async () => {
     const userId = currentSession?.user?.id;
@@ -141,20 +146,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.querySelector('main').prepend(document.querySelector('#joinInviteBanner'));
 
-  pictureFile.addEventListener('change', () => {
+  pictureFile.addEventListener('change', async () => {
     const file = pictureFile.files?.[0];
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
-      pictureFile.value = '';
-      alert('Choose a JPEG, PNG, or WebP image under 2 MB.');
-      return;
+    const version = ++pictureVersion;
+    pictureFile.value = '';
+    pictureProcessing = true;
+    pictureHint.textContent = 'Preparing your photo…';
+    try {
+      const prepared = await prepareProfilePicture(file);
+      if (version !== pictureVersion) return;
+      releasePreview();
+      pendingPicture = prepared;
+      selectedAvatarUrl = '';
+      previewObjectUrl = URL.createObjectURL(prepared);
+      updatePicturePreview(previewObjectUrl, displayNameInput.value);
+      markPictureDirty();
+    } catch (error) {
+      if (version === pictureVersion) alert(error.message);
+    } finally {
+      if (version === pictureVersion) {
+        pictureProcessing = false;
+        pictureHint.textContent = defaultPictureHint;
+      }
     }
-    releasePreview();
-    pendingPicture = file;
-    selectedAvatarUrl = '';
-    previewObjectUrl = URL.createObjectURL(file);
-    updatePicturePreview(previewObjectUrl, displayNameInput.value);
-    markPictureDirty();
   });
   const uploadLabel = document.querySelector('.account-upload-label');
   uploadLabel.tabIndex = 0;
@@ -166,6 +181,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   pictureClear.addEventListener('click', () => {
+    pictureVersion++;
+    pictureProcessing = false;
+    pictureHint.textContent = defaultPictureHint;
     releasePreview();
     pendingPicture = null;
     pictureFile.value = '';
@@ -183,6 +201,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     usernameInput.focus();
   });
   profileCancel.addEventListener('click', () => {
+    pictureVersion++;
+    pictureProcessing = false;
+    pictureHint.textContent = defaultPictureHint;
     releasePreview();
     pendingPicture = null;
     pictureFile.value = '';
@@ -245,6 +266,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       choice.append(image, label);
       choice.addEventListener('click', (event) => {
         event.stopPropagation();
+        pictureVersion++;
+        pictureProcessing = false;
+        pictureHint.textContent = defaultPictureHint;
         releasePreview();
         pendingPicture = null;
         pictureFile.value = '';
@@ -352,6 +376,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     displayNameInput.value = displayName;
     document.querySelector('#accountUsernameText').textContent = currentProfile?.username ? `@${currentProfile.username}` : 'Username not set';
     document.querySelector('#accountDisplayNameText').textContent = displayName || 'Set up your profile';
+    pictureVersion++;
+    pictureProcessing = false;
+    pictureHint.textContent = defaultPictureHint;
     releasePreview();
     pendingPicture = null;
     pictureDirty = false;
@@ -430,6 +457,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!/^[a-z0-9_]{3,20}$/.test(username)) return { error: new Error('Username must be 3–20 characters using lowercase letters, numbers, or underscores.') };
     if (!displayName || displayName.length > 80) return { error: new Error('Enter a display name of 80 characters or fewer.') };
     if (button.disabled) return { error: new Error('Profile changes are already being saved.') };
+    if (pictureProcessing) return { error: new Error('Your photo is still being prepared. Try saving again in a moment.') };
     button.disabled = true;
     button.textContent = 'Saving…';
     if (pendingPicture) {
