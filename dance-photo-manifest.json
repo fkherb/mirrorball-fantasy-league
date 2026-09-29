@@ -1,0 +1,773 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "path": "Images/Dances/Card/Week 1/Amber Glenn and Pasha Pashkov-1.webp",
+      "sha": "4804929934718802"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Amber Glenn and Pasha Pashkov-2.webp",
+      "sha": "189c527bb71fdfcb"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Amber Glenn and Pasha Pashkov-3.webp",
+      "sha": "4c1d779aee0b3667"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Ciara Miller and Brandon Armstrong-1.webp",
+      "sha": "96b8138dedda3d24"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Ciara Miller and Brandon Armstrong-2.webp",
+      "sha": "e30a2024fc99d7ac"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Ciara Miller and Brandon Armstrong-3.webp",
+      "sha": "f42464648d6aca55"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Conner Leavitt and Adele Zaikman-1.webp",
+      "sha": "67089200c3608a98"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Conner Leavitt and Adele Zaikman-2.webp",
+      "sha": "ca510e9b68afa0d8"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Conner Leavitt and Adele Zaikman-3.webp",
+      "sha": "0867e46392bb4b89"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Connor Wood and Rylee Arnold-1.webp",
+      "sha": "86e3e6236547a095"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Connor Wood and Rylee Arnold-2.webp",
+      "sha": "ae0814e48fbb837f"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Connor Wood and Rylee Arnold-3.webp",
+      "sha": "eacd47dd4ef347a8"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Derek Houghs Tour Performance-1.webp",
+      "sha": "3f121d7ac5781c22"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Ezra Frech and Daniella Karagach-1.webp",
+      "sha": "0c3d1c2670365790"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Ezra Frech and Daniella Karagach-2.webp",
+      "sha": "23ae83cc894be137"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Ezra Frech and Daniella Karagach-3.webp",
+      "sha": "1c020ab3bebc44a2"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Giada De Laurentiis and Alan Bersten-1.webp",
+      "sha": "ab3febf98e4cd063"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Giada De Laurentiis and Alan Bersten-2.webp",
+      "sha": "54ad8e9708975bb8"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Giada De Laurentiis and Alan Bersten-3.webp",
+      "sha": "c9f5056b04987050"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Guillermo Rodriguez and Witney Carson-1.webp",
+      "sha": "2e4f3c8db081ec4f"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Guillermo Rodriguez and Witney Carson-2.webp",
+      "sha": "39058a73018211c0"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Guillermo Rodriguez and Witney Carson-3.webp",
+      "sha": "eabd91c17f9fe8e8"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Harry Shum Jr. and Jenna Johnson-1.webp",
+      "sha": "c378c84b2c20fb19"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Harry Shum Jr. and Jenna Johnson-2.webp",
+      "sha": "f17e4566767df902"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Harry Shum Jr. and Jenna Johnson-3.webp",
+      "sha": "46858ffb5c9e24a1"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Jackson Olson and Emma Slater-1.webp",
+      "sha": "b9484c5a36682b31"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Jackson Olson and Emma Slater-2.webp",
+      "sha": "fdbf2c309ecfb391"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Jackson Olson and Emma Slater-3.webp",
+      "sha": "7d8abcfc6ca22b93"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Jenna Dewan and Val Chmerkovskiy-1.webp",
+      "sha": "0927a247ca69d116"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Jenna Dewan and Val Chmerkovskiy-2.webp",
+      "sha": "ab0cec15af45c353"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Jenna Dewan and Val Chmerkovskiy-3.webp",
+      "sha": "be9b244fb119f69d"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Julia Stiles and Ezra Sosa-1.webp",
+      "sha": "d754d37ed34ad827"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Julia Stiles and Ezra Sosa-2.webp",
+      "sha": "e24963450d0e087a"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Julia Stiles and Ezra Sosa-3.webp",
+      "sha": "e2c1dc04c8b17d9f"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Maura Higgins and Mark Ballas-1.webp",
+      "sha": "4e789689bba46984"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Maura Higgins and Mark Ballas-2.webp",
+      "sha": "8d5b944c051a7ccf"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Maura Higgins and Mark Ballas-3.webp",
+      "sha": "aa4b7b6dfad70211"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Sarah Jane Nader and Hailey Bills-1.webp",
+      "sha": "b4dd3975d461019c"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Sarah Jane Nader and Hailey Bills-2.webp",
+      "sha": "2230f6677e3b7b7f"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Sarah Jane Nader and Hailey Bills-3.webp",
+      "sha": "a78c2890d829753e"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Tatyana Ali and Jan Ravnik-1.webp",
+      "sha": "301715fdb8f52fb5"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Tatyana Ali and Jan Ravnik-2.webp",
+      "sha": "20b7cbff8eb4e1ee"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Tatyana Ali and Jan Ravnik-3.webp",
+      "sha": "5bbe3042d8610fb2"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Taylor Hanson and Britt Stewart-1.webp",
+      "sha": "208bb856dd4df488"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Taylor Hanson and Britt Stewart-2.webp",
+      "sha": "740799bb2c56e05b"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Taylor Hanson and Britt Stewart-3.webp",
+      "sha": "de4b1e37cd2e06cd"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Troupe Showcase Dance-1.webp",
+      "sha": "8038889e9d1dba70"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Troupe Showcase Dance-2.webp",
+      "sha": "8857723cbce70b48"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Troupe Showcase Dance-3.webp",
+      "sha": "fc045398e6f5921a"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Tyler Cameron and Sharna Burgess-1.webp",
+      "sha": "89fd3edc6d586b21"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Tyler Cameron and Sharna Burgess-2.webp",
+      "sha": "fe6836402c29460d"
+    },
+    {
+      "path": "Images/Dances/Card/Week 1/Tyler Cameron and Sharna Burgess-3.webp",
+      "sha": "e5ab702f0a033806"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Amber Glenn and Pasha Pashkov-1.webp",
+      "sha": "0917bc33755768c0"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Amber Glenn and Pasha Pashkov-2.webp",
+      "sha": "c829802cdb6e1807"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Amber Glenn and Pasha Pashkov-3.webp",
+      "sha": "eb97756ec1f9205c"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Ciara Miller and Brandon Armstrong-1.webp",
+      "sha": "0f0711f404d76847"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Ciara Miller and Brandon Armstrong-2.webp",
+      "sha": "05ab44f15065f957"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Ciara Miller and Brandon Armstrong-3.webp",
+      "sha": "74abde2bcde4c00b"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Connor Wood and Rylee Arnold-1.webp",
+      "sha": "de0c5fe1636d17c2"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Connor Wood and Rylee Arnold-2.webp",
+      "sha": "881055cd5b7d4266"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Connor Wood and Rylee Arnold-3.webp",
+      "sha": "3c5cceea1364e2f9"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Elimination-1.webp",
+      "sha": "e170cf75d34d318e"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Elimination-2.webp",
+      "sha": "fa6b700f56e746c4"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Elimination-3.webp",
+      "sha": "f7f6cdc3e0903648"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Elimination-4.webp",
+      "sha": "a16b211d6548b2e6"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Ezra Frech and Daniella Karagach-1.webp",
+      "sha": "ca7423b9c210a22e"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Ezra Frech and Daniella Karagach-2.webp",
+      "sha": "d1029a418fac7041"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Ezra Frech and Daniella Karagach-3.webp",
+      "sha": "0e27567cd6e0bf40"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Giada De Laurentiis and Alan Bersten-1.webp",
+      "sha": "7a8d7a12696b9936"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Giada De Laurentiis and Alan Bersten-2.webp",
+      "sha": "3f305835bee47dc6"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Giada De Laurentiis and Alan Bersten-3.webp",
+      "sha": "9b9c5d9405cb1a74"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Guillermo Rodriguez and Witney Carson-1.webp",
+      "sha": "54731d53814f7fe7"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Guillermo Rodriguez and Witney Carson-2.webp",
+      "sha": "f6364aa5f884c3b6"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Guillermo Rodriguez and Witney Carson-3.webp",
+      "sha": "c02df48d14ba4b0c"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Harry Shum Jr. and Jenna Johnson-1.webp",
+      "sha": "e9dc733bd6c41bbc"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Harry Shum Jr. and Jenna Johnson-2.webp",
+      "sha": "e7b2335e952b692f"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Harry Shum Jr. and Jenna Johnson-3.webp",
+      "sha": "8314fb2545908bf3"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Jackson Olson and Emma Slater-1.webp",
+      "sha": "f61e98cf363bda42"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Jackson Olson and Emma Slater-2.webp",
+      "sha": "1d190e95ef36648f"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Jackson Olson and Emma Slater-3.webp",
+      "sha": "7a5843d401d2ab16"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Jenna Dewan and Val Chmerkovskiy-1.webp",
+      "sha": "0f8da16ef7f2694f"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Jenna Dewan and Val Chmerkovskiy-2.webp",
+      "sha": "f66e49d2324e026f"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Jenna Dewan and Val Chmerkovskiy-3.webp",
+      "sha": "484f360e752d7b80"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Julia Stiles and Ezra Sosa-1.webp",
+      "sha": "582bf93d77883228"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Julia Stiles and Ezra Sosa-2.webp",
+      "sha": "b021755cbc3039c3"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Julia Stiles and Ezra Sosa-3.webp",
+      "sha": "0ac06bdf3640c10e"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Maura Higgins and Mark Ballas-1.webp",
+      "sha": "9c6a64602166012a"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Maura Higgins and Mark Ballas-2.webp",
+      "sha": "3af5e91c6bfb6f7e"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Tatyana Ali and Jan Ravnik-1.webp",
+      "sha": "094d85c616690712"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Tatyana Ali and Jan Ravnik-2.webp",
+      "sha": "5df09ae7a96bacb9"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Taylor Hanson and Britt Stewart-1.webp",
+      "sha": "a3dbf84463959403"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Taylor Hanson and Britt Stewart-2.webp",
+      "sha": "2b94ffd67f91f92a"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Taylor Hanson and Britt Stewart-3.webp",
+      "sha": "2a0868454f18b4a5"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Tyler Cameron and Sharna Burgess-1.webp",
+      "sha": "a19a2d9cac7745c8"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Tyler Cameron and Sharna Burgess-2.webp",
+      "sha": "1d70594358b1af48"
+    },
+    {
+      "path": "Images/Dances/Card/Week 2/Tyler Cameron and Sharna Burgess-3.webp",
+      "sha": "44639e349f1c9aa3"
+    },
+    {
+      "path": "Images/Dances/Week 1/Amber Glenn and Pasha Pashkov-1.jpeg",
+      "sha": "e9aa12a2174521fc"
+    },
+    {
+      "path": "Images/Dances/Week 1/Amber Glenn and Pasha Pashkov-2.jpeg",
+      "sha": "b73f834f53c01dd2"
+    },
+    {
+      "path": "Images/Dances/Week 1/Amber Glenn and Pasha Pashkov-3.jpeg",
+      "sha": "171dace68556bbbe"
+    },
+    {
+      "path": "Images/Dances/Week 1/Ciara Miller and Brandon Armstrong-1.jpeg",
+      "sha": "6d6844e6c9dfc92a"
+    },
+    {
+      "path": "Images/Dances/Week 1/Ciara Miller and Brandon Armstrong-2.jpeg",
+      "sha": "5d30236dc6660225"
+    },
+    {
+      "path": "Images/Dances/Week 1/Ciara Miller and Brandon Armstrong-3.jpeg",
+      "sha": "2019540c51f8350a"
+    },
+    {
+      "path": "Images/Dances/Week 1/Conner Leavitt and Adele Zaikman-1.jpeg",
+      "sha": "017c13a5b7581253"
+    },
+    {
+      "path": "Images/Dances/Week 1/Conner Leavitt and Adele Zaikman-2.jpeg",
+      "sha": "03e5ad9861d4069a"
+    },
+    {
+      "path": "Images/Dances/Week 1/Conner Leavitt and Adele Zaikman-3.jpeg",
+      "sha": "5addd02d604a7ab3"
+    },
+    {
+      "path": "Images/Dances/Week 1/Connor Wood and Rylee Arnold-1.jpeg",
+      "sha": "783409a6ddb703e3"
+    },
+    {
+      "path": "Images/Dances/Week 1/Connor Wood and Rylee Arnold-2.jpeg",
+      "sha": "6fd8352ab1031152"
+    },
+    {
+      "path": "Images/Dances/Week 1/Connor Wood and Rylee Arnold-3.jpeg",
+      "sha": "c4b1b12465eaa639"
+    },
+    {
+      "path": "Images/Dances/Week 1/Derek Houghs Tour Performance-1.jpeg",
+      "sha": "0243a95c1cf26e73"
+    },
+    {
+      "path": "Images/Dances/Week 1/Ezra Frech and Daniella Karagach-1.jpeg",
+      "sha": "ae4aa505c2e691b9"
+    },
+    {
+      "path": "Images/Dances/Week 1/Ezra Frech and Daniella Karagach-2.jpeg",
+      "sha": "fd03bbcdb077e70b"
+    },
+    {
+      "path": "Images/Dances/Week 1/Ezra Frech and Daniella Karagach-3.jpeg",
+      "sha": "03ed3b951f3c444a"
+    },
+    {
+      "path": "Images/Dances/Week 1/Giada De Laurentiis and Alan Bersten-1.jpeg",
+      "sha": "d8da7beb1c7e6371"
+    },
+    {
+      "path": "Images/Dances/Week 1/Giada De Laurentiis and Alan Bersten-2.jpeg",
+      "sha": "212fbd577cd3fc84"
+    },
+    {
+      "path": "Images/Dances/Week 1/Giada De Laurentiis and Alan Bersten-3.jpeg",
+      "sha": "ebf5a00283617947"
+    },
+    {
+      "path": "Images/Dances/Week 1/Guillermo Rodriguez and Witney Carson-1.jpeg",
+      "sha": "233ee72ee5b7ef21"
+    },
+    {
+      "path": "Images/Dances/Week 1/Guillermo Rodriguez and Witney Carson-2.jpeg",
+      "sha": "6336b2992dc1b86b"
+    },
+    {
+      "path": "Images/Dances/Week 1/Guillermo Rodriguez and Witney Carson-3.jpeg",
+      "sha": "30b0831e8db8fbd2"
+    },
+    {
+      "path": "Images/Dances/Week 1/Harry Shum Jr. and Jenna Johnson-1.jpeg",
+      "sha": "535478dd6bea2b2c"
+    },
+    {
+      "path": "Images/Dances/Week 1/Harry Shum Jr. and Jenna Johnson-2.jpeg",
+      "sha": "4c6af7833767548c"
+    },
+    {
+      "path": "Images/Dances/Week 1/Harry Shum Jr. and Jenna Johnson-3.jpeg",
+      "sha": "c73f330229d482f8"
+    },
+    {
+      "path": "Images/Dances/Week 1/Jackson Olson and Emma Slater-1.jpeg",
+      "sha": "310f7b4e01e685a8"
+    },
+    {
+      "path": "Images/Dances/Week 1/Jackson Olson and Emma Slater-2.jpeg",
+      "sha": "b80648f18090f913"
+    },
+    {
+      "path": "Images/Dances/Week 1/Jackson Olson and Emma Slater-3.jpeg",
+      "sha": "8d527f9f1f32153c"
+    },
+    {
+      "path": "Images/Dances/Week 1/Jenna Dewan and Val Chmerkovskiy-1.jpeg",
+      "sha": "29bcf55edadeb8f2"
+    },
+    {
+      "path": "Images/Dances/Week 1/Jenna Dewan and Val Chmerkovskiy-2.jpeg",
+      "sha": "610fec74084b7ac2"
+    },
+    {
+      "path": "Images/Dances/Week 1/Jenna Dewan and Val Chmerkovskiy-3.jpeg",
+      "sha": "81cceb5b0cff7e7d"
+    },
+    {
+      "path": "Images/Dances/Week 1/Julia Stiles and Ezra Sosa-1.jpeg",
+      "sha": "5d6d2864eb0d3d88"
+    },
+    {
+      "path": "Images/Dances/Week 1/Julia Stiles and Ezra Sosa-2.jpeg",
+      "sha": "a5c8ce5df666f877"
+    },
+    {
+      "path": "Images/Dances/Week 1/Julia Stiles and Ezra Sosa-3.jpeg",
+      "sha": "c424cc6e43380250"
+    },
+    {
+      "path": "Images/Dances/Week 1/Maura Higgins and Mark Ballas-1.jpeg",
+      "sha": "9c9d3b33e7ac47d1"
+    },
+    {
+      "path": "Images/Dances/Week 1/Maura Higgins and Mark Ballas-2.jpeg",
+      "sha": "a076fa14b5d6f3f8"
+    },
+    {
+      "path": "Images/Dances/Week 1/Maura Higgins and Mark Ballas-3.jpeg",
+      "sha": "8e117d28adba8cd7"
+    },
+    {
+      "path": "Images/Dances/Week 1/Sarah Jane Nader and Hailey Bills-1.jpeg",
+      "sha": "efa165584f10f305"
+    },
+    {
+      "path": "Images/Dances/Week 1/Sarah Jane Nader and Hailey Bills-2.jpeg",
+      "sha": "df08c84d5c3199d2"
+    },
+    {
+      "path": "Images/Dances/Week 1/Sarah Jane Nader and Hailey Bills-3.jpeg",
+      "sha": "a6f43bd5720798a2"
+    },
+    {
+      "path": "Images/Dances/Week 1/Tatyana Ali and Jan Ravnik-1.jpeg",
+      "sha": "9e9ca88fb6121afe"
+    },
+    {
+      "path": "Images/Dances/Week 1/Tatyana Ali and Jan Ravnik-2.jpeg",
+      "sha": "21787037f1ea1d89"
+    },
+    {
+      "path": "Images/Dances/Week 1/Tatyana Ali and Jan Ravnik-3.jpeg",
+      "sha": "63dd2550dbf95202"
+    },
+    {
+      "path": "Images/Dances/Week 1/Taylor Hanson and Britt Stewart-1.jpeg",
+      "sha": "36ac13668c94d023"
+    },
+    {
+      "path": "Images/Dances/Week 1/Taylor Hanson and Britt Stewart-2.jpeg",
+      "sha": "576d830d74286c52"
+    },
+    {
+      "path": "Images/Dances/Week 1/Taylor Hanson and Britt Stewart-3.jpeg",
+      "sha": "aa7ee97f32b5dc6a"
+    },
+    {
+      "path": "Images/Dances/Week 1/Troupe Showcase Dance-1.jpeg",
+      "sha": "163898ff058bd70d"
+    },
+    {
+      "path": "Images/Dances/Week 1/Troupe Showcase Dance-2.jpeg",
+      "sha": "ba705fa44101284d"
+    },
+    {
+      "path": "Images/Dances/Week 1/Troupe Showcase Dance-3.jpeg",
+      "sha": "b180746634b364ee"
+    },
+    {
+      "path": "Images/Dances/Week 1/Tyler Cameron and Sharna Burgess-1.jpeg",
+      "sha": "b8248ccaf0dd42c1"
+    },
+    {
+      "path": "Images/Dances/Week 1/Tyler Cameron and Sharna Burgess-2.jpeg",
+      "sha": "d97053affb7ee890"
+    },
+    {
+      "path": "Images/Dances/Week 1/Tyler Cameron and Sharna Burgess-3.jpeg",
+      "sha": "b754e1b8a065cc1c"
+    },
+    {
+      "path": "Images/Dances/Week 2/Amber Glenn and Pasha Pashkov-1.jpeg",
+      "sha": "2ea80ee4111b8842"
+    },
+    {
+      "path": "Images/Dances/Week 2/Amber Glenn and Pasha Pashkov-2.jpeg",
+      "sha": "507c6fede356a440"
+    },
+    {
+      "path": "Images/Dances/Week 2/Amber Glenn and Pasha Pashkov-3.jpeg",
+      "sha": "65cc77b29414add7"
+    },
+    {
+      "path": "Images/Dances/Week 2/Ciara Miller and Brandon Armstrong-1.jpeg",
+      "sha": "870bff392c84464d"
+    },
+    {
+      "path": "Images/Dances/Week 2/Ciara Miller and Brandon Armstrong-2.jpeg",
+      "sha": "d3d16aaadcac9e22"
+    },
+    {
+      "path": "Images/Dances/Week 2/Ciara Miller and Brandon Armstrong-3.jpeg",
+      "sha": "4add00e3999204be"
+    },
+    {
+      "path": "Images/Dances/Week 2/Connor Wood and Rylee Arnold-1.jpeg",
+      "sha": "196eb862aa5fe9a2"
+    },
+    {
+      "path": "Images/Dances/Week 2/Connor Wood and Rylee Arnold-2.jpeg",
+      "sha": "385fe02aec7a1692"
+    },
+    {
+      "path": "Images/Dances/Week 2/Connor Wood and Rylee Arnold-3.jpeg",
+      "sha": "71c587eb53a03ea3"
+    },
+    {
+      "path": "Images/Dances/Week 2/Elimination-1.jpeg",
+      "sha": "cb4a85e932f21c7c"
+    },
+    {
+      "path": "Images/Dances/Week 2/Elimination-2.jpeg",
+      "sha": "7db15c59aa211628"
+    },
+    {
+      "path": "Images/Dances/Week 2/Elimination-3.jpeg",
+      "sha": "b9d6c80fb1a84fee"
+    },
+    {
+      "path": "Images/Dances/Week 2/Elimination-4.jpeg",
+      "sha": "af601b134e9b03ba"
+    },
+    {
+      "path": "Images/Dances/Week 2/Ezra Frech and Daniella Karagach-1.jpeg",
+      "sha": "f41f41ccbf4dcd54"
+    },
+    {
+      "path": "Images/Dances/Week 2/Ezra Frech and Daniella Karagach-2.jpeg",
+      "sha": "cfec9e591d55c1f9"
+    },
+    {
+      "path": "Images/Dances/Week 2/Ezra Frech and Daniella Karagach-3.jpeg",
+      "sha": "c87bd376a5929086"
+    },
+    {
+      "path": "Images/Dances/Week 2/Giada De Laurentiis and Alan Bersten-1.jpeg",
+      "sha": "a0b38e5c3a866679"
+    },
+    {
+      "path": "Images/Dances/Week 2/Giada De Laurentiis and Alan Bersten-2.jpeg",
+      "sha": "fce31337f0594783"
+    },
+    {
+      "path": "Images/Dances/Week 2/Giada De Laurentiis and Alan Bersten-3.jpeg",
+      "sha": "2230e9b7fac7ee06"
+    },
+    {
+      "path": "Images/Dances/Week 2/Guillermo Rodriguez and Witney Carson-1.jpeg",
+      "sha": "ce59f83dae04edd4"
+    },
+    {
+      "path": "Images/Dances/Week 2/Guillermo Rodriguez and Witney Carson-2.jpeg",
+      "sha": "1cd17024a3b9216a"
+    },
+    {
+      "path": "Images/Dances/Week 2/Guillermo Rodriguez and Witney Carson-3.jpeg",
+      "sha": "59617f040b7bbc67"
+    },
+    {
+      "path": "Images/Dances/Week 2/Harry Shum Jr. and Jenna Johnson-1.jpeg",
+      "sha": "fc089f28332c1a69"
+    },
+    {
+      "path": "Images/Dances/Week 2/Harry Shum Jr. and Jenna Johnson-2.jpeg",
+      "sha": "155bae1e48d16493"
+    },
+    {
+      "path": "Images/Dances/Week 2/Harry Shum Jr. and Jenna Johnson-3.jpeg",
+      "sha": "a6db36f356963e7e"
+    },
+    {
+      "path": "Images/Dances/Week 2/Jackson Olson and Emma Slater-1.jpeg",
+      "sha": "608164daf18ea59d"
+    },
+    {
+      "path": "Images/Dances/Week 2/Jackson Olson and Emma Slater-2.jpeg",
+      "sha": "6c266488b4db120f"
+    },
+    {
+      "path": "Images/Dances/Week 2/Jackson Olson and Emma Slater-3.jpeg",
+      "sha": "481435ca85da8165"
+    },
+    {
+      "path": "Images/Dances/Week 2/Jenna Dewan and Val Chmerkovskiy-1.jpeg",
+      "sha": "83b5b31c3cbb4e70"
+    },
+    {
+      "path": "Images/Dances/Week 2/Jenna Dewan and Val Chmerkovskiy-2.jpeg",
+      "sha": "f80a22bf4c0fa26b"
+    },
+    {
+      "path": "Images/Dances/Week 2/Jenna Dewan and Val Chmerkovskiy-3.jpeg",
+      "sha": "88c15ecfd17d984a"
+    },
+    {
+      "path": "Images/Dances/Week 2/Julia Stiles and Ezra Sosa-1.jpeg",
+      "sha": "88aeda9fb92f46f8"
+    },
+    {
+      "path": "Images/Dances/Week 2/Julia Stiles and Ezra Sosa-2.jpeg",
+      "sha": "ef5c20d1726ee76f"
+    },
+    {
+      "path": "Images/Dances/Week 2/Julia Stiles and Ezra Sosa-3.jpeg",
+      "sha": "4d3961840579e07c"
+    },
+    {
+      "path": "Images/Dances/Week 2/Maura Higgins and Mark Ballas-1.jpeg",
+      "sha": "64fa69e83b442454"
+    },
+    {
+      "path": "Images/Dances/Week 2/Maura Higgins and Mark Ballas-2.jpeg",
+      "sha": "9851b44cde71ca62"
+    },
+    {
+      "path": "Images/Dances/Week 2/Tatyana Ali and Jan Ravnik-1.jpeg",
+      "sha": "9cdf3de0df6de1ac"
+    },
+    {
+      "path": "Images/Dances/Week 2/Tatyana Ali and Jan Ravnik-2.jpeg",
+      "sha": "c5058a72fc57c859"
+    },
+    {
+      "path": "Images/Dances/Week 2/Taylor Hanson and Britt Stewart-1.jpeg",
+      "sha": "36cb0e74038a2942"
+    },
+    {
+      "path": "Images/Dances/Week 2/Taylor Hanson and Britt Stewart-2.jpeg",
+      "sha": "2b72b7e6d6c2287f"
+    },
+    {
+      "path": "Images/Dances/Week 2/Taylor Hanson and Britt Stewart-3.jpeg",
+      "sha": "8813cddcde985b48"
+    },
+    {
+      "path": "Images/Dances/Week 2/Tyler Cameron and Sharna Burgess-1.jpeg",
+      "sha": "386c032c8d4555a3"
+    },
+    {
+      "path": "Images/Dances/Week 2/Tyler Cameron and Sharna Burgess-2.jpeg",
+      "sha": "eece29c51b748eae"
+    },
+    {
+      "path": "Images/Dances/Week 2/Tyler Cameron and Sharna Burgess-3.jpeg",
+      "sha": "8d2da770d37dbfc4"
+    }
+  ]
+}

@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-live-dance-photos-v72';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-live-dance-photos-v72';
-import { danceImagesFor } from './dance-images.js?v=20260929-live-dance-photos-v72';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-live-dance-photos-v72';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-live-dance-photos-v72';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-live-dance-photos-v72';
-import { scoreLeague } from './scoring.js?v=20260929-live-dance-photos-v72';
+import { db } from './supabase-client.js?v=20260929-photo-optimization-v73';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-photo-optimization-v73';
+import { danceImagesFor, danceCardPhotoFor } from './dance-images.js?v=20260929-photo-optimization-v73';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-photo-optimization-v73';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-photo-optimization-v73';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-photo-optimization-v73';
+import { scoreLeague } from './scoring.js?v=20260929-photo-optimization-v73';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -32,6 +32,12 @@ let workspaceRosterFilter = 'all';
 let selectedWorkspaceOverviewTeamId = null;
 let workspaceStandingsMode = 'season';
 let activeWorkspaceDetail = null;
+let lastFullWorkspaceLoadAt = 0;
+let lastSnapshotCheckAt = 0;
+let lastSnapshotLeagueId = null;
+const fullWorkspaceRefreshMs = 2 * 60 * 1000;
+const snapshotCheckMs = 5 * 60 * 1000;
+const fastWorkspaceKeys = new Set(['league', 'assignments', 'weeks', 'dances', 'scores', 'appearances']);
 
 function dialog(markup) {
   const modal = $('#modal');
@@ -64,7 +70,8 @@ function castImage(member) {
 }
 
 function castTile(member, action = '', tag = 'article', profileButton = false) {
-  const identity = `<img src="${safe(castImage(member))}" alt=""><span><b>${safe(member.name)}</b><small>${safe(member.role === 'DWTS Next Pro' ? 'Next Pro' : member.role)}</small></span>`;
+  const image = castImage(member);
+  const identity = `<img src="${safe(castThumbnailFor(image))}" data-original-src="${safe(image)}" alt="" loading="lazy" decoding="async" width="70" height="80"><span><b>${safe(member.name)}</b><small>${safe(member.role === 'DWTS Next Pro' ? 'Next Pro' : member.role)}</small></span>`;
   return `<${tag} class="workspace-cast-tile">${profileButton ? `<button type="button" class="workspace-profile-button" data-workspace-profile="${safe(member.id)}" aria-label="View ${safe(member.name)} profile and points">${identity}</button>` : identity}${action}</${tag}>`;
 }
 
@@ -567,7 +574,7 @@ function updateDraftClock(deadline, serverNow = null, paused = false) {
   workspaceDraftTimer = setInterval(tick, 1000);
 }
 
-async function loadWorkspaceData(context) {
+async function loadWorkspaceData(context, { light = false, previous = null } = {}) {
   const leagueId = context.leagueId;
   const queries = {
     league: db.from('leagues').select('id,name,status,roster_size,roster_size_overridden,scoring_starts_after_week,draft_pick_deadline_at,draft_paused_at,draft_timer_disabled').eq('id', leagueId).single(),
@@ -587,10 +594,15 @@ async function loadWorkspaceData(context) {
     order: db.from('league_draft_order').select('draft_position,fantasy_team_id').eq('league_id', leagueId).order('draft_position'),
     picks: db.from('league_draft_picks').select('pick_number,round_number,fantasy_team_id,cast_member_id,picked_at,is_auto_pick').eq('league_id', leagueId).order('pick_number'),
   };
-  const results = await Promise.all(Object.values(queries));
+  const full = !light || !previous || previous.context.leagueId !== leagueId
+    || Date.now() - lastFullWorkspaceLoadAt >= fullWorkspaceRefreshMs;
+  const selected = Object.entries(queries).filter(([key]) => full || fastWorkspaceKeys.has(key));
+  const results = await Promise.all(selected.map(([, query]) => query));
   const failure = results.find((result) => result.error)?.error;
   if (failure) throw failure;
-  return Object.fromEntries(Object.keys(queries).map((key, index) => [key, results[index].data || []]));
+  if (full) lastFullWorkspaceLoadAt = Date.now();
+  return { ...(full ? {} : previous.data),
+    ...Object.fromEntries(selected.map(([key], index) => [key, results[index].data || []])) };
 }
 
 function renderStandings(context, data, score, assignmentMap, memberByTeam, refresh) {
@@ -1206,7 +1218,9 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
     const judges = data.scores.filter((item) => item.dance_id === dance.id);
     const castNames = data.appearances.filter((item) => item.dance_id === dance.id)
       .map((appearance) => nameFor(appearance.cast_member_id));
-    return danceCard({ id: dance.id, kind: dance.kind, title: names, photos: danceImagesFor(week.number, names), poster: Number(week.number) <= 2,
+    return danceCard({ id: dance.id, kind: dance.kind, title: names,
+      photos: danceImagesFor(week.number, names), cardPhoto: danceCardPhotoFor(week.number, names),
+      poster: Number(week.number) <= 2,
       weekNumber: week.number,
       danceType: dance.dance_type, song: dance.song, scores: judges, castNames,
       scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
@@ -1501,7 +1515,7 @@ function openInviteManager(context, refresh) {
   };
 }
 
-export async function renderSecondaryLeague(context, { silent = false } = {}) {
+export async function renderSecondaryLeague(context, { silent = false, light = false } = {}) {
   if (!context.signedIn || (context.leagueId === defaultLeagueId && !context.useSharedWorkspace)) return;
   $('#workspaceReadOnlyBanner')?.remove();
   if (context.readOnlyWorkspacePreview) {
@@ -1513,6 +1527,7 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
   }
   const version = ++workspaceVersion;
   ++tradeRequestVersion;
+  const previousTradesRefresh = refreshCurrentWorkspaceTrades;
   refreshCurrentWorkspaceTrades = null;
   const refresh = () => renderSecondaryLeague(context, { silent: true });
   if (!silent) {
@@ -1523,13 +1538,26 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
   try {
     // Opening an active league on an airing date records that day's roster
     // before any later changes can affect completed-week scoring.
-    const snapshotRefresh = await db.rpc('refresh_my_league_snapshots', { p_league_id: context.leagueId });
-    if (snapshotRefresh.error && !['PGRST202', '42883'].includes(snapshotRefresh.error.code)) {
-      throw snapshotRefresh.error;
+    if (lastSnapshotLeagueId !== context.leagueId || Date.now() - lastSnapshotCheckAt >= snapshotCheckMs) {
+      const snapshotRefresh = await db.rpc('refresh_my_league_snapshots', { p_league_id: context.leagueId });
+      if (snapshotRefresh.error && !['PGRST202', '42883'].includes(snapshotRefresh.error.code)) {
+        throw snapshotRefresh.error;
+      }
+      lastSnapshotLeagueId = context.leagueId;
+      lastSnapshotCheckAt = Date.now();
     }
-    const [data, predictions] = await Promise.all([loadWorkspaceData(context), loadMarketPredictions()]);
+    const [data, predictions] = await Promise.all([
+      loadWorkspaceData(context, { light, previous: activeWorkspaceDetail }),
+      loadMarketPredictions(),
+    ]);
     if (version !== workspaceVersion) return;
     data.marketPredictions = predictions;
+    const refreshSignature = JSON.stringify([data, isTradeAiringLocked(data.weeks), isDraftAiringLocked(data.weeks)]);
+    if (light && activeWorkspaceDetail?.context.leagueId === context.leagueId
+      && activeWorkspaceDetail.refreshSignature === refreshSignature) {
+      refreshCurrentWorkspaceTrades = previousTradesRefresh;
+      return;
+    }
     const liveContext = { ...context, leagueName: data.league.name,
       leagueStatus: data.league.status, rosterSize: data.league.roster_size,
       draftAiringLocked: isDraftAiringLocked(data.weeks),
@@ -1547,11 +1575,12 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
     const assignmentMap = new Map(data.assignments.map((assignment) => [assignment.cast_member_id, assignment.fantasy_team_id]));
     const memberByTeam = new Map(data.members.map((member) => [member.fantasy_team_id, member]));
     const score = scoreLeague(data, liveContext);
-    activeWorkspaceDetail = { context: liveContext, data, score, assignmentMap, memberByTeam, predictions };
+    activeWorkspaceDetail = { context: liveContext, data, score, assignmentMap, memberByTeam, predictions, refreshSignature };
     renderStandings(liveContext, data, score, assignmentMap, memberByTeam, refresh);
     renderMyTeam(liveContext, data, score, assignmentMap, memberByTeam, refresh);
     const refreshTrades = () => {
-      if (version === workspaceVersion && !document.hidden && !$('#modal')?.open && $('#workspaceTradeCenter')) {
+      if (activeWorkspaceDetail?.context.leagueId === liveContext.leagueId
+        && !document.hidden && !$('#modal')?.open && $('#workspaceTradeCenter')) {
         renderWorkspaceTrades(liveContext, data, assignmentMap, memberByTeam, refresh);
       }
     };
@@ -1608,14 +1637,20 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
     } else {
       clearInterval(workspaceDraftTimer);
       workspaceDraftTimer = null;
-      workspaceRefreshTimer = setInterval(() => { if (!document.hidden) refresh(); }, 30000);
+      workspaceRefreshTimer = setInterval(() => {
+        if (!document.hidden) renderSecondaryLeague(context, { silent: true, light: true });
+      }, 30000);
     }
     if (liveContext.leagueStatus === 'active') {
       workspaceTradeRefreshTimer = setInterval(refreshTrades, 10000);
     }
   } catch (error) {
     if (version !== workspaceVersion) return;
-    if (silent) { console.warn('League refresh unavailable', error); return; }
+    if (silent) {
+      refreshCurrentWorkspaceTrades = previousTradesRefresh;
+      console.warn('League refresh unavailable', error);
+      return;
+    }
     const message = `<div class="card pad"><b>Couldn’t load this league.</b><p class="sub">${safe(errorMessage(error))}</p><button class="retry-workspace">Try again</button></div>`;
     for (const id of ['#standingsContent', '#publicTeamResults', '#commissionerTeamResults', '#scoreDeskContent']) {
       const container = $(id);
@@ -1642,6 +1677,9 @@ export function stopSecondaryLeague() {
   selectedTeamWeekId = 'all';
   selectedWorkspaceOverviewTeamId = null;
   activeWorkspaceDetail = null;
+  lastFullWorkspaceLoadAt = 0;
+  lastSnapshotCheckAt = 0;
+  lastSnapshotLeagueId = null;
   window.removeEventListener('resize', window.workspaceOverviewResize);
   window.workspaceOverviewResize = null;
 }

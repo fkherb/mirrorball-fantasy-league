@@ -55,13 +55,29 @@ card's couple name and a numbered suffix, for example
 between partner names; `.jpg`, `.jpeg`, `.png`, and `.webp` are supported.
 Additional photos can use `-2`, `-3`, and so on. The live site checks the public
 repository about every five minutes while open and updates matching dance cards
-without a site rebuild or page reload. Returning to the tab also checks for new
-photos. Until a matching photo is uploaded, the card continues without one.
+without a page reload. Returning to the tab also checks for new photos. Until a
+matching photo is uploaded, the card continues without one. GitHub Actions
+automatically compresses uploaded originals, creates small WebP card images,
+and updates a photo manifest. A new upload appears first using the original;
+the card switches to its smaller image when processing finishes. If GitHub's
+repository listing is unavailable, the app uses the manifest and its last
+known photo list. Locally, run `npm ci` and `npm run photos` after adding images;
+`npm run photos:check` verifies the generated files.
+
+The shared league workspace checks live scores and dances every 30 seconds,
+reloads slower-changing cast/settings data at most every two minutes, and
+checks the week's roster snapshot every five minutes. Database guards still
+capture the roster when a week is completed. Prediction history is fetched in
+explicit pages by `market-history.js` when a graph needs it, avoiding the
+1,000-row API response cap.
 
 ## Database notes
 
 This is an existing, migrated project. Do **not** run `supabase/schema.sql` on
 the current project: it describes the original pre-migration `players` model.
+`supabase/migrations/README.md` describes the remaining one-time production
+schema baseline export. Do not treat the loose SQL patches as a substitute for
+a verified current schema dump.
 The current migration/cleanup sequence and live-season boundaries are in
 [`docs/efficiency-and-data-integrity-plan.md`](docs/efficiency-and-data-integrity-plan.md).
 

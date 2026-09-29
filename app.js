@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-live-dance-photos-v72';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-live-dance-photos-v72';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-live-dance-photos-v72';
-import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260929-live-dance-photos-v72';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-live-dance-photos-v72';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-live-dance-photos-v72';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-live-dance-photos-v72';
+import { db } from './supabase-client.js?v=20260929-photo-optimization-v73';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-photo-optimization-v73';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-photo-optimization-v73';
+import { danceImagesFor, danceCardPhotoFor, startDanceImageUpdates } from './dance-images.js?v=20260929-photo-optimization-v73';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-photo-optimization-v73';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-photo-optimization-v73';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-photo-optimization-v73';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -14,6 +14,7 @@ const defaultLeagueId = '00000000-0000-4000-8000-000000000001';
 let activeLeagueId = defaultLeagueId;
 const assetRoot = isOwnerSurface ? '../' : '';
 startDanceImageUpdates();
+const danceAsset = (url) => url?.startsWith('Images/') ? `${assetRoot}${url}` : url;
 const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts', 'Surprise'];
 const assignableRoles = roles.filter((role) => !role.startsWith('Eliminated'));
 const storedImagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
@@ -28,6 +29,12 @@ const displayImagePath = (member) => {
 document.addEventListener('error', (event) => {
   const image = event.target;
   if (!(image instanceof HTMLImageElement) || image.dataset.fallbackApplied) return;
+  if (image.dataset.originalSrc && !image.dataset.thumbnailFallbackApplied
+      && image.src !== new URL(image.dataset.originalSrc, location.href).href) {
+    image.dataset.thumbnailFallbackApplied = 'true';
+    image.src = image.dataset.originalSrc;
+    return;
+  }
   image.dataset.fallbackApplied = 'true';
   image.src = imageFallback;
 }, true);
@@ -1327,7 +1334,9 @@ async function loadScoreDesk() {
     title: labelForDance(dance, index), danceType: dance.dance_type, song: dance.song,
     weekNumber: week.number,
     scores: scoresForDance(dance.id), castNames: dancers(dance.id).map((member) => member.name),
-    scoreImage: judgeScoreImage, judgePhoto: judgePhotoImage, photos: danceImagesFor(week.number, labelForDance(dance, index)), poster: Number(week.number) <= 2,
+    scoreImage: judgeScoreImage, judgePhoto: judgePhotoImage,
+    photos: danceImagesFor(week.number, labelForDance(dance, index)).map(danceAsset),
+    cardPhoto: danceAsset(danceCardPhotoFor(week.number, labelForDance(dance, index))), poster: Number(week.number) <= 2,
     pending: dance.kind === 'competitive' && scoresForDance(dance.id).length < 3 + (week.guest_judge_name ? 1 : 0),
     weeklyPrediction: weeklyPredictionFor(pairData.partnerships.find((item) => item.id === dance.partnership_id)?.star_id,
       week, activePartnershipPredictionRows(predictions, pairData.partnerships, pairData.players)) })).join('');
@@ -1404,7 +1413,8 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
   const teamLeaders = [...teamTotals].sort((a, b) => b[1] - a[1]);
   const sortedRows = [...detailRows].sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
   openModal(`${context.backAction ? '<div class="modal-back-row"><button class="profile-back-button secondary" id="danceBackToProfile" type="button" aria-label="Back to profile">← Back</button></div>' : ''}${danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
-    scores, scoreImage: judgeScoreImage, judgePhoto: judgePhotoImage, photos: danceImagesFor(week.number, title), weekNumber: week.number,
+    scores, scoreImage: judgeScoreImage, judgePhoto: judgePhotoImage,
+    photos: danceImagesFor(week.number, title).map(danceAsset), weekNumber: week.number,
     weeklyPrediction: weeklyPredictionFor(star?.id, week,
       activePartnershipPredictionRows(context.predictions || [], pairData.partnerships, pairData.players)),
     teams: teamLeaders.map(([name, points]) => ({ name, points })),

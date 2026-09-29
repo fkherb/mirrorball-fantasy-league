@@ -12,8 +12,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run photos
+      - run: npm run photos:check
       - run: node scripts/check-cache-keys.mjs
       - run: node scripts/check-market-predictions.mjs
+      - run: node scripts/check-market-history-pages.mjs
       - run: node --experimental-strip-types scripts/check-market-sync.mjs
       - run: node scripts/check-market-history-backfill.mjs
       - run: node scripts/check-airing-policy.mjs
