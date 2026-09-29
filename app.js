@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-photo-optimization-v73';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-photo-optimization-v73';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-photo-optimization-v73';
-import { danceImagesFor, danceCardPhotoFor, startDanceImageUpdates } from './dance-images.js?v=20260929-photo-optimization-v73';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-photo-optimization-v73';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-photo-optimization-v73';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-photo-optimization-v73';
+import { db } from './supabase-client.js?v=20260929-score-desk-judges-v74';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-score-desk-judges-v74';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-score-desk-judges-v74';
+import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260929-score-desk-judges-v74';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-score-desk-judges-v74';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-score-desk-judges-v74';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-score-desk-judges-v74';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -44,11 +44,7 @@ const canHaveMirrorballWins = (role, isHough = false) => ['Pro', 'Eliminated Pro
 const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
 const activePairRole = (role) => role.includes('Star') ? 'Star' : role.includes('Pro') ? 'Pro' : role;
 const judgeScoreImage = (score) => `${assetRoot}Images/Judges Scores/${score}.png?v=20260921-optimized`;
-const judgePhotoImage = (name) => {
-  const portraits = { 'carrie ann': 'Carrie Ann Inaba.jpg', derek: 'Derek Hough.jpg', bruno: 'Bruno Tonioli.jpg' };
-  const file = portraits[String(name || '').trim().toLowerCase().replace(/ (inaba|hough|tonioli)$/, '')];
-  return file ? `${assetRoot}Images/${file}` : '';
-};
+const judgePhotoImage = (name) => judgePortraitFor(name, assetRoot);
 let canEdit = false;
 let canManageShow = false;
 let canManageCast = false;
@@ -1297,7 +1293,7 @@ async function loadScoreDesk() {
     getPairingData().then((data) => ({ data })).catch((error) => ({ error })),
     db.from('roles').select('name,appearance_points'),
     week.is_complete ? db.from('weekly_roster_snapshots').select('*').eq('league_id', defaultLeagueId).eq('week_id', week.id) : Promise.resolve({ data: [], error: null }),
-    loadMarketPredictions(),
+    isScoreDeskSurface ? Promise.resolve([]) : loadMarketPredictions(),
   ]);
   if (loadVersion !== scoreDeskLoadVersion) return;
   const detailError = pairResult.error || roleResult.error || snapshotResult.error;
@@ -1330,18 +1326,10 @@ async function loadScoreDesk() {
   if (!editable) editingWeekId = null;
   const marketWeekFields = `<p class="eyebrow week-market-heading">Airing and market predictions</p><label>First airing starts (ET)<input id="weekAirStartTime" type="time" value="${escapeHtml(String(week.air_start_time || '20:00').slice(0, 5))}"></label><label>First airing ends (ET)<input id="weekAirEndTime" type="time" value="${escapeHtml(String(week.air_end_time || '22:00').slice(0, 5))}"></label><label class="second-airing-time-field" ${week.second_air_date ? '' : 'hidden'}>Second airing starts (ET)<input id="weekSecondAirStartTime" type="time" value="${escapeHtml(String(week.second_air_start_time || '20:00').slice(0, 5))}"></label><label class="second-airing-time-field" ${week.second_air_date ? '' : 'hidden'}>Second airing ends (ET)<input id="weekSecondAirEndTime" type="time" value="${escapeHtml(String(week.second_air_end_time || '22:00').slice(0, 5))}"></label><label class="check-label"><input id="weekEliminationPredictions" type="checkbox" ${week.elimination_predictions_enabled ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Enable weekly elimination predictions</label><p class="week-prediction-hint">Turn this on only after verifying the new Kalshi market is open.</p>`;
   const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label>Air date <span class="optional">(optional)</span><input id="weekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label class="check-label"><input id="twoNightAiring" type="checkbox" ${week.second_air_date ? 'checked' : ''}> Two-night airing</label><label id="secondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="weekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label><label class="check-label"><input id="isSeasonFinale" type="checkbox" ${week.is_season_finale ? 'checked' : ''}> Season finale</label>${marketWeekFields}</div>`;
-  const readOnlyCards = dances.map((dance, index) => danceCard({ id: dance.id, kind: dance.kind,
-    title: labelForDance(dance, index), danceType: dance.dance_type, song: dance.song,
-    weekNumber: week.number,
-    scores: scoresForDance(dance.id), castNames: dancers(dance.id).map((member) => member.name),
-    scoreImage: judgeScoreImage, judgePhoto: judgePhotoImage,
-    photos: danceImagesFor(week.number, labelForDance(dance, index)).map(danceAsset),
-    cardPhoto: danceAsset(danceCardPhotoFor(week.number, labelForDance(dance, index))), poster: Number(week.number) <= 2,
-    pending: dance.kind === 'competitive' && scoresForDance(dance.id).length < 3 + (week.guest_judge_name ? 1 : 0),
-    weeklyPrediction: weeklyPredictionFor(pairData.partnerships.find((item) => item.id === dance.partnership_id)?.star_id,
-      week, activePartnershipPredictionRows(predictions, pairData.partnerships, pairData.players)) })).join('');
+  // Score Desk is an editing list, including completed weeks. Public dance
+  // cards and photography belong on the Dances page, not this workspace.
   $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canManageShow ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
-    ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? (!editable && !weekEditing ? readOnlyCards : dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : !weekEditing ? '<span class="card-chevron" aria-hidden="true">›</span>' : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('')) : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
+    ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : !weekEditing ? '<span class="card-chevron" aria-hidden="true">›</span>' : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="score-desk-judge-scores" aria-label="Judge scores">${scores.map((score) => `<span><b>${escapeHtml(score.judge_name)}</b> ${Number(score.score)}</span>`).join('')}${scores.length ? `<strong>${scores.reduce((sum, score) => sum + Number(score.score || 0), 0)} total</strong>` : ''}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   if (!week.is_complete && !isScoreDeskSurface) {
     document.querySelectorAll('#scoreDeskContent .dance-score-pending').forEach((item) => item.remove());
     document.querySelectorAll('#scoreDeskContent .week-summary span').forEach((item) => { if (item.textContent === '0 performances') item.remove(); });
@@ -1413,9 +1401,9 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
   const teamLeaders = [...teamTotals].sort((a, b) => b[1] - a[1]);
   const sortedRows = [...detailRows].sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
   openModal(`${context.backAction ? '<div class="modal-back-row"><button class="profile-back-button secondary" id="danceBackToProfile" type="button" aria-label="Back to profile">← Back</button></div>' : ''}${danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
-    scores, scoreImage: judgeScoreImage, judgePhoto: judgePhotoImage,
+    scores, scoreImage: judgeScoreImage, judgePhoto: isScoreDeskSurface ? null : judgePhotoImage,
     photos: danceImagesFor(week.number, title).map(danceAsset), weekNumber: week.number,
-    weeklyPrediction: weeklyPredictionFor(star?.id, week,
+    weeklyPrediction: isScoreDeskSurface ? null : weeklyPredictionFor(star?.id, week,
       activePartnershipPredictionRows(context.predictions || [], pairData.partnerships, pairData.players)),
     teams: teamLeaders.map(([name, points]) => ({ name, points })),
     castRows: sortedRows.map((row) => ({ ...row, role: displayRole({ ...row.member, role: row.role }) })),

@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260929-photo-optimization-v73';
+import { db } from './supabase-client.js?v=20260929-score-desk-judges-v74';
 
 let cached = [];
 let loadedAt = 0;

@@ -23,6 +23,7 @@ jobs:
       - run: node scripts/check-market-history-backfill.mjs
       - run: node scripts/check-airing-policy.mjs
       - run: node scripts/check-postdraft-view.mjs
+      - run: node scripts/check-score-desk-view.mjs
       - run: node scripts/check-dance-images.mjs
       - run: node scripts/check-profile-picture.mjs
       - run: node scripts/check-research-experience.mjs

@@ -4,6 +4,15 @@ const html = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => (
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[char]);
 const imagePosition = (value) => value != null && Number.isFinite(Number(value)) ? Number(value) : 50;
+export function judgePortraitFor(name, assetRoot = '') {
+  const judge = String(name || '').trim().toLowerCase();
+  const portraits = {
+    'carrie ann': 'Carrie Ann Inaba.webp', 'carrie ann inaba': 'Carrie Ann Inaba.webp',
+    derek: 'Derek Hough.webp', 'derek hough': 'Derek Hough.webp',
+    bruno: 'Bruno Tonioli.webp', 'bruno tonioli': 'Bruno Tonioli.webp',
+  };
+  return portraits[judge] ? `${assetRoot}Images/Cast Thumbnails/${portraits[judge]}` : '';
+}
 const marketLabels = { winner: 'Winner', second: '2nd Place', third: '3rd Place',
   top_three: 'Top 3', finalist: 'Finalist' };
 const marketShortLabels = { winner: 'Win', second: '2nd', third: '3rd',
@@ -162,8 +171,11 @@ export function castThumbnailFor(image) {
 
 function judgeScoreArt(score, scoreImage, judgePhoto) {
   const portrait = judgePhoto?.(score.judge_name);
+  const label = `${html(score.judge_name)}: ${Number(score.score)}`;
   return portrait
-    ? `<span class="judge-score-art" role="img" aria-label="${html(score.judge_name)}: ${Number(score.score)}"><img src="${html(portrait)}" alt=""><b aria-hidden="true">${Number(score.score)}</b></span>`
+    ? `<span class="judge-score-art" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><img src="${html(portrait)}" alt="" width="48" height="48" loading="lazy" decoding="async"><b aria-hidden="true">${Number(score.score)}</b></span>`
+    : judgePhoto
+      ? `<span class="judge-score-art judge-score-initial" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><i aria-hidden="true">${html(String(score.judge_name || 'J').charAt(0).toUpperCase())}</i><b aria-hidden="true">${Number(score.score)}</b></span>`
     : `<span class="judge-score-art judge-score-paddle"><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"></span>`;
 }
 
