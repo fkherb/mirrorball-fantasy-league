@@ -1,7 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-five-manager-v43';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-five-manager-v43';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery } from './postdraft-view.js?v=20260928-five-manager-v43';
-import { danceImagesFor } from './dance-images.js?v=20260928-five-manager-v43';
+import { db } from './supabase-client.js?v=20260928-airing-windows-v50';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-airing-windows-v50';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-airing-windows-v50';
+import { danceImagesFor } from './dance-images.js?v=20260928-airing-windows-v50';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-airing-windows-v50';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-airing-windows-v50';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -192,12 +194,12 @@ async function getPairingData() {
   const [{ data: players, error: playerError }, { data: partnerships, error: pairingError }, { data: weeks, error: weekError }, { data: teams, error: teamError }, managerMap] = await Promise.all([
     db.from('cast_members').select('*').order('name'),
     db.from('partnerships').select('id,star_id,pro_id,active,partnership_name').eq('active', true),
-    db.from('weeks').select('id,number,label').order('number', { ascending: false }),
+    db.from('weeks').select('*').order('number', { ascending: false }),
     db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId),
     getTeamManagerMap(),
   ]);
   if (playerError || pairingError || weekError || teamError) throw new Error(playerError?.message || pairingError?.message || weekError?.message || teamError?.message);
-  return { players, partnerships, weeks, teams: teams.map((team) => ({ ...team, manager_name: managerNameFor(team, managerMap) })) };
+  return { players, partnerships, weeks, teams: teams.map((team) => ({ ...team, manager_name: managerNameFor(team, managerMap), manager_user_id: managerMap.get(team.id)?.user_id })) };
 }
 
 function partnerFor(player, partnerships, players) {
@@ -242,18 +244,36 @@ async function loadRoster() {
   });
 }
 
-async function openCastDetail(castMemberId, returnTeamId = null, returnAction = null) {
+async function openCastDetail(castMemberId, returnTeamId = null, returnAction = null, backLabel = null) {
   if (!standingsSnapshot && !isOwnerSurface) await loadStandings();
-  const [{ data: member, error: memberError }, pairingData] = await Promise.all([
+  const [{ data: member, error: memberError }, pairingData, predictions] = await Promise.all([
     db.from('cast_members').select('*').eq('id', castMemberId).single(),
     getPairingData().catch((error) => ({ error })),
+    loadMarketPredictions(),
   ]);
   if (memberError || pairingData.error) {
     console.error(memberError || pairingData.error);
     return showNotice(friendlyError('load this cast member'));
   }
-  const partner = partnerFor(member, pairingData.partnerships, pairingData.players);
+  const historicalPair = member.role?.startsWith('Eliminated')
+    ? await db.from('partnerships').select('id,star_id,pro_id,active')
+      .eq(member.role === 'Eliminated Star' ? 'star_id' : 'pro_id', member.id)
+      .order('active', { ascending: false }).limit(1).maybeSingle()
+    : null;
+  const linkedPair = pairingData.partnerships.find((item) => item.star_id === member.id || item.pro_id === member.id)
+    || historicalPair?.data;
+  const partnerId = linkedPair?.star_id === member.id ? linkedPair.pro_id : linkedPair?.star_id;
+  const partner = pairingData.players.find((item) => item.id === partnerId);
+  const activePair = linkedPair?.active && ['Star', 'Pro'].includes(member.role) && partner && ['Star', 'Pro'].includes(partner.role);
+  const linkedPartner = partner && ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(partner.role);
+  const pair = activePair ? linkedPair : null;
+  const predictionStarId = pair?.star_id;
+  const predictionWeek = nextPredictionWeek(pairingData.weeks);
+  const activePredictions = activePartnershipPredictionRows(predictions, pairingData.partnerships, pairingData.players);
   const team = pairingData.teams.find((item) => item.id === member.fantasy_team_id);
+  const teamProfile = team?.manager_user_id
+    ? await db.from('profile_directory').select('avatar_url').eq('user_id', team.manager_user_id).maybeSingle()
+    : null;
   const scoreEntry = standingsSnapshot ? [...standingsSnapshot.weekMemberPoints.values()].reduce((total, weekPoints) => {
     const entry = weekPoints.get(member.id);
     total.official += Number(entry?.official || 0);
@@ -264,12 +284,23 @@ async function openCastDetail(castMemberId, returnTeamId = null, returnAction = 
   const fantasyPoints = Number(scoreEntry.official || 0) + Number(scoreEntry.appearances || 0);
   openModal(castProfile({ member, image: displayImagePath(member), role: displayRole(member),
     partner: partner?.name, teamName: team?.team_name || (team ? defaultTeamName(team.manager_name) : 'Available cast'),
+    teamId: team?.id, teamAvatar: teamProfile?.data?.avatar_url || '',
     fantasyPoints, judgesTotal: scoreEntry.official, appearanceCount: scoreEntry.appearanceCount,
     showJudges: isAnyPairRole(member.role), showWins: canHaveMirrorballWins(member.role, member.is_hough),
     details: member.profile_details && typeof member.profile_details === 'object'
       ? Object.entries(member.profile_details).filter(([, value]) => value) : [],
-    backLabel: returnAction ? 'dance' : returnTeamId ? 'team' : '' }));
+    backLabel: returnAction ? backLabel || 'dance' : returnTeamId ? 'team' : '',
+    partnerMember: linkedPartner ? partner : null,
+    partnerImage: linkedPartner ? displayImagePath(partner) : '',
+    seasonPredictions: seasonPredictionsFor(predictionStarId, activePredictions),
+    weeklyPrediction: weeklyPredictionFor(predictionStarId, predictionWeek, activePredictions),
+    predictionWeekNumber: predictionWeek?.number }));
+  bindCastPredictionToggle($('#modalBody'));
   $('#profileBack')?.addEventListener('click', () => returnAction ? returnAction() : openTeamDetail(returnTeamId));
+  $('#modalBody [data-partner-profile]')?.addEventListener('click', () => openCastDetail(partner.id, null,
+    () => openCastDetail(member.id, returnTeamId, returnAction, backLabel), 'profile'));
+  $('#modalBody [data-cast-team-detail]')?.addEventListener('click', () => openTeamDetail(team.id,
+    () => openCastDetail(member.id, returnTeamId, returnAction, backLabel)));
 }
 
 function rosterDetail(player, partnerships, players, weeks, teams) {
@@ -431,7 +462,7 @@ async function loadTeams() {
   });
 }
 
-async function openTeamDetail(teamId) {
+async function openTeamDetail(teamId, backAction = null) {
   const [{ data: team, error: teamError }, { data: roster, error: rosterError }, managerMap] = await Promise.all([
     db.from('fantasy_teams').select('id,manager_name,team_name').eq('league_id', defaultLeagueId).eq('id', teamId).single(),
     db.from('cast_members').select('*').eq('fantasy_team_id', teamId).order('name'),
@@ -442,9 +473,13 @@ async function openTeamDetail(teamId) {
   const managerName = managerNameFor(team, managerMap);
   const displayName = team.team_name || defaultTeamName(managerName);
   openModal(teamDetail({ manager: managerName, name: displayName,
-    roster: roster.map((member) => ({ ...member, displayRole: displayRole(member) })), imageFor: displayImagePath }));
+    roster: roster.map((member) => ({ ...member, displayRole: displayRole(member) })), imageFor: displayImagePath,
+    backLabel: backAction ? 'profile' : '' }));
+  $('#teamProfileBack')?.addEventListener('click', backAction);
   document.querySelectorAll('[data-team-cast-detail]').forEach((tile) => {
-    const open = () => openCastDetail(tile.dataset.teamCastDetail, teamId);
+    const open = () => backAction
+      ? openCastDetail(tile.dataset.teamCastDetail, null, () => openTeamDetail(teamId, backAction), 'team')
+      : openCastDetail(tile.dataset.teamCastDetail, teamId);
     tile.addEventListener('click', open);
     tile.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } });
   });
@@ -1261,10 +1296,11 @@ async function loadScoreDesk() {
   ]) : [{ data: [], error: null }, { data: [], error: null }];
   if (loadVersion !== scoreDeskLoadVersion) return;
   if (judgeError || appearanceError) { console.error(judgeError || appearanceError); return renderLoadError($('#scoreDeskContent'), 'load dance scoring', loadScoreDesk); }
-  const [pairResult, roleResult, snapshotResult] = await Promise.all([
+  const [pairResult, roleResult, snapshotResult, predictions] = await Promise.all([
     getPairingData().then((data) => ({ data })).catch((error) => ({ error })),
     db.from('roles').select('name,appearance_points'),
     week.is_complete ? db.from('weekly_roster_snapshots').select('*').eq('league_id', defaultLeagueId).eq('week_id', week.id) : Promise.resolve({ data: [], error: null }),
+    loadMarketPredictions(),
   ]);
   if (loadVersion !== scoreDeskLoadVersion) return;
   const detailError = pairResult.error || roleResult.error || snapshotResult.error;
@@ -1274,7 +1310,7 @@ async function loadScoreDesk() {
     return;
   }
   const pairData = pairResult.data;
-  const danceDetailContext = { roles: roleResult.data || [], snapshots: snapshotResult.data || [] };
+  const danceDetailContext = { roles: roleResult.data || [], snapshots: snapshotResult.data || [], predictions };
   const judgeOrder = ['Carrie Ann', 'Derek', 'Bruno', ...(week.guest_judge_name ? [week.guest_judge_name] : [])];
   const scoresForDance = (danceId) => judgeScores.filter((score) => score.dance_id === danceId).sort((a, b) => judgeOrder.indexOf(a.judge_name) - judgeOrder.indexOf(b.judge_name));
   const labelForDance = (dance, index) => {
@@ -1299,12 +1335,16 @@ async function loadScoreDesk() {
   const editable = canManageShow && !week.is_complete;
   const weekEditing = editable && editingWeekId === week.id;
   if (!editable) editingWeekId = null;
-  const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label>Air date <span class="optional">(optional)</span><input id="weekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label class="check-label"><input id="twoNightAiring" type="checkbox" ${week.second_air_date ? 'checked' : ''}> Two-night airing</label><label id="secondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="weekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label><label class="check-label"><input id="isSeasonFinale" type="checkbox" ${week.is_season_finale ? 'checked' : ''}> Season finale</label></div>`;
+  const marketWeekFields = `<p class="eyebrow week-market-heading">Airing and market predictions</p><label>First airing starts (ET)<input id="weekAirStartTime" type="time" value="${escapeHtml(String(week.air_start_time || '20:00').slice(0, 5))}"></label><label>First airing ends (ET)<input id="weekAirEndTime" type="time" value="${escapeHtml(String(week.air_end_time || '22:00').slice(0, 5))}"></label><label class="second-airing-time-field" ${week.second_air_date ? '' : 'hidden'}>Second airing starts (ET)<input id="weekSecondAirStartTime" type="time" value="${escapeHtml(String(week.second_air_start_time || '20:00').slice(0, 5))}"></label><label class="second-airing-time-field" ${week.second_air_date ? '' : 'hidden'}>Second airing ends (ET)<input id="weekSecondAirEndTime" type="time" value="${escapeHtml(String(week.second_air_end_time || '22:00').slice(0, 5))}"></label><label class="check-label"><input id="weekEliminationPredictions" type="checkbox" ${week.elimination_predictions_enabled ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Enable weekly elimination predictions</label><p class="week-prediction-hint">Turn this on only after verifying the new Kalshi market is open.</p>`;
+  const weekFields = `<div class="week-inline-fields"><label>Theme <span class="optional">(optional)</span><input id="weekTheme" value="${escapeHtml(week.theme || '')}"></label><label>Week title <span class="optional">(optional)</span><input id="weekTitle" value="${escapeHtml(week.title || '')}" placeholder="Optional custom title"></label><label>Air date <span class="optional">(optional)</span><input id="weekAirDate" type="date" value="${escapeHtml(week.air_date || '')}"></label><label class="check-label"><input id="twoNightAiring" type="checkbox" ${week.second_air_date ? 'checked' : ''}> Two-night airing</label><label id="secondAirDateField" ${week.second_air_date ? '' : 'hidden'}>Second night date<input id="weekSecondAirDate" type="date" value="${escapeHtml(week.second_air_date || '')}"></label><label class="check-label"><input id="guestJudgeEnabled" type="checkbox" ${week.guest_judge_name ? 'checked' : ''}> Guest judge</label><label id="guestJudgeField" ${week.guest_judge_name ? '' : 'hidden'}>Guest judge name<input id="guestJudgeName" value="${escapeHtml(week.guest_judge_name || '')}"></label><label class="check-label"><input id="doubleElimination" type="checkbox" ${week.double_elimination ? 'checked' : ''} ${week.is_finale ? 'disabled' : ''}> Double elimination</label><label class="check-label"><input id="isFinale" type="checkbox" ${week.is_finale ? 'checked' : ''}> No elimination</label><label class="check-label"><input id="isSeasonFinale" type="checkbox" ${week.is_season_finale ? 'checked' : ''}> Season finale</label>${marketWeekFields}</div>`;
   const readOnlyCards = dances.map((dance, index) => danceCard({ id: dance.id, kind: dance.kind,
     title: labelForDance(dance, index), danceType: dance.dance_type, song: dance.song,
+    weekNumber: week.number,
     scores: scoresForDance(dance.id), castNames: dancers(dance.id).map((member) => member.name),
     scoreImage: judgeScoreImage, photos: danceImagesFor(week.number, labelForDance(dance, index)), poster: Number(week.number) <= 2,
-    pending: dance.kind === 'competitive' && scoresForDance(dance.id).length < 3 + (week.guest_judge_name ? 1 : 0) })).join('');
+    pending: dance.kind === 'competitive' && scoresForDance(dance.id).length < 3 + (week.guest_judge_name ? 1 : 0),
+    weeklyPrediction: weeklyPredictionFor(pairData.partnerships.find((item) => item.id === dance.partnership_id)?.star_id,
+      week, activePartnershipPredictionRows(predictions, pairData.partnerships, pairData.players)) })).join('');
   $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canManageShow ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
     ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? (!editable && !weekEditing ? readOnlyCards : dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : !weekEditing ? '<span class="card-chevron" aria-hidden="true">›</span>' : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${judgeScoreImage(score.score)}" alt="${escapeHtml(score.judge_name)}: ${score.score}">`).join('')}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('')) : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
   if (!week.is_complete && !isScoreDeskSurface) {
@@ -1322,9 +1362,17 @@ async function loadScoreDesk() {
   $('#newDance')?.addEventListener('click', () => openNewDance(week, dances.length));
   $('#editWeek')?.addEventListener('click', () => { editingWeekId = week.id; loadScoreDesk(); });
   $('#cancelWeekEdit')?.addEventListener('click', () => { editingWeekId = null; loadScoreDesk(); });
-  $('#twoNightAiring')?.addEventListener('change', (event) => { $('#secondAirDateField').hidden = !event.target.checked; if (!event.target.checked) $('#weekSecondAirDate').value = ''; });
+  $('#twoNightAiring')?.addEventListener('change', (event) => {
+    $('#secondAirDateField').hidden = !event.target.checked;
+    document.querySelectorAll('.second-airing-time-field').forEach((field) => { field.hidden = !event.target.checked; });
+    if (!event.target.checked) $('#weekSecondAirDate').value = '';
+  });
   $('#guestJudgeEnabled')?.addEventListener('change', (event) => { $('#guestJudgeField').hidden = !event.target.checked; });
-  $('#isFinale')?.addEventListener('change', (event) => { $('#doubleElimination').disabled = event.target.checked; if (event.target.checked) $('#doubleElimination').checked = false; });
+  $('#isFinale')?.addEventListener('change', (event) => {
+    $('#doubleElimination').disabled = event.target.checked;
+    $('#weekEliminationPredictions').disabled = event.target.checked;
+    if (event.target.checked) { $('#doubleElimination').checked = false; $('#weekEliminationPredictions').checked = false; }
+  });
   $('#saveWeek')?.addEventListener('click', (event) => withBusy(event.currentTarget, 'Saving…', () => saveInlineWeek(week, dances)));
   if (weekEditing) attachDanceReorder();
   $('#completeWeek')?.addEventListener('click', () => openCompleteWeek(week));
@@ -1371,6 +1419,8 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
   const sortedRows = [...detailRows].sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
   openModal(danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
     scores, scoreImage: judgeScoreImage, photos: danceImagesFor(week.number, title), weekNumber: week.number,
+    weeklyPrediction: weeklyPredictionFor(star?.id, week,
+      activePartnershipPredictionRows(context.predictions || [], pairData.partnerships, pairData.players)),
     teams: teamLeaders.map(([name, points]) => ({ name, points })),
     castRows: sortedRows.map((row) => ({ ...row, role: displayRole({ ...row.member, role: row.role }) })),
     imageFor: displayImagePath }));
@@ -1516,13 +1566,26 @@ async function saveInlineWeek(week, dances) {
   if ($('#guestJudgeEnabled').checked && !guestJudge) return alert('Enter the guest judge’s name.');
   if (['Carrie Ann', 'Derek', 'Bruno'].some((name) => name.toLowerCase() === guestJudge.toLowerCase())) return alert('The guest judge needs a different name from the regular judges.');
   const isFinale = $('#isFinale').checked;
+  const airStartTime = $('#weekAirStartTime').value;
+  const airEndTime = $('#weekAirEndTime').value;
+  const secondAirStartTime = secondAirDate ? $('#weekSecondAirStartTime').value : null;
+  const secondAirEndTime = secondAirDate ? $('#weekSecondAirEndTime').value : null;
+  if (!airStartTime || !airEndTime || airStartTime >= airEndTime) return alert('The first airing end time must be after its start time.');
+  if (secondAirDate && (!secondAirStartTime || !secondAirEndTime || secondAirStartTime >= secondAirEndTime)) return alert('The second airing end time must be after its start time.');
+  if ($('#weekEliminationPredictions').checked && !airDate) return alert('Set an air date before enabling weekly elimination predictions.');
   const danceIds = [...document.querySelectorAll('#scoreDeskContent [data-reorder-id]')].map((row) => row.dataset.reorderId);
-  const payload = { p_week_id: week.id, p_theme: theme || null, p_title: title, p_guest_judge_name: guestJudge || null, p_double_elimination: !isFinale && $('#doubleElimination').checked, p_is_finale: isFinale, p_dance_ids: danceIds, p_air_date: airDate, p_second_air_date: secondAirDate, p_is_season_finale: $('#isSeasonFinale').checked };
+  const payload = { p_week_id: week.id, p_theme: theme || null, p_title: title, p_guest_judge_name: guestJudge || null,
+    p_double_elimination: !isFinale && $('#doubleElimination').checked, p_is_finale: isFinale,
+    p_dance_ids: danceIds, p_air_date: airDate, p_second_air_date: secondAirDate,
+    p_is_season_finale: $('#isSeasonFinale').checked,
+    p_air_start_time: airStartTime, p_air_end_time: airEndTime,
+    p_second_air_start_time: secondAirStartTime, p_second_air_end_time: secondAirEndTime,
+    p_elimination_predictions_enabled: !isFinale && $('#weekEliminationPredictions').checked };
   const saveButton = $('#saveWeek'); saveButton.disabled = true;
-  const { error } = await db.rpc('update_week_setup_and_finale', payload);
+  const { error } = await db.rpc('update_week_setup_with_market_schedule', payload);
   if (missingRpc(error)) {
     saveButton.disabled = false;
-    return alert('Run the cast source and league settings SQL migration in Supabase before saving week details.');
+    return alert('Run the market prediction history and schedule SQL migration in Supabase before saving week details.');
   }
   saveButton.disabled = false;
   if (error) return alert(`Couldn’t save Week ${week.number}: ${error.message}`);

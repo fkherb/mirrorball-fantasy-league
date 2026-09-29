@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260928-five-manager-v43';
+import { db } from './supabase-client.js?v=20260928-airing-windows-v50';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

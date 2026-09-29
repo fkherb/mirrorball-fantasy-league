@@ -310,6 +310,58 @@ Supabase Auth. Enable manual identity linking for the profile's Connect
 buttons; keep email/password login enabled until existing members have linked
 an identity. The website no longer offers new email/password registration.
 
+## Market predictions
+
+Run `supabase/add-kalshi-market-predictions.sql` after the cast-profile and
+week-airing-date migrations, then run
+`supabase/add-market-prediction-history-and-schedule.sql`. The first script maps
+the 2026 Kalshi ticker suffixes to canonical star IDs and creates the current
+prediction table. The second adds Eastern airing times (8–10 PM by default),
+the owner-controlled weekly elimination toggle, and append-only graph history.
+The first migration fails if any ticker code cannot be matched to a cast member.
+Predictions do not change fantasy points, roster rules, cast roles, or manually
+entered eliminations.
+
+Run `supabase/backfill-kalshi-market-history.sql` after the history migration
+to import the owner-supplied Week 1 and 2 pre-airing snapshots. It is safe to
+rerun. It intentionally leaves finalist and Week 1–2 elimination history empty;
+each point retains its original hourly candle timestamp and the 7:59 PM
+Eastern observation time. The source converter is
+`scripts/build-market-history-backfill.mjs`.
+
+Run `supabase/airing-trade-and-draft-windows.sql` after
+`supabase/add-market-prediction-history-and-schedule.sql`. In secondary leagues,
+trades and roster changes pause from two hours before each airing until two
+hours after its scheduled end (normally 6 PM–midnight Eastern). Draft starts,
+manual picks, and automatic picks pause 15 minutes before an airing and resume
+only after that week is marked complete. A timed draft keeps its remaining
+turn time across the pause; commissioner-paused drafts stay paused. The rules
+read any overridden airing times from Score Desk.
+
+Deploy `supabase/functions/sync-market-predictions` as a Supabase Edge Function
+with JWT verification disabled. Set its `MARKET_PREDICTIONS_SYNC_SECRET` to a
+long random secret. Supabase supplies `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` to the function; neither the service-role key nor
+the sync secret belongs in the site or repository. In Supabase Vault, store
+`market_prediction_sync_url` (the deployed function URL) and
+`market_prediction_sync_secret` (the **same** secret set on the Edge Function),
+then run `supabase/schedule-market-prediction-sync.sql`. Supabase Cron calls the
+function every five minutes. The function refreshes every 15 minutes outside
+an airing and every five minutes during either airing night, saving hourly or
+ten-minute graph points respectively. Only successful fetches advance the
+schedule; retries cannot duplicate a point. The GitHub workflow is manual-only
+for an emergency forced refresh; its repository secrets are optional unless
+you use that workflow.
+
+Weekly elimination markets are **off by default**. In Score Desk → Edit Week,
+verify the new Kalshi market is open before enabling the toggle. Override the
+first and second airing times there if needed. Weekly predictions stop at the
+final airing's end, even if the week has not been marked complete. Next week's
+prediction stays absent until its market is enabled and has a valid quote.
+Eliminated couples receive no new quotes or history points; their past graph
+data remains. The UI hides stale or closed markets. Review Kalshi's current
+data-display terms before publishing.
+
 Before deploying the invite-sharing UI, enable Supabase Cron (`pg_cron`) and run
 `supabase/short-league-invite-codes.sql` in the Supabase SQL editor. Each new
 setup league receives a link and six-character code when it is created. The

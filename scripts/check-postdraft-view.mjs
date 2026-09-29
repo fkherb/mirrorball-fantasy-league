@@ -38,6 +38,9 @@ assert.match(roleRatesTable([{ name: 'Surprise', appearance_points: null },
 assert.match(castProfile({ member, image: '/portrait.png', role: 'Pro', teamName: 'Team',
   fantasyPoints: 32, judgesTotal: 30, appearanceCount: 2, showJudges: true }),
   /cast-profile-stats/);
+assert.match(castProfile({ member: { ...member, role: 'Star' }, image: '/portrait.png', role: 'Star',
+  teamName: 'Team', seasonPredictions: [{ market_kind: 'winner', percent: 12.5,
+    relative_position: 0.5 }] }), /Season 35<\/small><strong>Winner<\/strong>/);
 assert.match(danceDetail({ kind: 'competitive', title: member.name, danceType: 'Foxtrot',
   song: 'Song', scores: [{ judge_name: 'Judge', score: 8 }], scoreImage: () => '/paddle.png',
   teams: [{ name: 'Team', points: 8 }], castRows: [{ member, role: 'Pro', teamName: 'Team', points: 8 }],

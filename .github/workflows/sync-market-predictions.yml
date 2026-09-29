@@ -1,0 +1,21 @@
+name: Sync Kalshi market predictions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh shared prediction data
+        env:
+          SYNC_URL: ${{ secrets.SUPABASE_MARKET_SYNC_URL }}
+          SYNC_SECRET: ${{ secrets.MARKET_PREDICTIONS_SYNC_SECRET }}
+        run: |
+          test -n "$SYNC_URL"
+          test -n "$SYNC_SECRET"
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            --request POST "$SYNC_URL" \
+            --header "Authorization: Bearer $SYNC_SECRET" \
+            --header 'Content-Type: application/json' \
+            --data '{"force":true}'

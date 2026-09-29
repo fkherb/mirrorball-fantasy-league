@@ -4,6 +4,50 @@ const html = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => (
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[char]);
 const imagePosition = (value) => value != null && Number.isFinite(Number(value)) ? Number(value) : 50;
+const marketLabels = { winner: 'Winner', second: '2nd Place', third: '3rd Place',
+  top_three: 'Top 3', finalist: 'Finalist' };
+const marketPercent = (value) => Number.isInteger(Number(value)) ? `${Number(value)}%` : `${Number(value).toFixed(1)}%`;
+function predictionColor(position) {
+  const stops = ['#16835e', '#84a83a', '#c38a2f', '#d36634', '#b63955'];
+  const scaled = Math.max(0, Math.min(1, position)) * (stops.length - 1);
+  const first = Math.floor(scaled);
+  const last = Math.min(first + 1, stops.length - 1);
+  const blend = scaled - first;
+  const channel = (hex, offset) => Number.parseInt(hex.slice(offset, offset + 2), 16);
+  return `#${[1, 3, 5].map((offset) => Math.round(channel(stops[first], offset) * (1 - blend)
+    + channel(stops[last], offset) * blend).toString(16).padStart(2, '0')).join('')}`;
+}
+function predictionRing(percent, tone = 'season', size = '', relativePosition = 0.5) {
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  const position = Math.max(0, Math.min(1, Number(relativePosition) || 0));
+  const color = predictionColor(tone === 'risk' ? position : 1 - position);
+  return `<span class="prediction-ring prediction-ring-${tone}${size ? ` prediction-ring-${size}` : ''}" style="--ring-value:${value}%;--ring-color:${color}"><strong>${marketPercent(value)}</strong></span>`;
+}
+
+function marketPredictionMarkup(seasonPredictions = [], weeklyPrediction = null, weekNumber = null) {
+  if (!seasonPredictions.length && !weeklyPrediction) return { main: '', expanded: '' };
+  const best = seasonPredictions[0];
+  const seasonGraphic = best ? `<span class="cast-market-feature">${predictionRing(best.percent, 'season', 'small', best.relative_position)}<span class="prediction-label"><small>Season 35</small><strong>${html(marketLabels[best.market_kind])}</strong></span>${seasonPredictions.length > 1 ? '<i class="prediction-expand-icon" aria-hidden="true">⌄</i>' : ''}</span>` : '';
+  const season = seasonPredictions.length > 1
+    ? `<button type="button" class="cast-market-season-toggle" aria-expanded="false" aria-controls="castSeasonPredictions" aria-label="Show all season predictions">${seasonGraphic}</button>`
+    : seasonGraphic;
+  const weekly = weeklyPrediction ? `<span class="cast-market-feature">${predictionRing(weeklyPrediction.percent, 'risk', 'small', weeklyPrediction.relative_position)}<span class="prediction-label"><small>Week ${Number(weekNumber) || ''}</small><strong>Elimination</strong></span></span>` : '';
+  const expanded = seasonPredictions.length > 1 ? `<div class="cast-market-list" id="castSeasonPredictions" hidden>${seasonPredictions.slice(1).map((row) => `<span class="cast-market-mini">${predictionRing(row.percent, 'season', 'small', row.relative_position)}<span class="prediction-label"><small>Season 35</small><strong>${html(marketLabels[row.market_kind])}</strong></span></span>`).join('')}</div>` : '';
+  return { main: `<section class="cast-market-predictions">${season}${weekly}</section>`, expanded };
+}
+const predictionNote = '<p class="market-source-note">*Predictions provided by Kalshi. Predictions have no effect on fantasy points.</p>';
+
+export function bindCastPredictionToggle(container) {
+  const button = container.querySelector('.cast-market-season-toggle');
+  const details = container.querySelector('#castSeasonPredictions');
+  if (!button || !details) return;
+  button.addEventListener('click', () => {
+    const expanded = button.getAttribute('aria-expanded') !== 'true';
+    button.setAttribute('aria-expanded', String(expanded));
+    button.setAttribute('aria-label', expanded ? 'Hide other season predictions' : 'Show all season predictions');
+    details.hidden = !expanded;
+  });
+}
 
 export function episodeSpotlight({ week, state = 'upcoming', date = '', scored = 0, performances = 0, teamPoints = null, portrait = '' }) {
   if (!week) return '';
@@ -52,15 +96,15 @@ export function teamCard({ id, manager, name, roster, editButton = false, emptyM
   return `<article class="card team-card" data-team-card-id="${html(id)}" data-team-detail="${html(id)}" tabindex="0" role="button" aria-label="View ${html(name)} cast roster"><div class="team-card-head"><div><p class="eyebrow">${html(manager)}</p><h2>${html(name)}</h2></div>${editButton ? `<button class="secondary team-edit-button" data-edit-team-id="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div><p class="team-mobile-hint">Tap to view lineup</p>${roster.length ? `<ul class="team-roster">${roster.map((member) => `<li><span>${html(member.name)}</span><small>${html(member.role)}</small></li>`).join('')}</ul>` : `<p class="sub">${html(emptyMessage)}</p>`}${footerHtml}</article>`;
 }
 
-export function teamDetail({ manager, name, roster, imageFor }) {
-  return `<div class="team-detail-head"><div><p class="eyebrow">${html(manager)}</p><h2>${html(name)}</h2><p class="sub">Current roster</p></div></div>${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member" data-team-cast-detail="${html(member.id)}" tabindex="0" role="button" aria-label="View ${html(member.name)} profile"><img src="${html(imageFor(member))}" style="object-position:${imagePosition(member.image_position)}% center" alt=""><div><b>${html(member.name)}</b><span>${html(member.displayRole || member.role)}</span></div><i aria-hidden="true">›</i></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`;
+export function teamDetail({ manager, name, roster, imageFor, backLabel = '' }) {
+  return `${backLabel ? `<button class="profile-back-button secondary" id="teamProfileBack" type="button">← Back to ${html(backLabel)}</button>` : ''}<div class="team-detail-head"><div><p class="eyebrow">${html(manager)}</p><h2>${html(name)}</h2><p class="sub">Current roster</p></div></div>${roster.length ? `<div class="team-detail-grid">${roster.map((member) => `<article class="team-detail-member" data-team-cast-detail="${html(member.id)}" tabindex="0" role="button" aria-label="View ${html(member.name)} profile"><img src="${html(imageFor(member))}" style="object-position:${imagePosition(member.image_position)}% center" alt=""><div><b>${html(member.name)}</b><span>${html(member.displayRole || member.role)}</span></div><i aria-hidden="true">›</i></article>`).join('')}</div>` : '<p class="sub">No cast members assigned yet.</p>'}`;
 }
 
 export function castRosterRow({ id, name, roleDetails, roleDetailsHtml, image, position = 50, editButton = false }) {
   return `<div class="row cast-roster-row" data-cast-detail="${html(id)}" tabindex="0" role="button" aria-label="View ${html(name)} profile"><img class="player-photo" style="object-position:${imagePosition(position)}% center" src="${html(image)}" alt=""><span><b>${html(name)}</b><small>${roleDetailsHtml ?? html(roleDetails)}</small></span>${editButton ? `<button data-player-id="${html(id)}">Edit</button>` : '<span class="row-chevron" aria-hidden="true">›</span>'}</div>`;
 }
 
-export function danceCard({ id, kind, title, danceType, song, scores, castNames, scoreImage, photos = [], poster = false, pending = false, editButton = false }) {
+export function danceCard({ id, kind, title, danceType, song, scores, castNames, scoreImage, photos = [], poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null }) {
   const total = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
   const art = photos.length
     ? `<div class="dance-card-photo"><img class="dance-photo-backdrop" src="${html(photos[0])}" alt="" aria-hidden="true" loading="lazy" decoding="async"><img class="dance-photo-main" src="${html(photos[0])}" alt="${html(title)} performing" loading="lazy" decoding="async"><span>${photos.length} photo${photos.length === 1 ? '' : 's'}</span></div>`
@@ -69,7 +113,9 @@ export function danceCard({ id, kind, title, danceType, song, scores, castNames,
     ? `<div class="dance-details"><span>${html(danceType || 'Dance type not set')}</span>${song ? `<span>${html(song)}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => `<img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}">`).join('')}${scores.length ? `<strong class="dance-judge-total" aria-label="Judges total ${total}">${total}<small>judges</small></strong>` : ''}${pending ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''}</div>` : '';
   const castMarkup = castNames.length
     ? `<div class="dance-cast" title="${html(castNames.join(', '))}"><span>Cast</span>${castNames.slice(0, 3).map((name) => `<b>${html(name)}</b>`).join('')}${castNames.length > 3 ? `<b>+${castNames.length - 3}</b>` : ''}</div>` : '';
-  return `<article class="card dance-row dance-${html(kind)} ${art ? 'has-dance-photo' : ''}" data-dance-detail="${html(id)}" tabindex="0" role="button" aria-label="View details for ${html(title)}">${art}<div class="dance-card-body"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${html(title)}</h3></div>${editButton ? `<button class="secondary" data-edit-dance="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>${scoresMarkup}${castMarkup}</div></article>`;
+  const prediction = kind === 'competitive' && weeklyPrediction
+    ? `<div class="dance-market-prediction">${predictionRing(weeklyPrediction.percent, 'risk', 'small', weeklyPrediction.relative_position)}<span class="prediction-label"><small>${weekNumber ? `Week ${Number(weekNumber)}` : 'Weekly'}</small><strong>Elimination</strong></span></div>` : '';
+  return `<article class="card dance-row dance-${html(kind)} ${art ? 'has-dance-photo' : ''}" data-dance-detail="${html(id)}" tabindex="0" role="button" aria-label="View details for ${html(title)}">${art}<div class="dance-card-body"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${html(title)}</h3></div>${editButton ? `<button class="secondary" data-edit-dance="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>${scoresMarkup}${prediction}${castMarkup}</div></article>`;
 }
 
 export function teamPage({ weekHistory, total, period, rosterRows, available, availableMarkup, tradesMarkup = '<section id="tradeCenter" class="trade-center card"><div class="trade-center-loading">Loading trades…</div></section>' }) {
@@ -85,22 +131,32 @@ export function roleRatesTable(rates, { secondaryLeague = false } = {}) {
 }
 
 export function castProfile({ member, image, role, partner, teamName, fantasyPoints, judgesTotal,
-  appearanceCount, showJudges, showWins, details = [], backLabel = '', pointsLabel = 'Fantasy points', pointsNote = '' }) {
+  appearanceCount, showJudges, showWins, details = [], backLabel = '', pointsLabel = 'Fantasy points', pointsNote = '',
+  partnerMember = null, partnerImage = '', teamId = null, teamAvatar = '', seasonPredictions = [], weeklyPrediction = null, predictionWeekNumber = null }) {
   const firstName = String(member.name || '').split(' ')[0];
   const bio = String(member.bio || 'Biography details have not been added yet.').trim();
   const words = bio.split(/\s+/);
   const longBio = words.length > 85;
   const preview = longBio ? `${words.slice(0, 65).join(' ')}…` : bio;
-  const bioMarkup = `<p>${html(preview)}</p>${longBio ? `<details class="cast-bio-expand"><summary>Continue reading</summary><p>${html(words.slice(65).join(' '))}</p></details>` : ''}`;
-  return `${backLabel ? `<button class="profile-back-button secondary" id="profileBack" type="button">← Back to ${html(backLabel)}</button>` : ''}<div class="cast-profile-hero"><img src="${html(image)}" style="object-position:${imagePosition(member.image_position)}% center" alt="${html(member.name)}"><div><p class="eyebrow">${html(role)}</p><h2>${html(member.name)}</h2><p class="sub">${partner ? `Partnered with ${html(partner)}` : 'Current season cast'}</p><span class="cast-team-pill">${html(teamName || 'Available cast')}</span></div></div><div class="cast-profile-stats"><div><strong>${fantasyPoints || 0}</strong><span>${html(pointsLabel)}</span></div>${showJudges ? `<div><strong>${judgesTotal || 0}</strong><span>Judges total</span></div>` : ''}<div><strong>${appearanceCount || 0}</strong><span>Appearances</span></div>${showWins ? `<div><strong>${Number(member.mirrorball_wins) || 0}</strong><span>Past wins</span></div>` : ''}</div>${pointsNote ? `<p class="cast-profile-points-note">${html(pointsNote)}</p>` : ''}<section class="cast-profile-copy"><p class="eyebrow">Cast profile</p><h3>About ${html(firstName)}</h3>${bioMarkup}${member.career_highlights ? `<h3>Career highlights</h3><p>${html(member.career_highlights)}</p>` : ''}</section>${details.length ? `<div class="cast-profile-details">${details.map(([label, value]) => `<div><small>${html(String(label).replaceAll('_', ' '))}</small><strong>${html(value)}</strong></div>`).join('')}</div>` : ''}`;
+  const bioMarkup = `<div class="cast-bio-body"><p class="cast-bio-preview">${html(preview)}</p>${longBio ? `<details class="cast-bio-expand"><summary><span class="bio-more-label">Continue reading</span><span class="bio-less-label">Show less</span></summary><p>${html(bio)}</p></details>` : ''}</div>`;
+  const partnerCard = partnerMember && ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(member.role)
+    ? `<button type="button" class="cast-profile-link-pill" data-partner-profile="${html(partnerMember.id)}" aria-label="View dance partner ${html(partnerMember.name)}"><img src="${html(partnerImage)}" alt=""><strong>${html(partnerMember.name)}</strong><i aria-hidden="true">›</i></button>` : '';
+  const teamAvatarMarkup = teamAvatar ? `<img src="${html(teamAvatar)}" alt="">` : `<span class="cast-team-initial" aria-hidden="true">${html(String(teamName || 'T').charAt(0).toUpperCase())}</span>`;
+  const teamCard = teamId ? `<button type="button" class="cast-profile-link-pill" data-cast-team-detail="${html(teamId)}" aria-label="View ${html(teamName)} team">${teamAvatarMarkup}<strong>${html(teamName)}</strong><i aria-hidden="true">›</i></button>` : `<span class="cast-profile-available">${html(teamName || 'Available cast')}</span>`;
+  const eliminated = member.role?.startsWith('Eliminated') ? '<p class="cast-eliminated-status">Eliminated from the competition</p>' : '';
+  const predictions = member.role?.startsWith('Eliminated')
+    ? { main: '', expanded: '' } : marketPredictionMarkup(seasonPredictions, weeklyPrediction, predictionWeekNumber);
+  return `${backLabel ? `<button class="profile-back-button secondary" id="profileBack" type="button">← Back to ${html(backLabel)}</button>` : ''}<div class="cast-profile-hero"><img src="${html(image)}" style="object-position:${imagePosition(member.image_position)}% center" alt="${html(member.name)}"><div class="cast-profile-intro"><p class="eyebrow">${html(role)}</p><h2>${html(member.name)}</h2><p class="sub">${partner ? `Partnered with ${html(partner)}` : 'Current season cast'}</p><div class="cast-profile-meta">${teamCard}${partnerCard}</div>${eliminated}${predictions.main}</div></div>${predictions.expanded}<div class="cast-profile-stats"><div><strong>${fantasyPoints || 0}</strong><span>${html(pointsLabel)}</span></div>${showJudges ? `<div><strong>${judgesTotal || 0}</strong><span>Judges total</span></div>` : ''}<div><strong>${appearanceCount || 0}</strong><span>Appearances</span></div>${showWins ? `<div><strong>${Number(member.mirrorball_wins) || 0}</strong><span>Past wins</span></div>` : ''}</div>${pointsNote ? `<p class="cast-profile-points-note">${html(pointsNote)}</p>` : ''}<section class="cast-profile-copy"><p class="eyebrow">Cast profile</p><h3>About ${html(firstName)}</h3>${bioMarkup}${member.career_highlights ? `<h3>Career highlights</h3><p>${html(member.career_highlights)}</p>` : ''}</section>${details.length ? `<div class="cast-profile-details">${details.map(([label, value]) => `<div><small>${html(String(label).replaceAll('_', ' '))}</small><strong>${html(value)}</strong></div>`).join('')}</div>` : ''}${predictions.main ? predictionNote : ''}`;
 }
 
-export function danceDetail({ kind, title, danceType, song, scores, scoreImage, teams, castRows, imageFor, photos = [], weekNumber = null }) {
+export function danceDetail({ kind, title, danceType, song, scores, scoreImage, teams, castRows, imageFor, photos = [], weekNumber = null, weeklyPrediction = null }) {
   const total = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
   const best = teams[0]?.points || 0;
   const leaders = best ? teams.filter((team) => team.points === best).map((team) => team.name) : [];
   const gallery = photos.length ? `<div class="dance-detail-gallery"><div class="dance-gallery-stage"><img class="dance-gallery-backdrop" src="${html(photos[0])}" alt="" aria-hidden="true" decoding="async"><img class="dance-gallery-main" src="${html(photos[0])}" alt="${html(title)} performing" decoding="async"></div>${photos.length > 1 ? `<div class="dance-gallery-rail" role="group" aria-label="Performance photos">${photos.map((photo, index) => `<button type="button" data-dance-gallery-photo="${html(photo)}" aria-label="Show photo ${index + 1} of ${photos.length}" aria-pressed="${index === 0}" class="${index === 0 ? 'selected' : ''}"><img src="${html(photo)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}</div>` : '';
-  return `<div class="dance-detail">${gallery}<div class="dance-detail-content"><div class="dance-detail-head"><p class="eyebrow">${weekNumber ? `Week ${Number(weekNumber)} · ` : ''}${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${html(title)}</h2><p class="sub">${kind === 'competitive' ? html(danceType || 'Dance type not set') : 'Special performance'}${song ? ` · ${html(song)}` : ''}</p></div>${kind === 'competitive' ? `<section class="detail-section dance-score-section"><div class="detail-section-title"><h3>Judges’ scores</h3><strong>${total || '—'}</strong></div><div class="detail-judges">${scores.map((score) => `<div><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"><span>${html(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section>` : ''}${castRows.length && kind === 'competitive' ? `<section class="dance-team-spotlight"><span>Top fantasy team${leaders.length === 1 ? '' : 's'}</span><strong>${html(leaders.join(' & ') || 'No points recorded')}</strong><small>${best ? `${best} point${best === 1 ? '' : 's'} earned from this dance` : 'Fantasy impact will appear when scoring is available.'}</small></section>` : ''}<section class="detail-section"><div class="detail-section-title"><h3>Cast & fantasy impact</h3>${castRows.length ? `<span>${castRows.length} cast member${castRows.length === 1 ? '' : 's'}</span>` : ''}</div>${castRows.length ? `<div class="dance-cast-impact-list">${castRows.map((row) => `<button type="button" data-dance-cast-profile="${html(row.member.id)}"><img src="${html(imageFor(row.member))}" style="object-position:${imagePosition(row.member.image_position)}% center" alt=""><span><b>${html(row.member.name)}</b><small>${html(row.role)} · ${html(row.teamName)}</small></span><strong>${row.points ? `+${row.points}` : '—'}</strong><i aria-hidden="true">›</i></button>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section></div></div>`;
+  const prediction = kind === 'competitive' && weeklyPrediction
+    ? `<section class="dance-detail-market">${predictionRing(weeklyPrediction.percent, 'risk', '', weeklyPrediction.relative_position)}<span class="prediction-label"><small>${weekNumber ? `Week ${Number(weekNumber)}` : 'Weekly'}</small><strong>Elimination</strong></span></section>` : '';
+  return `<div class="dance-detail">${gallery}<div class="dance-detail-content"><div class="dance-detail-head"><p class="eyebrow">${weekNumber ? `Week ${Number(weekNumber)} · ` : ''}${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${html(title)}</h2><p class="sub">${kind === 'competitive' ? html(danceType || 'Dance type not set') : 'Special performance'}${song ? ` · ${html(song)}` : ''}</p></div>${prediction}${kind === 'competitive' ? `<section class="detail-section dance-score-section"><div class="detail-section-title"><h3>Judges’ scores</h3><strong>${total || '—'}</strong></div><div class="detail-judges">${scores.map((score) => `<div><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"><span>${html(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section>` : ''}${castRows.length && kind === 'competitive' ? `<section class="dance-team-spotlight"><span>Top fantasy team${leaders.length === 1 ? '' : 's'}</span><strong>${html(leaders.join(' & ') || 'No points recorded')}</strong><small>${best ? `${best} point${best === 1 ? '' : 's'} earned from this dance` : 'Fantasy impact will appear when scoring is available.'}</small></section>` : ''}<section class="detail-section"><div class="detail-section-title"><h3>Cast & fantasy impact</h3>${castRows.length ? `<span>${castRows.length} cast member${castRows.length === 1 ? '' : 's'}</span>` : ''}</div>${castRows.length ? `<div class="dance-cast-impact-list">${castRows.map((row) => `<button type="button" data-dance-cast-profile="${html(row.member.id)}"><img src="${html(imageFor(row.member))}" style="object-position:${imagePosition(row.member.image_position)}% center" alt=""><span><b>${html(row.member.name)}</b><small>${html(row.role)} · ${html(row.teamName)}</small></span><strong>${row.points ? `+${row.points}` : '—'}</strong><i aria-hidden="true">›</i></button>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>${prediction ? predictionNote : ''}</div></div>`;
 }
 
 export function bindDanceGallery(container) {
