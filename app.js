@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-mobile-profile-v51';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-mobile-profile-v51';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-mobile-profile-v51';
-import { danceImagesFor } from './dance-images.js?v=20260928-mobile-profile-v51';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-mobile-profile-v51';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-mobile-profile-v51';
+import { db } from './supabase-client.js?v=20260928-judge-cards-v52';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-judge-cards-v52';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-judge-cards-v52';
+import { danceImagesFor } from './dance-images.js?v=20260928-judge-cards-v52';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-judge-cards-v52';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-judge-cards-v52';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -35,6 +35,11 @@ const canHaveMirrorballWins = (role, isHough = false) => ['Pro', 'Eliminated Pro
 const oppositeRole = (role) => role === 'Star' ? 'Pro' : 'Star';
 const activePairRole = (role) => role.includes('Star') ? 'Star' : role.includes('Pro') ? 'Pro' : role;
 const judgeScoreImage = (score) => `${assetRoot}Images/Judges Scores/${score}.png?v=20260921-optimized`;
+const judgePhotoImage = (name) => {
+  const portraits = { 'carrie ann': 'Carrie Ann Inaba.jpg', derek: 'Derek Hough.jpg', bruno: 'Bruno Tonioli.jpg' };
+  const file = portraits[String(name || '').trim().toLowerCase().replace(/ (inaba|hough|tonioli)$/, '')];
+  return file ? `${assetRoot}Images/${file}` : '';
+};
 let canEdit = false;
 let canManageShow = false;
 let canManageCast = false;
@@ -1341,7 +1346,7 @@ async function loadScoreDesk() {
     title: labelForDance(dance, index), danceType: dance.dance_type, song: dance.song,
     weekNumber: week.number,
     scores: scoresForDance(dance.id), castNames: dancers(dance.id).map((member) => member.name),
-    scoreImage: judgeScoreImage, photos: danceImagesFor(week.number, labelForDance(dance, index)), poster: Number(week.number) <= 2,
+    scoreImage: judgeScoreImage, judgePhoto: judgePhotoImage, photos: danceImagesFor(week.number, labelForDance(dance, index)), poster: Number(week.number) <= 2,
     pending: dance.kind === 'competitive' && scoresForDance(dance.id).length < 3 + (week.guest_judge_name ? 1 : 0),
     weeklyPrediction: weeklyPredictionFor(pairData.partnerships.find((item) => item.id === dance.partnership_id)?.star_id,
       week, activePartnershipPredictionRows(predictions, pairData.partnerships, pairData.players)) })).join('');
@@ -1418,7 +1423,7 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
   const teamLeaders = [...teamTotals].sort((a, b) => b[1] - a[1]);
   const sortedRows = [...detailRows].sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
   openModal(danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
-    scores, scoreImage: judgeScoreImage, photos: danceImagesFor(week.number, title), weekNumber: week.number,
+    scores, scoreImage: judgeScoreImage, judgePhoto: judgePhotoImage, photos: danceImagesFor(week.number, title), weekNumber: week.number,
     weeklyPrediction: weeklyPredictionFor(star?.id, week,
       activePartnershipPredictionRows(context.predictions || [], pairData.partnerships, pairData.players)),
     teams: teamLeaders.map(([name, points]) => ({ name, points })),

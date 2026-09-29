@@ -293,6 +293,15 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-card-info h3 { font-size: clamp(16px, 1.3vw, 19px); line-height: 1.16; }
 .dance-card-body .dance-details { margin: 8px 0 2px; }
 .dance-card-body .judge-paddles { margin-top: 7px; }
+.judge-paddles { gap: 8px; }
+.judge-score-art { position: relative; display: inline-grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; }
+.judge-paddles .judge-score-art img, .detail-judges .judge-score-art img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center 28%; filter: none; }
+.judge-score-art b { position: absolute; right: -5px; bottom: -5px; display: grid; width: 20px; height: 20px; place-items: center; border: 2px solid #fff; border-radius: 50%; background: #3f2b4b; color: #fff; font-size: 11px; line-height: 1; box-shadow: 0 2px 5px #26162e38; }
+.judge-score-art.judge-score-paddle { flex-basis: 28px; width: 28px; }
+.judge-score-art.judge-score-paddle img { width: 28px; height: 38px; border-radius: 0; object-fit: contain; }
+.dance-detail .detail-judges .judge-score-art { width: 46px; height: 46px; }
+.dance-detail .detail-judges .judge-score-art.judge-score-paddle { width: 36px; height: 48px; }
+.dance-detail .detail-judges .judge-score-art.judge-score-paddle img { width: 36px; height: 48px; }
 .dance-card-body .dance-cast { padding-top: 9px; }
 .dance-row.dance-performance .dance-card-body { min-height: 0; }
 .dance-gallery-stage { position: relative; isolation: isolate; height: clamp(220px, 32vw, 360px); }
@@ -315,15 +324,17 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 
 @media (max-width: 680px) {
   .dance-list { display: grid; grid-template-columns: 1fr; gap: 9px; }
-  .dance-row.has-dance-photo { display: grid; grid-template-columns: 104px minmax(0, 1fr); height: 112px; min-height: 112px; overflow: hidden; }
-  .dance-row.has-dance-photo .dance-card-photo { height: 110px; min-height: 110px; }
+  .dance-row.has-dance-photo { display: grid; grid-template-columns: 104px minmax(0, 1fr); height: auto; min-height: 160px; overflow: hidden; }
+  .dance-row.has-dance-photo .dance-card-photo { height: auto; min-height: 160px; }
   .dance-row.has-dance-photo .dance-card-photo > span { display: none; }
-  .dance-row.has-dance-photo .dance-card-body { min-height: 0; padding: 8px 10px; overflow: hidden; }
+  .dance-row.has-dance-photo .dance-card-body { min-height: 0; padding: 10px; overflow: visible; }
   .dance-row.has-dance-photo .dance-card-info h3 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 15px; }
-  .dance-row.has-dance-photo .dance-card-body .dance-details { margin-top: 4px; white-space: nowrap; overflow: hidden; }
+  .dance-row.has-dance-photo .dance-card-body .dance-details { margin-top: 5px; overflow: visible; }
   .dance-row.has-dance-photo .dance-card-body .dance-details span:nth-child(2) { display: none; }
-  .dance-row.has-dance-photo .dance-card-body .judge-paddles { margin-top: 3px; }
-  .dance-row.has-dance-photo .dance-card-body .judge-paddles img { display: none; }
+  .dance-row.has-dance-photo .dance-card-body .judge-paddles { margin-top: 7px; padding-bottom: 4px; }
+  .dance-row.has-dance-photo .dance-judge-total { display: none; }
+  .dance-row.has-dance-photo.dance-performance { min-height: 120px; }
+  .dance-row.has-dance-photo.dance-performance .dance-card-photo { min-height: 120px; }
   .dance-row.has-dance-photo .dance-card-body .dance-cast { display: none; }
   .dance-row:not(.has-dance-photo) { min-height: 84px; }
   .dance-row:not(.has-dance-photo) .dance-cast { display: none; }
@@ -341,5 +352,10 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
   .team-summary-strip .league-detail-total { align-self: flex-end; }
   .team-history-strip { width: 100%; scroll-snap-type: x proximity; }
   .team-history-strip > button { scroll-snap-align: start; }
+}
+@media (max-width: 360px) {
+  .dance-row.has-dance-photo { grid-template-columns: 88px minmax(0, 1fr); }
+  .dance-row.has-dance-photo .judge-paddles { gap: 5px; }
+  .dance-row.has-dance-photo .judge-score-art { flex-basis: 34px; width: 34px; height: 34px; }
 }
 @media (prefers-reduced-motion: reduce) { .dance-card-photo img { transition: none; } }

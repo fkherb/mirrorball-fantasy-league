@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-mobile-profile-v51';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-mobile-profile-v51';
-import { danceImagesFor } from './dance-images.js?v=20260928-mobile-profile-v51';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-mobile-profile-v51';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-mobile-profile-v51';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260928-mobile-profile-v51';
+import { db } from './supabase-client.js?v=20260928-judge-cards-v52';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-judge-cards-v52';
+import { danceImagesFor } from './dance-images.js?v=20260928-judge-cards-v52';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-judge-cards-v52';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-judge-cards-v52';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260928-judge-cards-v52';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({

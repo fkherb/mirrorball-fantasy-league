@@ -1397,8 +1397,8 @@ dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-column: 1; grid-r
   .cast-profile-hero .cast-profile-intro { padding-right: 0; }
 }
 @media (max-width: 680px) {
-  .dance-row.has-dance-photo:has(.dance-market-prediction) { height: auto; min-height: 144px; }
-  .dance-row.has-dance-photo:has(.dance-market-prediction) .dance-card-photo { height: 100%; min-height: 144px; }
+  .dance-row.has-dance-photo:has(.dance-market-prediction) { height: auto; min-height: 160px; }
+  .dance-row.has-dance-photo:has(.dance-market-prediction) .dance-card-photo { height: 100%; min-height: 160px; }
   .dance-row.has-dance-photo:has(.dance-market-prediction) .dance-card-body { overflow: visible; }
   .dance-row.has-dance-photo .dance-market-prediction { margin-top: 6px; }
 }

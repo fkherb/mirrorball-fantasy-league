@@ -29,6 +29,14 @@ assert.match(danceCard({ id: 'dance-1', kind: 'competitive', title: member.name,
 assert.match(danceCard({ id: 'dance-photo', kind: 'competitive', title: 'Pair',
   danceType: 'Foxtrot', song: 'Song', scores: [], castNames: [], scoreImage: () => '/paddle.png',
   photos: ['Images/Dances/Week%201/Pair-1.jpeg'] }), /dance-card-photo/);
+const scoredCard = danceCard({ id: 'dance-scored', kind: 'competitive', title: 'Pair',
+  danceType: 'Viennese Waltz', scores: [{ judge_name: 'Carrie Ann', score: 7 },
+    { judge_name: 'Guest', score: 8 }], castNames: [], scoreImage: () => '/paddle.png',
+  judgePhoto: (name) => name === 'Carrie Ann' ? '/carrie.jpg' : '', photos: ['/dance.jpg'] });
+assert.match(scoredCard, /Viennese Waltz/);
+assert.match(scoredCard, /class="judge-score-art" role="img" aria-label="Carrie Ann: 7"/);
+assert.match(scoredCard, /class="judge-score-art judge-score-paddle"/);
+assert.match(scoredCard, /Judges total 15/);
 assert.match(danceCard({ id: 'dance-poster', kind: 'performance', title: 'Opening',
   scores: [], castNames: [], poster: true }), /dance-card-poster/);
 assert.match(teamPage({ weekHistory: '<button>Week 1</button>', total: 32, period: 'season',
@@ -51,6 +59,9 @@ assert.match(danceDetail({ kind: 'competitive', title: member.name, danceType: '
   song: 'Song', scores: [{ judge_name: 'Judge', score: 8 }], scoreImage: () => '/paddle.png',
   teams: [{ name: 'Team', points: 8 }], castRows: [{ member, role: 'Pro', teamName: 'Team', points: 8 }],
   imageFor: () => '/portrait.png' }), /data-dance-cast-profile="cast-1"/);
+assert.match(danceDetail({ kind: 'competitive', title: 'Pair', scores: [{ judge_name: 'Derek', score: 9 }],
+  scoreImage: () => '/paddle.png', judgePhoto: () => '/derek.jpg', teams: [], castRows: [],
+  imageFor: () => '' }), /aria-label="Derek: 9"/);
 assert.match(danceDetail({ kind: 'competitive', title: 'Pair', scores: [], teams: [], castRows: [],
   photos: ['/photo-1.jpeg', '/photo-2.jpeg'], imageFor: () => '' }), /data-dance-gallery-photo="\/photo-2.jpeg"/);
 
