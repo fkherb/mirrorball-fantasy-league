@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-shared-route-v71';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-shared-route-v71';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-shared-route-v71';
-import { danceImagesFor } from './dance-images.js?v=20260929-shared-route-v71';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-shared-route-v71';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-shared-route-v71';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-shared-route-v71';
+import { db } from './supabase-client.js?v=20260929-live-dance-photos-v72';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-live-dance-photos-v72';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-live-dance-photos-v72';
+import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260929-live-dance-photos-v72';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-live-dance-photos-v72';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-live-dance-photos-v72';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-live-dance-photos-v72';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -13,6 +13,7 @@ const isOwnerSurface = isScoreDeskSurface || isCastRosterSurface;
 const defaultLeagueId = '00000000-0000-4000-8000-000000000001';
 let activeLeagueId = defaultLeagueId;
 const assetRoot = isOwnerSurface ? '../' : '';
+startDanceImageUpdates();
 const roles = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Judges + Hosts', 'Surprise'];
 const assignableRoles = roles.filter((role) => !role.startsWith('Eliminated'));
 const storedImagePathFor = (name) => `Images/${name.replace(/[.,'’]/g, '')}.jpg`;
@@ -1749,6 +1750,9 @@ function openRulesEditor(rates) {
 }
 
 if (isScoreDeskSurface) {
+  window.addEventListener('dance-images-updated', () => {
+    if (selectedWeekId && !editingWeekId && !$('#modal')?.open) void loadScoreDesk();
+  });
   $('#newWeek').addEventListener('click', openNewWeek);
   window.addEventListener('mirrorball-auth-change', (event) => {
     canManageShow = event.detail.isPlatformAdmin === true;

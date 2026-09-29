@@ -47,6 +47,17 @@ There is no build step. Open the project through any simple static web server,
 or let GitHub Pages serve the `main` branch. Do not open `index.html` directly:
 the module imports and Supabase connection are designed for a web origin.
 
+### Dance photos during an airing
+
+Upload photos to `Images/Dances/Week N/` on the `main` branch, using the dance
+card's couple name and a numbered suffix, for example
+`Images/Dances/Week 3/Amber Glenn and Pasha Pashkov-1.jpeg`. Use `and` or `&`
+between partner names; `.jpg`, `.jpeg`, `.png`, and `.webp` are supported.
+Additional photos can use `-2`, `-3`, and so on. The live site checks the public
+repository about every five minutes while open and updates matching dance cards
+without a site rebuild or page reload. Returning to the tab also checks for new
+photos. Until a matching photo is uploaded, the card continues without one.
+
 ## Database notes
 
 This is an existing, migrated project. Do **not** run `supabase/schema.sql` on

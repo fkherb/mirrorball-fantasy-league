@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readdirSync, existsSync } from 'node:fs';
-import { danceImagesFor } from '../dance-images.js';
+import { danceImagesFor, refreshDanceImages, uploadedDancePhotos } from '../dance-images.js';
 
 for (const week of [1, 2]) {
   const folder = `Images/Dances/Week ${week}`;
@@ -14,4 +14,25 @@ for (const week of [1, 2]) {
 }
 assert.equal(danceImagesFor(3, 'Amber Glenn & Pasha Pashkov').length, 0);
 assert.equal(danceImagesFor(1, 'Derek Hough\'s Tour Performance').length, 1);
-console.log('Week 1 and 2 dance photos verified.');
+const tree = [
+  { type: 'blob', path: 'Images/Dances/Week 3/Amber Glenn and Pasha Pashkov-2.jpg', sha: 'photo-two' },
+  { type: 'blob', path: 'Images/Dances/Week 3/Amber Glenn and Pasha Pashkov-1.jpeg', sha: 'photo-one' },
+  { type: 'blob', path: 'Images/Dances/Week 3/Elimination-1.jpeg', sha: 'editorial' },
+  { type: 'blob', path: 'Images/Dances/Week 3/Other Pair-1.webp', sha: 'other' },
+  { type: 'blob', path: 'Images/Dances/Week 3/notes.txt', sha: 'notes' },
+];
+assert.equal(uploadedDancePhotos(tree).size, 2);
+let fetchCount = 0;
+const fetcher = async () => {
+  fetchCount += 1;
+  return { ok: true, json: async () => ({ tree, truncated: false }) };
+};
+assert.equal(await refreshDanceImages({ fetcher, now: 1000000 }), true);
+const weekThree = danceImagesFor(3, 'Amber Glenn & Pasha Pashkov');
+assert.equal(weekThree.length, 2);
+assert.match(weekThree[0], /Amber%20Glenn%20and%20Pasha%20Pashkov-1\.jpeg\?v=photo-one$/);
+assert.match(weekThree[1], /Amber%20Glenn%20and%20Pasha%20Pashkov-2\.jpg\?v=photo-two$/);
+assert.equal(danceImagesFor(3, 'Unmatched Pair').length, 0);
+assert.equal(await refreshDanceImages({ fetcher, now: 1000001 }), false);
+assert.equal(fetchCount, 1);
+console.log('Existing and automatically discovered dance photos verified.');

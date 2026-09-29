@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260929-shared-route-v71';
+import { db } from '../supabase-client.js?v=20260929-live-dance-photos-v72';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

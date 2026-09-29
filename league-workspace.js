@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-shared-route-v71';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-shared-route-v71';
-import { danceImagesFor } from './dance-images.js?v=20260929-shared-route-v71';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-shared-route-v71';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-shared-route-v71';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-shared-route-v71';
-import { scoreLeague } from './scoring.js?v=20260929-shared-route-v71';
+import { db } from './supabase-client.js?v=20260929-live-dance-photos-v72';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-live-dance-photos-v72';
+import { danceImagesFor } from './dance-images.js?v=20260929-live-dance-photos-v72';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-live-dance-photos-v72';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-live-dance-photos-v72';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-live-dance-photos-v72';
+import { scoreLeague } from './scoring.js?v=20260929-live-dance-photos-v72';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -1645,6 +1645,13 @@ export function stopSecondaryLeague() {
   window.removeEventListener('resize', window.workspaceOverviewResize);
   window.workspaceOverviewResize = null;
 }
+
+window.addEventListener('dance-images-updated', () => {
+  const state = activeWorkspaceDetail;
+  if (state?.context.leagueStatus === 'active') {
+    renderDances(state.context, state.data, state.score, state.assignmentMap, state.memberByTeam);
+  }
+});
 
 window.addEventListener('focus', () => { refreshCurrentWorkspaceTrades?.(); refreshCurrentWorkspaceDraft?.(); });
 document.addEventListener('visibilitychange', () => {
