@@ -1,9 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-audit-fixes-v68';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-audit-fixes-v68';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-audit-fixes-v68';
-import { danceImagesFor } from './dance-images.js?v=20260929-audit-fixes-v68';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-audit-fixes-v68';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-audit-fixes-v68';
+import { db } from './supabase-client.js?v=20260929-shared-scoring-v69';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-shared-scoring-v69';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-shared-scoring-v69';
+import { danceImagesFor } from './dance-images.js?v=20260929-shared-scoring-v69';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-shared-scoring-v69';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-shared-scoring-v69';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-shared-scoring-v69';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -593,21 +594,6 @@ function teamPageWeeks(weeks) {
   const latestCompleted = [...weeks].reverse().find((week) => week.is_complete);
   const maximumNumber = latestCompleted ? latestCompleted.number + 1 : weeks[0]?.number;
   return maximumNumber == null ? [] : weeks.filter((week) => week.number <= maximumNumber);
-}
-
-function roleForWeek(member, week, weeks) {
-  if (!member?.role?.startsWith('Eliminated')) return member?.role || '';
-  const eliminatedWeek = weeks.find((item) => item.id === member.eliminated_week_id);
-  if (week && eliminatedWeek && week.number <= eliminatedWeek.number) return member.role.replace('Eliminated ', '');
-  return member.role;
-}
-
-function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
-  if (!member) return 0;
-  if (member.is_hough) return Number(roleMap.get('Hough')?.appearance_points) || 0;
-  const role = snapshot?.cast_role || roleForWeek(member, week, weeks);
-  if (role === 'Surprise') return Number(member.custom_appearance_points) || 0;
-  return Number(roleMap.get(role)?.appearance_points) || 0;
 }
 
 async function loadStandings() {
@@ -1268,40 +1254,6 @@ function openMyTeamEditor(team) {
     $('#myTeamNav').setAttribute('aria-label', teamNavLabel);
     $('#modal').close(); loadTeams(); loadStandings();
   });
-}
-
-function calculateLeaguePoints(data) {
-  const memberById = new Map(data.members.map((member) => [member.id, member]));
-  const roleMap = new Map(data.roles.map((role) => [role.name, role]));
-  const partnershipById = new Map(data.partnerships.map((partnership) => [partnership.id, partnership]));
-  const danceById = new Map(data.dances.map((dance) => [dance.id, dance]));
-  const weekById = new Map(data.weeks.map((week) => [week.id, week]));
-  const snapshotByWeekMember = new Map((data.rosterSnapshots || []).map((snapshot) => [`${snapshot.week_id}:${snapshot.cast_member_id}`, snapshot]));
-  const scoresByDance = new Map();
-  const memberPoints = new Map(data.members.map((member) => [member.id, 0]));
-  const weekMemberPoints = new Map();
-  const add = (memberId, weekId, kind, points) => {
-    if (!memberById.has(memberId)) return;
-    memberPoints.set(memberId, (memberPoints.get(memberId) || 0) + points);
-    if (!weekMemberPoints.has(weekId)) weekMemberPoints.set(weekId, new Map());
-    const memberWeek = weekMemberPoints.get(weekId);
-    const record = memberWeek.get(memberId) || { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] };
-    record[kind] += points;
-    if (kind === 'appearances') { record.appearanceCount += 1; record.appearanceRates.push(points); }
-    memberWeek.set(memberId, record);
-  };
-  data.scores.forEach((score) => scoresByDance.set(score.dance_id, (scoresByDance.get(score.dance_id) || 0) + score.score));
-  data.dances.filter((dance) => dance.kind === 'competitive').forEach((dance) => {
-    const pairing = partnershipById.get(dance.partnership_id);
-    const score = scoresByDance.get(dance.id) || 0;
-    if (pairing) [pairing.star_id, pairing.pro_id].forEach((id) => add(id, dance.week_id, 'official', score));
-  });
-  data.appearances.forEach((appearance) => {
-    const dance = danceById.get(appearance.dance_id);
-    const member = memberById.get(appearance.cast_member_id);
-    if (dance) add(member?.id, dance.week_id, 'appearances', appearanceValue(member, roleMap, weekById.get(dance.week_id), data.weeks, snapshotByWeekMember.get(`${dance.week_id}:${member?.id}`)));
-  });
-  return { teams: data.teams, members: data.members, weeks: data.weeks, memberPoints, weekMemberPoints };
 }
 
 async function loadScoreDesk() {

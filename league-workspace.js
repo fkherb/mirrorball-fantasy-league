@@ -1,9 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-audit-fixes-v68';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-audit-fixes-v68';
-import { danceImagesFor } from './dance-images.js?v=20260929-audit-fixes-v68';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-audit-fixes-v68';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-audit-fixes-v68';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-audit-fixes-v68';
+import { db } from './supabase-client.js?v=20260929-shared-scoring-v69';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-shared-scoring-v69';
+import { danceImagesFor } from './dance-images.js?v=20260929-shared-scoring-v69';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-shared-scoring-v69';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-shared-scoring-v69';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-shared-scoring-v69';
+import { scoreLeague } from './scoring.js?v=20260929-shared-scoring-v69';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -560,69 +561,6 @@ function updateDraftClock(deadline, serverNow = null, paused = false) {
   };
   tick();
   workspaceDraftTimer = setInterval(tick, 1000);
-}
-
-function scoreLeague(data, context) {
-  const teams = data.teams;
-  const castById = new Map(data.cast.map((member) => [member.id, member]));
-  const pairById = new Map(data.pairs.map((pair) => [pair.id, pair]));
-  const weekById = new Map(data.weeks.map((week) => [week.id, week]));
-  const danceById = new Map(data.dances.map((dance) => [dance.id, dance]));
-  const scoreByDance = new Map();
-  const rateByName = new Map(data.roles.map((role) => {
-    const leagueRate = data.rates.find((rate) => rate.role_id === role.id);
-    return [role.name, Number(leagueRate?.appearance_points ?? role.appearance_points) || 0];
-  }));
-  const snapshotByKey = new Map(data.snapshots.map((snapshot) => [`${snapshot.week_id}:${snapshot.cast_member_id}`, snapshot]));
-  const totalByTeam = new Map(teams.map((team) => [team.id, 0]));
-  const pointsByTeamCast = new Map(teams.map((team) => [team.id, new Map()]));
-  const pointsByWeekTeam = new Map();
-  const pointsByWeekCast = new Map();
-  const scoringWeeks = context.leagueStatus === 'active'
-    ? data.weeks.filter((week) => week.is_complete && week.number > context.scoringStartsAfterWeek)
-    : [];
-  if (scoringWeeks.some((week) => !data.snapshots.some((snapshot) => snapshot.week_id === week.id))) {
-    throw new Error('A completed week is missing this league’s roster snapshot. Scoring is paused until it is repaired.');
-  }
-  data.scores.forEach((score) => scoreByDance.set(score.dance_id, (scoreByDance.get(score.dance_id) || 0) + Number(score.score || 0)));
-  const add = (castId, weekId, amount, source) => {
-    const week = weekById.get(weekId);
-    if (context.leagueStatus !== 'active' || !week || !week.is_complete || week.number <= context.scoringStartsAfterWeek) return;
-    const snapshot = snapshotByKey.get(`${weekId}:${castId}`);
-    if (!snapshot) throw new Error(`Week ${week.number} is missing a cast roster snapshot. Scoring is paused until it is repaired.`);
-    const teamId = snapshot.fantasy_team_id;
-    if (!teamId || !totalByTeam.has(teamId)) return;
-    totalByTeam.set(teamId, totalByTeam.get(teamId) + amount);
-    const castPoints = pointsByTeamCast.get(teamId);
-    castPoints.set(castId, (castPoints.get(castId) || 0) + amount);
-    const key = `${weekId}:${teamId}`;
-    pointsByWeekTeam.set(key, (pointsByWeekTeam.get(key) || 0) + amount);
-    const castKey = `${weekId}:${castId}`;
-    const detail = pointsByWeekCast.get(castKey) || { official: 0, appearances: 0 };
-    detail[source] += amount;
-    pointsByWeekCast.set(castKey, detail);
-  };
-  data.dances.filter((dance) => dance.kind === 'competitive').forEach((dance) => {
-    const pair = pairById.get(dance.partnership_id);
-    if (!pair) return;
-    const score = scoreByDance.get(dance.id) || 0;
-    add(pair.star_id, dance.week_id, score, 'official');
-    add(pair.pro_id, dance.week_id, score, 'official');
-  });
-  data.appearances.forEach((appearance) => {
-    const dance = danceById.get(appearance.dance_id);
-    if (!dance) return;
-    const cast = castById.get(appearance.cast_member_id);
-    if (!cast) return;
-    const snapshot = snapshotByKey.get(`${dance.week_id}:${cast.id}`);
-    const role = snapshot?.cast_role || cast.role;
-    const rate = snapshot?.appearance_points != null ? Number(snapshot.appearance_points)
-      : cast.is_hough ? rateByName.get('Hough') || 0
-        : role === 'Surprise' ? Number(cast.custom_appearance_points) || 0
-          : rateByName.get(role) || 0;
-    add(cast.id, dance.week_id, rate, 'appearances');
-  });
-  return { totalByTeam, pointsByTeamCast, pointsByWeekTeam, pointsByWeekCast, scoringWeeks, rateByName, scoreByDance, snapshotByKey };
 }
 
 async function loadWorkspaceData(context) {

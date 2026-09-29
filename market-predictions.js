@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260929-audit-fixes-v68';
+import { db } from './supabase-client.js?v=20260929-shared-scoring-v69';
 
 let cached = [];
 let loadedAt = 0;
