@@ -27,3 +27,4 @@ jobs:
       - run: node scripts/check-profile-picture.mjs
       - run: node scripts/check-research-experience.mjs
       - run: node scripts/check-scoring.mjs
+      - run: node scripts/check-schema-baseline.mjs

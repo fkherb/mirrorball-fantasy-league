@@ -75,9 +75,10 @@ explicit pages by `market-history.js` when a graph needs it, avoiding the
 
 This is an existing, migrated project. Do **not** run `supabase/schema.sql` on
 the current project: it describes the original pre-migration `players` model.
-`supabase/migrations/README.md` describes the remaining one-time production
-schema baseline export. Do not treat the loose SQL patches as a substitute for
-a verified current schema dump.
+`supabase/migrations/20260929_live_public_baseline.sql` is the verified,
+schema-only public-schema export from September 29, 2026. It is a reference
+baseline, not a migration to apply to the live project. See
+`supabase/migrations/README.md` before refreshing it.
 The current migration/cleanup sequence and live-season boundaries are in
 [`docs/efficiency-and-data-integrity-plan.md`](docs/efficiency-and-data-integrity-plan.md).
 
