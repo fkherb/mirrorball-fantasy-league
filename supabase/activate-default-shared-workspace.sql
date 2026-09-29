@@ -59,9 +59,9 @@ begin
   end if;
   if exists (
     select 1 from public.cast_members cast_member
-    full join public.league_roster_assignments assignment
-      on assignment.league_id = v_league_id
-        and assignment.cast_member_id = cast_member.id
+    full join (select * from public.league_roster_assignments
+      where league_id = v_league_id) assignment
+      on assignment.cast_member_id = cast_member.id
     where cast_member.id is null or assignment.cast_member_id is null
       or cast_member.fantasy_team_id is distinct from assignment.fantasy_team_id
   ) then
@@ -69,8 +69,9 @@ begin
   end if;
   if exists (
     select 1 from public.roles role
-    full join public.league_role_rates rate
-      on rate.league_id = v_league_id and rate.role_id = role.id
+    full join (select * from public.league_role_rates
+      where league_id = v_league_id) rate
+      on rate.role_id = role.id
     where role.id is null or rate.role_id is null
       or role.appearance_points is distinct from rate.appearance_points
   ) then
