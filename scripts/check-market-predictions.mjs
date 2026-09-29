@@ -51,6 +51,7 @@ assert.match(profile, /33\.5%/);
 assert.match(profile, /Season 35<\/small><strong>3rd Place/);
 assert.match(profile, /14\.5%/);
 assert.match(profile, /data-partner-profile="pro-1"/);
+assert.doesNotMatch(profile, /Partnered with|Current season cast/);
 assert.match(profile, /data-cast-team-detail="team-1"/);
 assert.match(profile, /manager\.jpg/);
 assert.doesNotMatch(profile, /Meet dance partner/);

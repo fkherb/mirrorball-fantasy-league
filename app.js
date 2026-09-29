@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-viewport-dialog-v53';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-viewport-dialog-v53';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-viewport-dialog-v53';
-import { danceImagesFor } from './dance-images.js?v=20260928-viewport-dialog-v53';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-viewport-dialog-v53';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-viewport-dialog-v53';
+import { db } from './supabase-client.js?v=20260928-profile-copy-v54';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260928-profile-copy-v54';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-profile-copy-v54';
+import { danceImagesFor } from './dance-images.js?v=20260928-profile-copy-v54';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-profile-copy-v54';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-profile-copy-v54';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -288,7 +288,7 @@ async function openCastDetail(castMemberId, returnTeamId = null, returnAction = 
   }, { official: 0, appearances: 0, appearanceCount: 0 }) : { official: 0, appearances: 0, appearanceCount: 0 };
   const fantasyPoints = Number(scoreEntry.official || 0) + Number(scoreEntry.appearances || 0);
   openModal(castProfile({ member, image: displayImagePath(member), role: displayRole(member),
-    partner: partner?.name, teamName: team?.team_name || (team ? defaultTeamName(team.manager_name) : 'Available cast'),
+    teamName: team?.team_name || (team ? defaultTeamName(team.manager_name) : 'Available cast'),
     teamId: team?.id, teamAvatar: teamProfile?.data?.avatar_url || '',
     fantasyPoints, judgesTotal: scoreEntry.official, appearanceCount: scoreEntry.appearanceCount,
     showJudges: isAnyPairRole(member.role), showWins: canHaveMirrorballWins(member.role, member.is_hough),

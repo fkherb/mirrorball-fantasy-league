@@ -1,9 +1,9 @@
-import { db } from './supabase-client.js?v=20260928-viewport-dialog-v53';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-viewport-dialog-v53';
-import { danceImagesFor } from './dance-images.js?v=20260928-viewport-dialog-v53';
-import { loadMarketPredictions } from './market-predictions.js?v=20260928-viewport-dialog-v53';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-viewport-dialog-v53';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260928-viewport-dialog-v53';
+import { db } from './supabase-client.js?v=20260928-profile-copy-v54';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260928-profile-copy-v54';
+import { danceImagesFor } from './dance-images.js?v=20260928-profile-copy-v54';
+import { loadMarketPredictions } from './market-predictions.js?v=20260928-profile-copy-v54';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260928-profile-copy-v54';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260928-profile-copy-v54';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -133,7 +133,7 @@ function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction 
   }).length || 0;
   const projected = draftPreview ? projectedDraftCastPoints(cast, state.data, state.score) : null;
   dialog(castProfile({ member: cast, image: castImage(cast),
-    role: cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role, partner: partner?.name, teamName: currentTeamName,
+    role: cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role, teamName: currentTeamName,
     teamId, teamAvatar: teamMember?.avatar_url || '',
     fantasyPoints: projected?.fantasyPoints ?? totals.official + totals.appearances,
     judgesTotal: projected?.judgesTotal ?? totals.official,
