@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-cutover-prep-v70';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-cutover-prep-v70';
-import { danceImagesFor } from './dance-images.js?v=20260929-cutover-prep-v70';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-cutover-prep-v70';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-cutover-prep-v70';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-cutover-prep-v70';
-import { scoreLeague } from './scoring.js?v=20260929-cutover-prep-v70';
+import { db } from './supabase-client.js?v=20260929-shared-route-v71';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-shared-route-v71';
+import { danceImagesFor } from './dance-images.js?v=20260929-shared-route-v71';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-shared-route-v71';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-shared-route-v71';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-shared-route-v71';
+import { scoreLeague } from './scoring.js?v=20260929-shared-route-v71';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -190,6 +190,10 @@ function openWorkspaceTeamDetail(teamId, backAction = null) {
 }
 
 async function runAction(action, success, button = document.activeElement) {
+  if (activeWorkspaceDetail?.context.readOnlyWorkspacePreview) {
+    dialog('<h2>Preview only</h2><p>This preview cannot change rosters, trades, or league settings. Open the regular league page to manage your team.</p>');
+    return;
+  }
   if (workspaceActionPending) return;
   if (!(button instanceof HTMLButtonElement)) button = null;
   workspaceActionPending = true;
@@ -1244,7 +1248,9 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
     $('#league .league-at-a-glance').after(banner);
     banner.querySelector('button').addEventListener('click', () => $('#myTeamNav').click());
   }
-  $('#editLeagueName').hidden = context.leagueRole !== 'owner';
+  // The original league's name is still maintained through Score Desk's
+  // legacy settings during the reversible transition.
+  $('#editLeagueName').hidden = context.leagueRole !== 'owner' || context.leagueId === defaultLeagueId;
   $('#editLeagueName').onclick = () => openLeagueSettings(context, refresh);
   const teamsHeading = $('#leagueTeamsPane .splithead');
   teamsHeading.querySelector('#manageLeagueInvites')?.remove();
@@ -1496,7 +1502,15 @@ function openInviteManager(context, refresh) {
 }
 
 export async function renderSecondaryLeague(context, { silent = false } = {}) {
-  if (!context.signedIn || context.leagueId === defaultLeagueId) return;
+  if (!context.signedIn || (context.leagueId === defaultLeagueId && !context.useSharedWorkspace)) return;
+  $('#workspaceReadOnlyBanner')?.remove();
+  if (context.readOnlyWorkspacePreview) {
+    const banner = document.createElement('div');
+    banner.id = 'workspaceReadOnlyBanner';
+    banner.className = 'card pad workspace-preview-banner';
+    banner.textContent = 'Preview of the updated original league. This view is read-only; the live league has not switched.';
+    $('#memberOverview').prepend(banner);
+  }
   const version = ++workspaceVersion;
   ++tradeRequestVersion;
   refreshCurrentWorkspaceTrades = null;
@@ -1613,6 +1627,7 @@ export async function renderSecondaryLeague(context, { silent = false } = {}) {
 }
 
 export function stopSecondaryLeague() {
+  $('#workspaceReadOnlyBanner')?.remove();
   ++workspaceVersion;
   ++tradeRequestVersion;
   clearInterval(workspaceRefreshTimer);

@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260929-cutover-prep-v70';
+import { db } from './supabase-client.js?v=20260929-shared-route-v71';
 
 let cached = [];
 let loadedAt = 0;

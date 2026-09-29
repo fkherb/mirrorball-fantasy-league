@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20260929-cutover-prep-v70';
-import { prepareProfilePicture } from './profile-picture.js?v=20260929-cutover-prep-v70';
+import { db } from './supabase-client.js?v=20260929-shared-route-v71';
+import { prepareProfilePicture } from './profile-picture.js?v=20260929-shared-route-v71';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
@@ -344,7 +344,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       || leagues.find((league) => league.league_id === defaultLeagueId)
       || leagues[0] || null;
     const leagueId = selectedLeague?.league_id || defaultLeagueId;
-    const noLeague = Boolean(signedInEmail) && !selectedLeague;
+    let useSharedWorkspace = leagueId !== defaultLeagueId;
+    let leagueModeUnavailable = false;
+    if (selectedLeague && leagueId === defaultLeagueId) {
+      // The column arrives before the cutover and remains false until the
+      // database write paths and private parity checks are complete.
+      const { data: leagueMode, error: leagueModeError } = await db.from('leagues')
+        .select('shared_workspace_enabled').eq('id', leagueId).maybeSingle();
+      if (version !== accessVersion) return;
+      if (leagueModeError && !['42703', 'PGRST204'].includes(leagueModeError.code)) {
+        console.error('Could not check the original league route', leagueModeError);
+        leagueModeUnavailable = true;
+        leaguesError = true;
+      }
+      useSharedWorkspace = leagueMode?.shared_workspace_enabled === true;
+    }
+    const readOnlyWorkspacePreview = leagueId === defaultLeagueId && isPlatformAdmin
+      && new URLSearchParams(location.search).get('previewSharedDefault') === '1'
+      && !useSharedWorkspace;
+    if (readOnlyWorkspacePreview) useSharedWorkspace = true;
+    const noLeague = Boolean(signedInEmail) && (!selectedLeague || leagueModeUnavailable);
     if (selectedLeague) localStorage.setItem('mirrorball-active-league', leagueId);
     if (selectedLeague && selectedLeague.league_id !== defaultLeagueId) {
       currentMember = { fantasy_team_id: selectedLeague.fantasy_team_id,
@@ -413,7 +432,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     auth.setAttribute('aria-expanded', String(!menu.hidden));
     await refreshLinkedProviders();
     if (version !== accessVersion) return;
-    currentAccessDetail = { signedIn: Boolean(signedInEmail), noLeague, userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, leagues, leaguesError, joinToken };
+    currentAccessDetail = { signedIn: Boolean(signedInEmail), noLeague, userId: session?.user?.id || null, email: signedInEmail, firstName, lastName, displayName, username: currentProfile?.username || '', avatarUrl: currentProfile?.avatar_url || '', onboardingCompleted: currentProfile?.onboarding_completed === true, teamName, teamNavLabelMode: labelMode, customTeamNavLabel: currentMember?.custom_team_nav_label || '', isCommissioner, isPlatformAdmin, fantasyTeamId: selectedLeague?.fantasy_team_id || currentMember?.fantasy_team_id || null, membershipReady, leagueId, leagueName: selectedLeague?.name || 'DWTS Fantasy League', leagueStatus: selectedLeague?.status || 'active', rosterSize: selectedLeague?.roster_size || 11, leagueRole: selectedLeague?.member_role || null, scoringStartsAfterWeek: selectedLeague?.scoring_starts_after_week || 0, useSharedWorkspace, readOnlyWorkspacePreview, leagues, leaguesError, joinToken };
     window.dispatchEvent(new CustomEvent('mirrorball-auth-change', { detail: currentAccessDetail }));
   }
 

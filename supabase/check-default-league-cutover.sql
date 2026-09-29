@@ -64,4 +64,6 @@ select (select count(*) from legacy) as legacy_snapshots,
            (e.trade_id, e.event_type, e.initiator_team_id,
             e.counterparty_team_id, e.initiator_cast_member_name,
             e.counterparty_cast_member_name, e.notification_team_id,
-            e.dismissed_at, e.event_at))) as trade_event_mismatches;
+            e.dismissed_at, e.event_at))) as trade_event_mismatches,
+  to_regprocedure('public.claim_league_cast_member_without_default(uuid,uuid,uuid)')
+    is not null as shared_claim_bridge_installed;

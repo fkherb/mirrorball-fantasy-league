@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-cutover-prep-v70';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-cutover-prep-v70';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-cutover-prep-v70';
-import { danceImagesFor } from './dance-images.js?v=20260929-cutover-prep-v70';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-cutover-prep-v70';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-cutover-prep-v70';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-cutover-prep-v70';
+import { db } from './supabase-client.js?v=20260929-shared-route-v71';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-shared-route-v71';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-shared-route-v71';
+import { danceImagesFor } from './dance-images.js?v=20260929-shared-route-v71';
+import { loadMarketPredictions } from './market-predictions.js?v=20260929-shared-route-v71';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-shared-route-v71';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-shared-route-v71';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1824,7 +1824,7 @@ if (isScoreDeskSurface) {
       }
       return;
     }
-    if (activeLeagueId !== defaultLeagueId && event.detail.signedIn) {
+    if (!isOwnerSurface && event.detail.useSharedWorkspace && event.detail.signedIn) {
       canEdit = false;
       renderSecondaryLeague(event.detail);
       return;
