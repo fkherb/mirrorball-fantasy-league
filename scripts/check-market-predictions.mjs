@@ -110,13 +110,14 @@ const eliminatedPair = castProfile({ member: { id: 'pro-1', name: 'Example Pro',
 assert.match(eliminatedPair, /data-partner-profile="star-1"/);
 
 const card = danceCard({ id: 'dance-1', kind: 'competitive', title: 'Star & Pro', scores: [],
-  castNames: [], scoreImage: () => '', weeklyPrediction: weekly, weekNumber: 3 });
-assert.match(card, /Week 3<\/small><strong>Elimination/);
+  castNames: [], scoreImage: () => '', weeklyPrediction: weekly, weekNumber: 3, complete: false });
+assert.match(card, /aria-label="Week 3 elimination prediction 14\.5%"/);
 assert.match(card, /14\.5%/);
 assert.match(card, /prediction-ring-risk/);
 assert.doesNotMatch(card, /Predictions provided by Kalshi/);
 const highestRisk = danceCard({ id: 'dance-2', kind: 'competitive', title: 'High risk', scores: [],
-  castNames: [], scoreImage: () => '', photos: ['dance.jpg'], weeklyPrediction: weeklyPredictionFor('star-2', weeks[1], rows) });
+  castNames: [], scoreImage: () => '', photos: ['dance.jpg'], complete: false,
+  weeklyPrediction: weeklyPredictionFor('star-2', weeks[1], rows) });
 assert.match(highestRisk, /--ring-color:#b63955/);
 assert.match(highestRisk, /has-dance-photo/);
 const detail = danceDetail({ kind: 'competitive', title: 'Star & Pro', scores: [],

@@ -21,6 +21,25 @@ const weekTwo = [
   'Taylor Hanson and Britt Stewart', 'Tyler Cameron and Sharna Burgess',
 ];
 const key = (value) => String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+const couplePhotoNames = [
+  'Amber Glenn Pro and Pasha Pashkov', 'Ciara Miller and Brandon Armstrong',
+  'Conner Leavitt and Adele Zaikman', 'Connor Wood and Rylee Arnold',
+  'Ezra Frech and Daniella Karagach', 'Giada DeLaurentiis and Alan Bersten',
+  'Guillermo Rodriguez and Witney Carson', 'Harry Shum Jr and Jenna Chmerkovskiy',
+  'Jackson Olson and Emma Slater', 'Jenna Dewan and Val Chmerkovskiy',
+  'Julia Stiles and Ezra Sosa', 'Maura Higgins and Mark Ballas',
+  'Sarah Jane Nader Pro and Hailey Bills', 'Tatyana Ali and Jan Ravnik',
+  'Taylor Hanson and Britt Stewart', 'Tyler Cameron and Sharna Burgess',
+];
+const couplePhotoNamesByPair = new Map(couplePhotoNames.map((name) => [key(name), name]));
+couplePhotoNamesByPair.set(key('Amber Glenn and Pasha Pashkov'), couplePhotoNames[0]);
+couplePhotoNamesByPair.set(key('Giada De Laurentiis and Alan Bersten'), couplePhotoNames[5]);
+couplePhotoNamesByPair.set(key('Harry Shum Jr. and Jenna Johnson'), couplePhotoNames[7]);
+couplePhotoNamesByPair.set(key('Sarah Jane Nader and Hailey Bills'), couplePhotoNames[12]);
+export function couplePhotoFor(title) {
+  const name = couplePhotoNamesByPair.get(key(title));
+  return name ? `Images/Couples/${encodeURIComponent(name)}.avif` : '';
+}
 const manifests = [null, new Map(weekOne.map((name) => [key(name), name])), new Map(weekTwo.map((name) => [key(name), name]))];
 const treeUrl = 'https://api.github.com/repos/fkherb/mirrorball-fantasy-league/git/trees/main?recursive=1';
 const rawRoot = 'https://raw.githubusercontent.com/fkherb/mirrorball-fantasy-league/main/';

@@ -126,7 +126,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .cast-roster-row small { display: -webkit-box; max-height: 2.7em; overflow: hidden; margin-top: 3px; font-size: 10px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .cast-roster-row:hover, .cast-roster-row:focus-visible { transform: translateY(-1px); border-color: #a37ab3; box-shadow: 0 7px 17px #24172e1c; }
 .cast-profile-hero > img { width: 170px; height: 220px; }
-.dance-row:hover, .dance-row:focus-visible { border-color: #9a6aa9; box-shadow: 0 11px 27px #271b341f; }
+.dance-row:hover, .dance-row:focus-visible { transform: none; border-color: #9a6aa9; box-shadow: 0 11px 27px #271b341f; }
 .dance-row .judge-paddles { margin-top: 10px; }
 .dance-judge-total { display: flex; align-items: baseline; gap: 5px; margin-left: auto; color: #442b55; font: 700 22px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .dance-judge-total small { color: #766b79; font: 700 9px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .06em; }
@@ -286,8 +286,9 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-card-photo img.dance-photo-backdrop,
 .dance-gallery-stage img.dance-gallery-backdrop { position: absolute; inset: -12%; width: 124%; height: 124%; object-fit: cover; filter: blur(22px) brightness(.52); transform: scale(1.05); }
 .dance-card-photo img.dance-photo-main { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
+.dance-card-photo img.dance-couple-placeholder { object-fit: cover; }
 .dance-row:hover .dance-card-photo img.dance-photo-main,
-.dance-row:focus-visible .dance-card-photo img.dance-photo-main { transform: scale(1.015); }
+.dance-row:focus-visible .dance-card-photo img.dance-photo-main { transform: none; }
 .dance-card-photo::after { z-index: 1; inset: 72% 0 0; }
 .dance-card-photo > span { z-index: 2; right: 8px; bottom: 7px; }
 .dance-card-poster .poster-mark { font-size: clamp(32px, 4vw, 50px); }
@@ -298,17 +299,25 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-card-body .dance-details > .dance-song-pill.is-title-only { white-space: normal; overflow-wrap: anywhere; }
 .dance-card-body .dance-song-pill i { font-style: normal; }
 .dance-card-body .judge-paddles { margin-top: 7px; }
-.dance-extra-cast { display: inline-flex; align-items: baseline; gap: 5px; margin-left: auto; color: #50315d; font: 800 20px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-.dance-extra-cast small { color: #766b79; font: 700 9px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .06em; }
-.dance-performance-cast { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; margin-top: 12px; }
+.dance-card-footer { display: flex; align-items: center; gap: 8px; min-height: 50px; margin-top: auto; padding-top: 7px; }
+.dance-card-footer .judge-paddles { flex: 1; min-width: 0; margin: 0; }
+.dance-result-ring, .dance-prediction-metric { display: grid; flex: none; width: 40px; min-height: 44px; place-items: center; margin-left: auto; }
+.dance-result-ring svg { display: block; width: 40px; height: 40px; overflow: visible; }
+.dance-result-ring circle { fill: #fff; stroke: #6d4c76; stroke-width: 2.2; }
+.dance-result-ring .dance-result-arc { fill: #5e3b69; stroke: #fff; stroke-width: 2.4px; paint-order: stroke fill; font: 800 5.8px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: .25px; }
+.dance-result-ring .dance-result-value { fill: #4f305d; font: 800 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.dance-prediction-metric { gap: 2px; }
+.dance-prediction-metric small { color: #6d596e; font-size: 8px; font-weight: 800; line-height: 1; text-transform: uppercase; }
+.dance-performance-cast { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; max-height: 65px; overflow: hidden; margin-top: 12px; }
 .dance-cast-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 29px; padding: 3px 9px 3px 3px; border: 1px solid #e5dce4; border-radius: 999px; background: #faf7fa; color: #3d3141; }
 .dance-cast-pill img { flex: none; width: 23px; height: 23px; border-radius: 50%; object-fit: cover; }
 .dance-cast-pill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 10px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .dance-cast-pill .cast-avatar-frame { width: 23px; height: 23px; }
-.dance-performance-cast.is-avatar-grid { gap: 5px; max-height: 65px; overflow: hidden; }
-.dance-cast-circle { display: block; width: 30px; height: 30px; padding: 2px; border: 1px solid #e5dce4; border-radius: 50%; background: #faf7fa; }
-.dance-cast-circle .cast-avatar-frame { width: 24px; height: 24px; }
-.dance-cast-circle[hidden], .dance-cast-more[hidden] { display: none; }
+.dance-performance-cast.is-avatar-grid { gap: 5px; }
+.dance-performance-cast.is-avatar-grid .dance-cast-pill { width: 30px; height: 30px; min-height: 0; padding: 2px; }
+.dance-performance-cast.is-avatar-grid .dance-cast-pill .cast-avatar-frame { width: 24px; height: 24px; }
+.dance-performance-cast.is-avatar-grid .dance-cast-pill b { display: none; }
+.dance-cast-pill[hidden], .dance-cast-more[hidden] { display: none; }
 .dance-cast-more { display: grid; flex: none; width: 30px; height: 30px; place-items: center; border: 1px solid #dccbda; border-radius: 50%; background: #eee5ee; color: #56375d; font-size: 10px; font-weight: 850; }
 .judge-paddles { gap: 8px; }
 .judge-score-art { position: relative; display: inline-grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; }
@@ -365,7 +374,9 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
   .dance-row.has-dance-photo .dance-card-info h3 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 15px; }
   .dance-row.has-dance-photo .dance-card-body .dance-details { margin-top: 5px; overflow: visible; }
   .dance-row.has-dance-photo .dance-card-body .judge-paddles { margin-top: 7px; padding-bottom: 4px; }
-  .dance-row.has-dance-photo .dance-judge-total { display: none; }
+  .dance-row.has-dance-photo .dance-card-footer .judge-paddles { gap: 5px; margin: 0; padding: 0; }
+  .dance-row.has-dance-photo .judge-score-art:not(.judge-score-paddle) { flex: 0 0 30px; width: 30px; height: 30px; }
+  .dance-row.has-dance-photo .judge-score-art:not(.judge-score-paddle) img.judge-score-icon { right: -5px; bottom: -5px; width: 21px; height: 21px; }
   .dance-row.has-dance-photo.dance-performance { min-height: 120px; }
   .dance-row.has-dance-photo.dance-performance .dance-card-photo { min-height: 120px; }
   .dance-row.has-dance-photo .dance-card-body .dance-cast { display: none; }

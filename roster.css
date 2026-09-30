@@ -1466,3 +1466,6 @@ dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-column: 1; grid-r
 .cast-avatar-preview-row p { margin: 0; color: #6e5965; font-size: 12px; line-height: 1.4; }
 .cast-avatar-editor label { display: block; margin-top: 8px; }
 .cast-avatar-editor input[type="range"] { width: 100%; }
+.couple-photo-preview { width: min(100%, 320px); aspect-ratio: 2.2; overflow: hidden; border: 1px solid #e5dce4; border-radius: 11px; background: #35273c; }
+.couple-photo-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.couple-photo-editor .range-note { display: block; margin-top: 8px; }

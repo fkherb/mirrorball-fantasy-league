@@ -28,7 +28,7 @@ assert.match(overviewTeamDetail({ name: 'Team Ferb', manager: 'Freddy', total: 7
 
 const dance = danceCard({ id: 'dance-1', kind: 'competitive', title: 'Pair', danceType: 'Samba', song: '',
   scores: [{ judge_name: 'Carrie Ann', score: 9 }, { judge_name: 'Derek', score: 10 }], castNames: [], scoreImage: (score) => `${score}.png` });
-assert.match(dance, /Judges total 19/);
+assert.match(dance, /aria-label="Judges total 19"/);
 
 const experienceStyles = await readFile(new URL('../research-experience.css', import.meta.url), 'utf8');
 assert.match(experienceStyles, /\.card\s*\{[^}]*background:\s*var\(--experience-surface\)/);

@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import { readdirSync, existsSync } from 'node:fs';
-import { danceImagesFor, danceCardPhotoFor, refreshDanceImages, uploadedDancePhotos } from '../dance-images.js';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor, refreshDanceImages, uploadedDancePhotos } from '../dance-images.js';
+
+for (const pair of [
+  'Amber Glenn & Pasha Pashkov', 'Ciara Miller & Brandon Armstrong',
+  'Conner Leavitt & Adele Zaikman', 'Connor Wood & Rylee Arnold',
+  'Ezra Frech & Daniella Karagach', 'Giada De Laurentiis & Alan Bersten',
+  'Guillermo Rodriguez & Witney Carson', 'Harry Shum Jr. & Jenna Johnson',
+  'Jackson Olson & Emma Slater', 'Jenna Dewan & Val Chmerkovskiy',
+  'Julia Stiles & Ezra Sosa', 'Maura Higgins & Mark Ballas',
+  'Sarah Jane Nader & Hailey Bills', 'Tatyana Ali & Jan Ravnik',
+  'Taylor Hanson & Britt Stewart', 'Tyler Cameron & Sharna Burgess',
+]) {
+  const photo = couplePhotoFor(pair);
+  assert.ok(photo && existsSync(decodeURIComponent(photo)), `Missing couple placeholder: ${pair}`);
+}
 
 for (const week of [1, 2]) {
   const folder = `Images/Dances/Week ${week}`;

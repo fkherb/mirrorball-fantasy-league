@@ -3,6 +3,7 @@ import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, 
   castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, judgePortraitFor, judgeMemberFor } from '../postdraft-view.js';
 import { splitDanceSong, joinDanceSong } from '../dance-song.js';
 import { avatarFrameFor, avatarImageStyle } from '../cast-avatar-frame.js';
+import { couplePhotoFrameFor, couplePhotoStyle } from '../couple-photo-frame.js';
 
 const member = { id: 'cast-1', name: 'A & B', image_position: 0 };
 const rows = [{ member, role: 'Pro', displayRole: 'Pro', appearanceRate: 1,
@@ -42,6 +43,18 @@ assert.match(scoredCard, /class="judge-score-art judge-score-initial" role="img"
 assert.match(scoredCard, /class="judge-score-icon" src="\/paddle\.png"/);
 assert.doesNotMatch(scoredCard, /<b aria-hidden="true">7<\/b>/);
 assert.match(scoredCard, /Judges total 15/);
+assert.match(scoredCard, /class="dance-result-ring"/);
+const couplePlaceholderCard = danceCard({ id: 'couple-photo', kind: 'competitive', title: 'Pair',
+  scores: [], castNames: [], placeholderPhoto: '/couple.avif',
+  placeholderStyle: 'object-position:40% 60%', poster: true });
+assert.match(couplePlaceholderCard, /src="\/couple.avif"[^>]*style="object-position:40% 60%"/);
+assert.doesNotMatch(couplePlaceholderCard, /dance-card-poster/);
+assert.match(danceCard({ id: 'real-photo', kind: 'competitive', title: 'Pair', scores: [],
+  castNames: [], photos: ['/dance.jpg'], placeholderPhoto: '/couple.avif' }), /src="\/dance.jpg"/);
+assert.doesNotMatch(danceCard({ id: 'real-photo', kind: 'competitive', title: 'Pair', scores: [],
+  castNames: [], photos: ['/dance.jpg'], placeholderPhoto: '/couple.avif' }), /couple.avif/);
+assert.match(danceCard({ id: 'upcoming', kind: 'competitive', title: 'Pair', scores: [],
+  castNames: [], weekNumber: 4, complete: false }), /prediction-ring-tba/);
 assert.deepEqual(splitDanceSong('Escape (The Piña Colada Song) by Rupert Holmes'),
   { title: 'Escape (The Piña Colada Song)', artist: 'Rupert Holmes' });
 assert.equal(joinDanceSong('Maneater', 'Hall & Oates'), 'Maneater by Hall & Oates');
@@ -52,7 +65,8 @@ const extraCastCard = danceCard({ id: 'dance-extra', kind: 'competitive', title:
   scoreImage: () => '/paddle.png' });
 assert.match(extraCastCard, /class="dance-song-pill"/);
 assert.match(extraCastCard, /Escape \(The Piña Colada Song\)<i> by Rupert Holmes<\/i>/);
-assert.match(extraCastCard, /class="dance-extra-cast"[^>]*>\+2<small>cast<\/small>/);
+assert.match(extraCastCard, /aria-label="2 additional cast members: One, Two"/);
+assert.match(extraCastCard, /class="dance-result-value"[^>]*>\+2<\/text>/);
 assert.doesNotMatch(extraCastCard, /Judges total 7|class="dance-cast"/);
 const performanceCard = danceCard({ id: 'opening', kind: 'performance', title: 'Opening',
   scores: [], castNames: ['One', 'Two', 'Three', 'Four'],
@@ -63,9 +77,9 @@ const largePerformanceCard = danceCard({ id: 'large-opening', kind: 'performance
   scores: [], castNames: Array.from({ length: 21 }, (_, index) => `Cast ${index + 1}`),
   castMembers: Array.from({ length: 21 }, (_, index) => ({ name: `Cast ${index + 1}` })),
   imageFor: () => '/cast.webp' });
-assert.equal((largePerformanceCard.match(/class="dance-cast-circle"/g) || []).length, 21);
+assert.equal((largePerformanceCard.match(/class="dance-cast-pill"/g) || []).length, 21);
 assert.match(largePerformanceCard, /class="dance-cast-more" role="img" hidden/);
-assert.doesNotMatch(largePerformanceCard, /class="dance-cast-pill"/);
+assert.doesNotMatch(largePerformanceCard, /is-avatar-grid/);
 assert.match(performanceCard, /src="\/cast.webp"/);
 assert.match(performanceCard, /class="cast-avatar-frame"/);
 assert.deepEqual(avatarFrameFor({ profile_details: { _avatar_frame: { x: 30, y: 70, zoom: 2.2 } } }),
@@ -73,6 +87,11 @@ assert.deepEqual(avatarFrameFor({ profile_details: { _avatar_frame: { x: 30, y: 
 assert.equal(avatarImageStyle({ profile_details: { _avatar_frame: { x: 30, y: 70, zoom: 2.2 } } }),
   'object-position:30% 70%;transform:scale(2.2);transform-origin:30% 70%');
 assert.deepEqual(avatarFrameFor({}), { x: 50, y: 50, zoom: 1 });
+assert.deepEqual(couplePhotoFrameFor({ profile_details: { _couple_photo_frames: {
+  pro1: { x: 42, y: 63, zoom: 1.7 },
+} } }, 'pro1'), { x: 42, y: 63, zoom: 1.7 });
+assert.equal(couplePhotoStyle({ x: 42, y: 63, zoom: 1.7 }),
+  'object-position:42% 63%;transform:scale(1.7);transform-origin:42% 63%');
 assert.match(danceCard({ id: 'long-pair', kind: 'competitive', title: 'Guillermo Rodriguez & Witney Carson',
   shortTitle: 'Guillermo Rodriguez & Witney', scores: [], castNames: [] }),
   /data-full-title="Guillermo Rodriguez &amp; Witney Carson" data-short-title="Guillermo Rodriguez &amp; Witney"/);
@@ -119,5 +138,7 @@ assert.match(danceDetail({ kind: 'competitive', title: 'Pair', scores: [{ judge_
   imageFor: () => '' }), /aria-label="Derek: 9"/);
 assert.match(danceDetail({ kind: 'competitive', title: 'Pair', scores: [], teams: [], castRows: [],
   photos: ['/photo-1.jpeg', '/photo-2.jpeg'], imageFor: () => '' }), /data-dance-gallery-photo="\/photo-2.jpeg"/);
+assert.match(danceDetail({ kind: 'competitive', title: 'Pair', scores: [], teams: [], castRows: [],
+  placeholderPhoto: '/couple.avif', imageFor: () => '' }), /src="\/couple.avif"/);
 
 console.log('Shared post-draft views verified.');
