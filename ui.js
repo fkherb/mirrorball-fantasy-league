@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20260930-next-week-dances-v76';
-import { prepareProfilePicture } from './profile-picture.js?v=20260930-next-week-dances-v76';
+import { db } from './supabase-client.js?v=20260930-dance-card-layout-v77';
+import { prepareProfilePicture } from './profile-picture.js?v=20260930-dance-card-layout-v77';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

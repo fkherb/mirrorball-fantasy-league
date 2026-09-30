@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260930-next-week-dances-v76';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-next-week-dances-v76';
-import { danceImagesFor, danceCardPhotoFor } from './dance-images.js?v=20260930-next-week-dances-v76';
-import { loadMarketPredictions } from './market-predictions.js?v=20260930-next-week-dances-v76';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-next-week-dances-v76';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260930-next-week-dances-v76';
-import { scoreLeague } from './scoring.js?v=20260930-next-week-dances-v76';
+import { db } from './supabase-client.js?v=20260930-dance-card-layout-v77';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, danceCard, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-dance-card-layout-v77';
+import { danceImagesFor, danceCardPhotoFor } from './dance-images.js?v=20260930-dance-card-layout-v77';
+import { loadMarketPredictions } from './market-predictions.js?v=20260930-dance-card-layout-v77';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-dance-card-layout-v77';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260930-dance-card-layout-v77';
+import { scoreLeague } from './scoring.js?v=20260930-dance-card-layout-v77';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -27,6 +27,7 @@ let tradeRequestVersion = 0;
 let hubVersion = 0;
 let workspaceActionPending = false;
 let selectedDanceWeekId = null;
+let danceSongResizeObserver = null;
 let tradeTab = 'active';
 let workspaceRosterFilter = 'all';
 let selectedWorkspaceOverviewTeamId = null;
@@ -1217,18 +1218,26 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
     const pair = pairById.get(dance.partnership_id);
     const names = pair ? `${nameFor(pair.star_id)} & ${nameFor(pair.pro_id)}` : dance.name || 'Performance';
     const judges = data.scores.filter((item) => item.dance_id === dance.id);
-    const castNames = data.appearances.filter((item) => item.dance_id === dance.id)
-      .map((appearance) => nameFor(appearance.cast_member_id));
+    const castMembers = data.appearances.filter((item) => item.dance_id === dance.id)
+      .map((appearance) => castById.get(appearance.cast_member_id)).filter(Boolean);
+    const castNames = castMembers.map((member) => member.name);
     return danceCard({ id: dance.id, kind: dance.kind, title: names,
       photos: danceImagesFor(week.number, names), cardPhoto: danceCardPhotoFor(week.number, names),
       poster: Number(week.number) <= 2,
       weekNumber: week.number,
-      danceType: dance.dance_type, song: dance.song, scores: judges, castNames,
+      danceType: dance.dance_type, song: dance.song, scores: judges, castNames, castMembers,
+      imageFor: castImage,
       scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
       judgePhoto: judgePortraitFor,
       pending: false, weeklyPrediction: weeklyPredictionFor(pair?.star_id, week,
         activePartnershipPredictionRows(data.marketPredictions || [], data.pairs, data.cast)) });
   }).join('') || '<div class="card pad">No dances recorded for this week.</div>'}</div>`;
+  danceSongResizeObserver?.disconnect();
+  fitDanceSongLabels(content);
+  if (typeof ResizeObserver !== 'undefined') {
+    danceSongResizeObserver = new ResizeObserver(() => fitDanceSongLabels(content));
+    content.querySelectorAll('.dance-row .dance-details').forEach((details) => danceSongResizeObserver.observe(details));
+  }
   content.querySelectorAll('[data-dance-detail]').forEach((button) => {
     const open = () => openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week,
       weekDances.find((item) => item.id === button.dataset.danceDetail));

@@ -294,7 +294,16 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-card-body { padding: 12px 14px; }
 .dance-card-info h3 { font-size: clamp(16px, 1.3vw, 19px); line-height: 1.16; }
 .dance-card-body .dance-details { margin: 8px 0 2px; }
+.dance-card-body .dance-details > span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+.dance-card-body .dance-details > .dance-song-pill.is-title-only { white-space: normal; overflow-wrap: anywhere; }
+.dance-card-body .dance-song-pill i { font-style: normal; }
 .dance-card-body .judge-paddles { margin-top: 7px; }
+.dance-extra-cast { display: inline-flex; align-items: baseline; gap: 5px; margin-left: auto; color: #50315d; font: 800 20px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.dance-extra-cast small { color: #766b79; font: 700 9px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .06em; }
+.dance-performance-cast { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; margin-top: 12px; }
+.dance-cast-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 29px; padding: 3px 9px 3px 3px; border: 1px solid #e5dce4; border-radius: 999px; background: #faf7fa; color: #3d3141; }
+.dance-cast-pill img { flex: none; width: 23px; height: 23px; border-radius: 50%; object-fit: cover; }
+.dance-cast-pill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 10px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .judge-paddles { gap: 8px; }
 .judge-score-art { position: relative; display: inline-grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; }
 .judge-paddles .judge-score-art img, .detail-judges .judge-score-art img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center 28%; filter: none; }
@@ -347,7 +356,6 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
   .dance-row.has-dance-photo .dance-card-body { min-height: 0; padding: 10px; overflow: visible; }
   .dance-row.has-dance-photo .dance-card-info h3 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 15px; }
   .dance-row.has-dance-photo .dance-card-body .dance-details { margin-top: 5px; overflow: visible; }
-  .dance-row.has-dance-photo .dance-card-body .dance-details span:nth-child(2) { display: none; }
   .dance-row.has-dance-photo .dance-card-body .judge-paddles { margin-top: 7px; padding-bottom: 4px; }
   .dance-row.has-dance-photo .dance-judge-total { display: none; }
   .dance-row.has-dance-photo.dance-performance { min-height: 120px; }

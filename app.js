@@ -1,11 +1,12 @@
-import { db } from './supabase-client.js?v=20260930-next-week-dances-v76';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260930-next-week-dances-v76';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-next-week-dances-v76';
-import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260930-next-week-dances-v76';
-import { loadMarketPredictions } from './market-predictions.js?v=20260930-next-week-dances-v76';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-next-week-dances-v76';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260930-next-week-dances-v76';
-import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20260930-next-week-dances-v76';
+import { db } from './supabase-client.js?v=20260930-dance-card-layout-v77';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260930-dance-card-layout-v77';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-dance-card-layout-v77';
+import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260930-dance-card-layout-v77';
+import { loadMarketPredictions } from './market-predictions.js?v=20260930-dance-card-layout-v77';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-dance-card-layout-v77';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260930-dance-card-layout-v77';
+import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20260930-dance-card-layout-v77';
+import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20260930-dance-card-layout-v77';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1695,6 +1696,7 @@ async function openCompleteWeek(week) {
 
 async function openNewDance(week, danceCount, existingDance = null, existingScores = [], existingAppearanceIds = [], initialKind = null, scoresOnly = false) {
   const { players, partnerships, weeks } = await getPairingData();
+  const existingSong = splitDanceSong(existingDance?.song);
   const activePairs = partnerships.filter((pairing) => {
     const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id);
     return roleForWeek(star, week, weeks) === 'Star' && roleForWeek(pro, week, weeks) === 'Pro';
@@ -1724,7 +1726,7 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
     }).join('')}</div>`;
     const pairOptions = selectablePairs.map((pairing) => { const star = players.find((player) => player.id === pairing.star_id); const pro = players.find((player) => player.id === pairing.pro_id); return `<option value="${pairing.id}" ${pairing.id === existingDance?.partnership_id ? 'selected' : ''}>${escapeHtml(star.name)} & ${escapeHtml(pro.name)}</option>`; }).join('');
     const castEditor = scoresOnly ? '' : `<h3>Cast appearances</h3><input id="danceCastSearch" placeholder="Search cast" autocomplete="off"><div class="filter-tabs" id="danceCastTabs"><button class="selected" data-dance-filter="all">All</button><button data-dance-filter="pros">Pros</button><button data-dance-filter="stars">Stars</button><button data-dance-filter="bonus">Bonus</button></div><div id="bonusDanceFilters" class="mini-filters" hidden><button class="selected" data-dance-bonus-filter="all">All bonus</button><button data-dance-bonus-filter="troupe">Troupe</button><button data-dance-bonus-filter="nextpro">Next Pro</button><button data-dance-bonus-filter="judges">Judges + Hosts</button></div><div id="danceCastPicker" class="cast-picker">${castPicker()}</div>`;
-    const competitiveEditor = scoresOnly ? `<p class="sub">Update the individual judge scores for this competitive dance.</p>${judgeScoreSelectors}` : `<label class="couple-select">Couple<select id="dancePartnership"><option value="">Select couple</option>${pairOptions}</select></label><div class="dance-details"><label>Dance type <span class="optional">(optional)</span><input id="danceType" value="${escapeHtml(existingDance?.dance_type || '')}" placeholder="e.g., Cha-cha-cha"></label><label>Song <span class="optional">(optional)</span><input id="danceSong" value="${escapeHtml(existingDance?.song || '')}" placeholder="Song title"></label></div><p class="sub judge-hint">You can save the lineup now and enter judges’ scores during the show.</p>${judgeScoreSelectors}`;
+    const competitiveEditor = scoresOnly ? `<p class="sub">Update the individual judge scores for this competitive dance.</p>${judgeScoreSelectors}` : `<label class="couple-select">Couple<select id="dancePartnership"><option value="">Select couple</option>${pairOptions}</select></label><div class="dance-details"><label>Dance type <span class="optional">(optional)</span><input id="danceType" value="${escapeHtml(existingDance?.dance_type || '')}" placeholder="e.g., Cha-cha-cha"></label><label>Song title <span class="optional">(optional)</span><input id="danceSongTitle" value="${escapeHtml(existingSong.title)}" placeholder="Song title"></label><label>Artist <span class="optional">(optional)</span><input id="danceSongArtist" value="${escapeHtml(existingSong.artist)}" placeholder="Artist"></label></div><p class="sub judge-hint">You can save the lineup now and enter judges’ scores during the show.</p>${judgeScoreSelectors}`;
     $('#danceForm').innerHTML = `${kind === 'competitive' ? competitiveEditor : `<label>Dance name <span class="optional">(optional)</span><input id="danceName" value="${escapeHtml(existingDance?.name || '')}" placeholder="Week ${week.number} Dance ${danceCount + 1}"></label>`}${castEditor}`;
     if (!scoresOnly) {
       let filter = 'all'; let bonusFilter = 'all'; let excluded = [];
@@ -1745,7 +1747,8 @@ async function openNewDance(week, danceCount, existingDance = null, existingScor
     if (kind === 'competitive' && !partnership_id) return alert('Select the competing couple.');
     const name = kind === 'performance' ? $('#danceName').value.trim() || null : null;
     const dance_type = kind === 'competitive' ? (scoresOnly ? existingDance.dance_type : $('#danceType').value.trim() || null) : null;
-    const song = kind === 'competitive' ? (scoresOnly ? existingDance.song : $('#danceSong').value.trim() || null) : null;
+    const song = kind === 'competitive' ? (scoresOnly ? existingDance.song : joinDanceSong($('#danceSongTitle').value, $('#danceSongArtist').value) || null) : null;
+    if (kind === 'competitive' && !scoresOnly && $('#danceSongArtist').value.trim() && !$('#danceSongTitle').value.trim()) return alert('Enter a song title before the artist.');
     const scoreInputs = kind === 'competitive' ? [...document.querySelectorAll('[data-judge]')].filter((input) => input.value !== '') : [];
     if (scoreInputs.some((input) => !Number.isInteger(Number(input.value)) || Number(input.value) < 0 || Number(input.value) > 10)) return alert('Select a judge score from 1 to 10.');
     const selectedAppearanceIds = scoresOnly ? existingAppearanceIds.map((appearance) => appearance.cast_member_id || appearance) : [...document.querySelectorAll('#danceCastPicker input:checked')].map((input) => input.value);

@@ -1,3 +1,5 @@
+import { splitDanceSong } from './dance-song.js?v=20260930-dance-card-layout-v77';
+
 // Completed leagues share these view templates. Callers adapt their league-scoped
 // database records into the same view models and keep their own action handlers.
 const html = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -182,18 +184,44 @@ function judgeScoreArt(score, scoreImage, judgePhoto) {
     : `<span class="judge-score-art judge-score-paddle"><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"></span>`;
 }
 
-export function danceCard({ id, kind, title, danceType, song, scores, castNames, scoreImage, judgePhoto, photos = [], cardPhoto = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null }) {
+export function danceCard({ id, kind, title, danceType, song, scores, castNames = [], castMembers = [], imageFor = null, scoreImage, judgePhoto, photos = [], cardPhoto = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null }) {
   const total = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
+  const songParts = splitDanceSong(song);
   const art = photos.length
     ? `<div class="dance-card-photo"><img class="dance-photo-backdrop" src="${html(cardPhoto || photos[0])}" alt="" aria-hidden="true" loading="lazy" decoding="async"><img class="dance-photo-main" src="${html(cardPhoto || photos[0])}" alt="${html(title)} performing" loading="lazy" decoding="async"><span>${photos.length} photo${photos.length === 1 ? '' : 's'}</span></div>`
     : poster ? '<div class="dance-card-photo dance-card-poster" aria-hidden="true"><span class="poster-mark">DWTS</span><b>THE SHOW</b></div>' : '';
+  const extraCast = castNames.length;
+  const scoreSummary = extraCast
+    ? `<strong class="dance-extra-cast" aria-label="${extraCast} additional cast member${extraCast === 1 ? '' : 's'}: ${html(castNames.join(', '))}" title="${html(castNames.join(', '))}">+${extraCast}<small>cast</small></strong>`
+    : scores.length ? `<strong class="dance-judge-total" aria-label="Judges total ${total}">${total}<small>judges</small></strong>` : '';
   const scoresMarkup = kind === 'competitive'
-    ? `<div class="dance-details"><span>${html(danceType || 'Dance type not set')}</span>${song ? `<span>${html(song)}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => judgeScoreArt(score, scoreImage, judgePhoto)).join('')}${scores.length ? `<strong class="dance-judge-total" aria-label="Judges total ${total}">${total}<small>judges</small></strong>` : ''}${pending ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''}</div>` : '';
-  const castMarkup = castNames.length
-    ? `<div class="dance-cast" title="${html(castNames.join(', '))}"><span>Cast</span>${castNames.slice(0, 3).map((name) => `<b>${html(name)}</b>`).join('')}${castNames.length > 3 ? `<b>+${castNames.length - 3}</b>` : ''}</div>` : '';
+    ? `<div class="dance-details"><span class="dance-type-pill">${html(danceType || 'Dance type not set')}</span>${songParts.title ? `<span class="dance-song-pill" title="${html(song)}">${html(songParts.title)}${songParts.artist ? `<i> by ${html(songParts.artist)}</i>` : ''}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => judgeScoreArt(score, scoreImage, judgePhoto)).join('')}${scoreSummary}${pending ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''}</div>` : '';
+  const castMarkup = kind === 'performance' && !photos.length && castNames.length
+    ? `<div class="dance-performance-cast" aria-label="Cast: ${html(castNames.join(', '))}">${castMembers.length ? castMembers.map((member) => `<span class="dance-cast-pill"><img src="${html(castThumbnailFor(imageFor?.(member) || member.image_path || ''))}" alt="" loading="lazy" decoding="async"><b>${html(member.name)}</b></span>`).join('') : castNames.map((name) => `<span class="dance-cast-pill"><b>${html(name)}</b></span>`).join('')}</div>` : '';
   const prediction = kind === 'competitive' && weeklyPrediction
     ? `<div class="dance-market-prediction">${predictionRing(weeklyPrediction.percent, 'risk', 'small', weeklyPrediction.relative_position)}<span class="prediction-label"><small>${weekNumber ? `Week ${Number(weekNumber)}` : 'Weekly'}</small><strong>Elimination</strong></span></div>` : '';
   return `<article class="card dance-row dance-${html(kind)} ${art ? 'has-dance-photo' : ''}" data-dance-detail="${html(id)}" tabindex="0" role="button" aria-label="View details for ${html(title)}">${art}<div class="dance-card-body"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${html(title)}</h3></div>${editButton ? `<button class="secondary" data-edit-dance="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>${scoresMarkup}${prediction}${castMarkup}</div></article>`;
+}
+
+// Show the artist only when the dance type and complete song fit on one row.
+// The title remains visible when the artist would force a wrap.
+export function fitDanceSongLabels(root) {
+  if (!root || typeof document === 'undefined') return;
+  const canvas = document.createElement('canvas');
+  const measure = canvas.getContext('2d');
+  root.querySelectorAll('.dance-row .dance-song-pill i').forEach((artist) => {
+    const pill = artist.parentElement;
+    const details = pill.closest('.dance-details');
+    const type = details?.querySelector('.dance-type-pill');
+    if (!details || !type || !measure) return;
+    const style = getComputedStyle(pill);
+    measure.font = style.font;
+    const gap = parseFloat(getComputedStyle(details).columnGap) || 0;
+    const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const fullWidth = measure.measureText(pill.textContent).width + padding;
+    artist.hidden = type.getBoundingClientRect().width + gap + fullWidth > details.clientWidth;
+    pill.classList.toggle('is-title-only', artist.hidden);
+  });
 }
 
 export function teamPage({ weekHistory, total, period, rosterRows, available, availableMarkup, tradesMarkup = '<section id="tradeCenter" class="trade-center card"><div class="trade-center-loading">Loading trades…</div></section>' }) {

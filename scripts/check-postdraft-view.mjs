@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail,
   castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, judgePortraitFor } from '../postdraft-view.js';
+import { splitDanceSong, joinDanceSong } from '../dance-song.js';
 
 const member = { id: 'cast-1', name: 'A & B', image_position: 0 };
 const rows = [{ member, role: 'Pro', displayRole: 'Pro', appearanceRate: 1,
@@ -39,6 +40,28 @@ assert.match(scoredCard, /class="judge-score-art judge-score-initial" role="img"
 assert.match(scoredCard, /class="judge-score-icon" src="\/paddle\.png"/);
 assert.doesNotMatch(scoredCard, /<b aria-hidden="true">7<\/b>/);
 assert.match(scoredCard, /Judges total 15/);
+assert.deepEqual(splitDanceSong('Escape (The Piña Colada Song) by Rupert Holmes'),
+  { title: 'Escape (The Piña Colada Song)', artist: 'Rupert Holmes' });
+assert.equal(joinDanceSong('Maneater', 'Hall & Oates'), 'Maneater by Hall & Oates');
+assert.equal(joinDanceSong('Song only', ''), 'Song only');
+const extraCastCard = danceCard({ id: 'dance-extra', kind: 'competitive', title: 'Pair',
+  danceType: 'Foxtrot', song: 'Escape (The Piña Colada Song) by Rupert Holmes',
+  scores: [{ judge_name: 'Derek', score: 7 }], castNames: ['One', 'Two'],
+  scoreImage: () => '/paddle.png' });
+assert.match(extraCastCard, /class="dance-song-pill"/);
+assert.match(extraCastCard, /Escape \(The Piña Colada Song\)<i> by Rupert Holmes<\/i>/);
+assert.match(extraCastCard, /class="dance-extra-cast"[^>]*>\+2<small>cast<\/small>/);
+assert.doesNotMatch(extraCastCard, /Judges total 7|class="dance-cast"/);
+const performanceCard = danceCard({ id: 'opening', kind: 'performance', title: 'Opening',
+  scores: [], castNames: ['One', 'Two', 'Three', 'Four'],
+  castMembers: ['One', 'Two', 'Three', 'Four'].map((name) => ({ name })),
+  imageFor: () => '/cast.webp' });
+assert.equal((performanceCard.match(/class="dance-cast-pill"/g) || []).length, 4);
+assert.match(performanceCard, /src="\/cast.webp"/);
+assert.doesNotMatch(danceCard({ id: 'opening-photo', kind: 'performance', title: 'Opening',
+  scores: [], castNames: ['One'], photos: ['/dance.jpg'] }), /dance-performance-cast/);
+assert.match(danceCard({ id: 'opening-poster', kind: 'performance', title: 'Opening',
+  scores: [], castNames: ['One'], poster: true }), /dance-performance-cast/);
 assert.equal(judgePortraitFor('Derek Hough'), 'Images/Cast Thumbnails/Derek Hough.webp');
 assert.equal(judgePortraitFor('Carrie Ann', '../'), '../Images/Cast Thumbnails/Carrie Ann Inaba.webp');
 assert.equal(judgePortraitFor('Unknown Guest'), '');
