@@ -129,7 +129,7 @@ Deno.serve(async (request) => {
     const [symbols, weeks, cast, pairs, syncStates] = await Promise.all([
       supabase('cast_market_symbols?select=cast_member_id,ticker_suffix'),
       supabase('weeks?select=*&order=number.asc'),
-      supabase('cast_members?select=id,role'),
+      supabase('cast_members?select=id,role,eliminated_week_id'),
       supabase('partnerships?select=star_id,pro_id,active&active=eq.true'),
       supabase('market_prediction_sync_state?select=id,refreshed_at,snapshot_bucket&id=eq.1'),
     ]);
@@ -142,9 +142,10 @@ Deno.serve(async (request) => {
       return json({ skipped: true, next_interval_minutes: intervalMinutes });
     }
 
-    const castById = new Map<string, { role: string }>(cast.map((member: { id: string; role: string }) => [member.id, member]));
+    const castById = new Map<string, { role: string; eliminated_week_id?: string | null }>(cast.map((member: { id: string; role: string; eliminated_week_id?: string | null }) => [member.id, member]));
     const activeStars = new Set<string>(pairs.filter((pair: { star_id: string; pro_id: string }) =>
-      castById.get(pair.star_id)?.role === 'Star' && castById.get(pair.pro_id)?.role === 'Pro')
+      castById.get(pair.star_id)?.role === 'Star' && castById.get(pair.pro_id)?.role === 'Pro'
+      && !castById.get(pair.star_id)?.eliminated_week_id && !castById.get(pair.pro_id)?.eliminated_week_id)
       .map((pair: { star_id: string }) => pair.star_id));
     const bySuffix = new Map<string, string>(symbols.filter((item: { cast_member_id: string }) =>
       activeStars.has(item.cast_member_id)).map((item: { ticker_suffix: string; cast_member_id: string }) =>

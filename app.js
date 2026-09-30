@@ -1,10 +1,11 @@
-import { db } from './supabase-client.js?v=20260929-score-picker-art-v75';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260929-score-picker-art-v75';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-score-picker-art-v75';
-import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260929-score-picker-art-v75';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-score-picker-art-v75';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-score-picker-art-v75';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260929-score-picker-art-v75';
+import { db } from './supabase-client.js?v=20260930-next-week-dances-v76';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260930-next-week-dances-v76';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-next-week-dances-v76';
+import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260930-next-week-dances-v76';
+import { loadMarketPredictions } from './market-predictions.js?v=20260930-next-week-dances-v76';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-next-week-dances-v76';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260930-next-week-dances-v76';
+import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20260930-next-week-dances-v76';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -51,6 +52,7 @@ let canManageCast = false;
 let rosterFilter = 'all';
 let selectedWeekId = null;
 let editingWeekId = null;
+let pendingNextWeekPreparation = null;
 let standingsSnapshot = null;
 let selectedOverviewTeamId = null;
 let standingsMode = 'season';
@@ -1260,6 +1262,28 @@ function openMyTeamEditor(team) {
   });
 }
 
+async function prepareNextWeekCompetitiveDances(previousWeek, nextWeek, existingDances) {
+  if (!previousWeek?.is_complete || previousWeek.is_season_finale || nextWeek?.is_complete
+      || Number(nextWeek?.number) !== Number(previousWeek.number) + 1) return [];
+  if (pendingNextWeekPreparation?.weekId === nextWeek.id) return pendingNextWeekPreparation.promise;
+  const promise = (async () => {
+    const [{ data: cast, error: castError }, { data: partnerships, error: pairError }] = await Promise.all([
+      db.from('cast_members').select('id,name,role,eliminated_week_id'),
+      db.from('partnerships').select('id,star_id,pro_id,active'),
+    ]);
+    if (castError || pairError) throw castError || pairError;
+    const rows = nextWeekCompetitiveDanceRows(previousWeek, nextWeek, partnerships, cast, existingDances);
+    if (!rows.length) return [];
+    const { data: created, error } = await db.from('dances').insert(rows)
+      .select('id,kind,partnership_id,name,dance_type,song,sort_order');
+    if (error) throw error;
+    return created || [];
+  })();
+  pendingNextWeekPreparation = { weekId: nextWeek.id, promise };
+  try { return await promise; }
+  finally { if (pendingNextWeekPreparation?.promise === promise) pendingNextWeekPreparation = null; }
+}
+
 async function loadScoreDesk() {
   const loadVersion = ++scoreDeskLoadVersion;
   if ($('#scoreDeskContent')) $('#scoreDeskContent').innerHTML = loadingMarkup('Loading dances');
@@ -1282,6 +1306,19 @@ async function loadScoreDesk() {
   const { data: dances, error: danceError } = await db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order');
   if (loadVersion !== scoreDeskLoadVersion) return;
   if (danceError) { console.error(danceError); return renderLoadError($('#scoreDeskContent'), 'load dances', loadScoreDesk); }
+  if (isScoreDeskSurface && canManageShow) {
+    const previousWeek = weeks.find((item) => Number(item.number) === Number(week.number) - 1);
+    try {
+      const created = await prepareNextWeekCompetitiveDances(previousWeek, week, dances);
+      if (loadVersion !== scoreDeskLoadVersion) return;
+      dances.push(...created);
+      dances.sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
+    } catch (preparationError) {
+      console.error('Could not prepare next week’s competitive dances:', preparationError);
+      if (loadVersion !== scoreDeskLoadVersion) return;
+      return renderLoadError($('#scoreDeskContent'), 'prepare next week’s competitive dances', loadScoreDesk);
+    }
+  }
   const danceIds = dances.map((dance) => dance.id);
   const [{ data: judgeScores, error: judgeError }, { data: appearances, error: appearanceError }] = danceIds.length ? await Promise.all([
     db.from('dance_judge_scores').select('dance_id,judge_name,score').in('dance_id', danceIds),
@@ -1637,6 +1674,21 @@ async function openCompleteWeek(week) {
     const { error: completionError } = await db.rpc('complete_week', { p_week_id: week.id, p_eliminated_partnership_ids: eliminated });
     if (completionError) { completeButton.disabled = false; return alert(`Couldn’t complete the week: ${completionError.message}`); }
     $('#modal').close();
+    try {
+      const { data: nextWeek, error: nextWeekError } = await db.from('weeks').select('id,number,is_complete')
+        .eq('number', Number(week.number) + 1).maybeSingle();
+      if (nextWeekError) throw nextWeekError;
+      if (nextWeek && !nextWeek.is_complete) {
+        const { data: existingDances, error: dancesError } = await db.from('dances')
+          .select('id,kind,partnership_id,sort_order').eq('week_id', nextWeek.id);
+        if (dancesError) throw dancesError;
+        await prepareNextWeekCompetitiveDances({ ...week, is_complete: true }, nextWeek, existingDances || []);
+        selectedWeekId = nextWeek.id;
+      }
+    } catch (preparationError) {
+      console.error('Week completed, but next week’s dances could not be prepared:', preparationError);
+      alert('This week is complete, but the next week’s dance cards could not be prepared. Open the next week in Score Desk to retry.');
+    }
     loadScoreDesk(); refreshRoster(); loadTeams(); loadStandings(); loadRules();
   });
 }

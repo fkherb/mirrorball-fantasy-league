@@ -2,7 +2,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node scripts/check-airing-policy.mjs && node scripts/check-cache-keys.mjs && node scripts/check-dance-images.mjs && node scripts/check-market-predictions.mjs && node scripts/check-market-history-pages.mjs && node --experimental-strip-types scripts/check-market-sync.mjs && node scripts/check-market-history-backfill.mjs && node scripts/check-postdraft-view.mjs && node scripts/check-score-desk-view.mjs && node scripts/check-profile-picture.mjs && node scripts/check-research-experience.mjs && node scripts/check-scoring.mjs && node scripts/check-schema-baseline.mjs",
+    "check": "node scripts/check-airing-policy.mjs && node scripts/check-cache-keys.mjs && node scripts/check-dance-images.mjs && node scripts/check-next-week-dances.mjs && node scripts/check-market-predictions.mjs && node scripts/check-market-history-pages.mjs && node --experimental-strip-types scripts/check-market-sync.mjs && node scripts/check-market-history-backfill.mjs && node scripts/check-postdraft-view.mjs && node scripts/check-score-desk-view.mjs && node scripts/check-profile-picture.mjs && node scripts/check-research-experience.mjs && node scripts/check-scoring.mjs && node scripts/check-schema-baseline.mjs",
     "photos": "node scripts/build-dance-photo-assets.mjs && node scripts/build-cast-thumbnails.mjs",
     "photos:check": "node scripts/build-dance-photo-assets.mjs --check && node scripts/build-cast-thumbnails.mjs --check"
   },

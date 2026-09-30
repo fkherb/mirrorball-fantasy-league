@@ -11,7 +11,8 @@ const weeks = [{ id: 'week-3', number: 3, air_date: '2099-09-29',
   second_air_start_time: '20:00:00', second_air_end_time: '22:00:00',
   elimination_predictions_enabled: true }];
 const cast = [{ id: 'star-tat', role: 'Star' }, { id: 'pro-jan', role: 'Pro' },
-  { id: 'star-eliminated', role: 'Eliminated Star' }, { id: 'pro-eliminated', role: 'Eliminated Pro' }];
+  { id: 'star-eliminated', role: 'Eliminated Star' }, { id: 'pro-eliminated', role: 'Eliminated Pro' },
+  { id: 'star-stale', role: 'Star', eliminated_week_id: 'week-2' }, { id: 'pro-stale', role: 'Pro' }];
 const realDateNow = Date.now;
 Date.now = () => currentTime;
 globalThis.Deno = {
@@ -28,12 +29,14 @@ globalThis.fetch = async (input, init = {}) => {
     if (table === 'cast_market_symbols') return Response.json([
       { cast_member_id: 'star-tat', ticker_suffix: 'TAT' },
       { cast_member_id: 'star-eliminated', ticker_suffix: 'ELI' },
+      { cast_member_id: 'star-stale', ticker_suffix: 'STA' },
     ]);
     if (table === 'weeks') return Response.json(weeks);
     if (table === 'cast_members') return Response.json(cast);
     if (table === 'partnerships') return Response.json([
       { star_id: 'star-tat', pro_id: 'pro-jan', active: true },
       { star_id: 'star-eliminated', pro_id: 'pro-eliminated', active: true },
+      { star_id: 'star-stale', pro_id: 'pro-stale', active: true },
     ]);
     if (table === 'market_prediction_sync_state') {
       if (init.method === 'PATCH') {
@@ -56,6 +59,8 @@ globalThis.fetch = async (input, init = {}) => {
         yes_bid_dollars: '0.3300', yes_ask_dollars: '0.3400' },
       { ticker: `${event}-ELI`, status: 'open',
         yes_bid_dollars: '0.0100', yes_ask_dollars: '0.0200' },
+      { ticker: `${event}-STA`, status: 'open',
+        yes_bid_dollars: '0.0100', yes_ask_dollars: '0.0200' },
     ], cursor: '' });
   }
   throw new Error(`Unexpected URL ${url}`);
@@ -65,6 +70,8 @@ try {
   const { nextPredictionWeek, eliminationEventTicker, isWeekAiring } =
     await import('../supabase/functions/sync-market-predictions/index.ts');
   assert.equal(eliminationEventTicker(weeks[0]), 'KXDWTSELIMINATION-99OCT01');
+  assert.equal(eliminationEventTicker({ ...weeks[0], air_date: '2026-10-06', second_air_date: null }),
+    'KXDWTSELIMINATION-26OCT07');
   assert.equal(nextPredictionWeek(weeks, '2099-09-30')?.id, 'week-3');
   assert.equal(nextPredictionWeek(weeks, Date.parse('2099-10-01T02:00:00Z')), null);
   assert.equal(isWeekAiring(weeks[0], currentTime), true);

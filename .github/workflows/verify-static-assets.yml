@@ -25,6 +25,7 @@ jobs:
       - run: node scripts/check-postdraft-view.mjs
       - run: node scripts/check-score-desk-view.mjs
       - run: node scripts/check-dance-images.mjs
+      - run: node scripts/check-next-week-dances.mjs
       - run: node scripts/check-profile-picture.mjs
       - run: node scripts/check-research-experience.mjs
       - run: node scripts/check-scoring.mjs

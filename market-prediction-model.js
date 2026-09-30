@@ -19,7 +19,8 @@ export function activePartnershipPredictionRows(rows, partnerships, cast) {
     .filter((pair) => {
       const star = (cast || []).find((member) => member.id === pair.star_id);
       const pro = (cast || []).find((member) => member.id === pair.pro_id);
-      return star?.role === 'Star' && pro?.role === 'Pro';
+      return star?.role === 'Star' && pro?.role === 'Pro'
+        && !star.eliminated_week_id && !pro.eliminated_week_id;
     }).map((pair) => pair.star_id));
   return rows.filter((row) => activeStars.has(row.cast_member_id));
 }

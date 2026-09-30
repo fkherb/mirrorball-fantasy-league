@@ -1,4 +1,4 @@
-import { airingWindows, easternDateTime } from './market-prediction-model.js?v=20260929-score-picker-art-v75';
+import { airingWindows, easternDateTime } from './market-prediction-model.js?v=20260930-next-week-dances-v76';
 
 function shiftedEasternClock(clock, minutes) {
   const [date, time] = clock.split('T');

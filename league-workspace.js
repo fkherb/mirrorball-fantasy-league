@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260929-score-picker-art-v75';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260929-score-picker-art-v75';
-import { danceImagesFor, danceCardPhotoFor } from './dance-images.js?v=20260929-score-picker-art-v75';
-import { loadMarketPredictions } from './market-predictions.js?v=20260929-score-picker-art-v75';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260929-score-picker-art-v75';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260929-score-picker-art-v75';
-import { scoreLeague } from './scoring.js?v=20260929-score-picker-art-v75';
+import { db } from './supabase-client.js?v=20260930-next-week-dances-v76';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-next-week-dances-v76';
+import { danceImagesFor, danceCardPhotoFor } from './dance-images.js?v=20260930-next-week-dances-v76';
+import { loadMarketPredictions } from './market-predictions.js?v=20260930-next-week-dances-v76';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-next-week-dances-v76';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260930-next-week-dances-v76';
+import { scoreLeague } from './scoring.js?v=20260930-next-week-dances-v76';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { activePartnershipPredictionRows, seasonPredictionsFor, weeklyPredictionFor, nextPredictionWeek, isWeekAiring, predictionPercent, relativePredictionPosition } from '../market-prediction-model.js';
 import { castProfile, danceCard, danceDetail } from '../postdraft-view.js';
 
-const fresh = new Date().toISOString();
+const realNow = Date.now;
+Date.now = () => Date.parse('2026-09-29T21:00:00Z');
+const fresh = new Date(Date.now()).toISOString();
 const rows = [
   { cast_member_id: 'star-1', market_kind: 'winner', percent: 30, market_status: 'active', fetched_at: fresh },
   { cast_member_id: 'star-1', market_kind: 'third', percent: 33.5, market_status: 'active', fetched_at: fresh },
@@ -40,6 +42,10 @@ const activeRows = activePartnershipPredictionRows(tiedOdds,
   tiedOdds.map((row, index) => ({ star_id: row.cast_member_id, pro_id: `pro-${index}`, active: index !== 3 })),
   tiedOdds.flatMap((row, index) => [{ id: row.cast_member_id, role: 'Star' }, { id: `pro-${index}`, role: 'Pro' }]));
 assert.equal(activeRows.length, 4);
+assert.deepEqual(activePartnershipPredictionRows(rows,
+  [{ star_id: 'star-1', pro_id: 'pro-1', active: true }],
+  [{ id: 'star-1', role: 'Star', eliminated_week_id: 'week-2' },
+    { id: 'pro-1', role: 'Pro' }]), []);
 assert.equal(relativePredictionPosition(activeRows[2], activeRows), 1);
 assert.equal(weeklyPredictionFor('star-1', { ...weeks[1], is_complete: true }, rows), null);
 
@@ -117,3 +123,4 @@ const detail = danceDetail({ kind: 'competitive', title: 'Star & Pro', scores: [
   scoreImage: () => '', teams: [], castRows: [], imageFor: () => '', weeklyPrediction: weekly });
 assert.match(detail, /Predictions provided by Kalshi/);
 console.log('Market prediction display and filtering verified.');
+Date.now = realNow;
