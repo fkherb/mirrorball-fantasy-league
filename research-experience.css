@@ -305,9 +305,11 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-cast-pill img { flex: none; width: 23px; height: 23px; border-radius: 50%; object-fit: cover; }
 .dance-cast-pill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 10px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .dance-cast-pill .cast-avatar-frame { width: 23px; height: 23px; }
-.dance-performance-cast.is-avatar-grid { gap: 5px; }
+.dance-performance-cast.is-avatar-grid { gap: 5px; max-height: 65px; overflow: hidden; }
 .dance-cast-circle { display: block; width: 30px; height: 30px; padding: 2px; border: 1px solid #e5dce4; border-radius: 50%; background: #faf7fa; }
 .dance-cast-circle .cast-avatar-frame { width: 24px; height: 24px; }
+.dance-cast-circle[hidden], .dance-cast-more[hidden] { display: none; }
+.dance-cast-more { display: grid; flex: none; width: 30px; height: 30px; place-items: center; border: 1px solid #dccbda; border-radius: 50%; background: #eee5ee; color: #56375d; font-size: 10px; font-weight: 850; }
 .judge-paddles { gap: 8px; }
 .judge-score-art { position: relative; display: inline-grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; }
 .judge-paddles .judge-score-art img, .detail-judges .judge-score-art img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center 28%; filter: none; }
@@ -327,6 +329,8 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
    a readable badge instead of competing with the face. */
 .judge-paddles { flex-wrap: wrap; row-gap: 10px; }
 .judge-score-art:not(.judge-score-paddle) { flex: 0 0 44px; width: 44px; height: 44px; border: 2px solid #fff; border-radius: 50%; background: #eee8ee; box-shadow: 0 0 0 1px #d8c8d6, 0 3px 9px #26162e1e; transition: transform .18s ease, box-shadow .18s ease; }
+.judge-score-portrait-frame { display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; }
+.judge-score-art .judge-score-portrait-frame img { width: 100%; height: 100%; border-radius: 0; object-fit: cover; }
 .judge-score-art:not(.judge-score-paddle):hover { transform: translateY(-3px); box-shadow: 0 0 0 1px #a87aa7, 0 7px 14px #26162e2c; }
 .judge-score-art:not(.judge-score-paddle) img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center 32%; }
 .judge-score-art:not(.judge-score-paddle) img.judge-score-icon { position: absolute; right: -8px; bottom: -8px; z-index: 1; width: 28px; height: 28px; border: 1px solid #fff; border-radius: 50%; background: #fff; object-fit: contain; filter: drop-shadow(0 2px 3px #26162e55); }

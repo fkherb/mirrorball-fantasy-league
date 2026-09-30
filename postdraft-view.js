@@ -1,5 +1,5 @@
-import { splitDanceSong } from './dance-song.js?v=20260930-avatar-frame-v78';
-import { avatarImageStyle } from './cast-avatar-frame.js?v=20260930-avatar-frame-v78';
+import { splitDanceSong } from './dance-song.js?v=20260930-avatar-polish-v79';
+import { avatarImageStyle } from './cast-avatar-frame.js?v=20260930-avatar-polish-v79';
 
 // Completed leagues share these view templates. Callers adapt their league-scoped
 // database records into the same view models and keep their own action handlers.
@@ -14,7 +14,14 @@ export function judgePortraitFor(name, assetRoot = '') {
     derek: 'Derek Hough.webp', 'derek hough': 'Derek Hough.webp',
     bruno: 'Bruno Tonioli.webp', 'bruno tonioli': 'Bruno Tonioli.webp',
   };
-  return portraits[judge] ? `${assetRoot}Images/Cast Thumbnails/${portraits[judge]}` : '';
+  return portraits[judge] ? `${assetRoot}Images/Cast Thumbnails/${portraits[judge]}?v=2` : '';
+}
+export function judgeMemberFor(name, castMembers = []) {
+  const sought = String(name || '').trim().toLowerCase();
+  return castMembers.find((member) => {
+    const full = String(member.name || '').trim().toLowerCase();
+    return full === sought || full.startsWith(`${sought} `);
+  }) || null;
 }
 const marketLabels = { winner: 'Winner', second: '2nd Place', third: '3rd Place',
   top_three: 'Top 3', finalist: 'Finalist' };
@@ -169,27 +176,28 @@ export function castRosterRow({ id, name, roleDetails, roleDetailsHtml, image, p
 }
 
 export function castThumbnailFor(image) {
-  return String(image || '').replace(/^((?:\.\.\/)?Images\/)([^/]+)\.(jpe?g|png|webp)$/i, '$1Cast Thumbnails/$2.webp');
+  return String(image || '').replace(/^((?:\.\.\/)?Images\/)([^/]+)\.(jpe?g|png|webp)$/i, '$1Cast Thumbnails/$2.webp?v=2');
 }
 
 function castAvatarMarkup(member, image) {
   return `<span class="cast-avatar-frame"><img src="${html(castThumbnailFor(image))}" style="${avatarImageStyle(member)}" alt="" loading="lazy" decoding="async"></span>`;
 }
 
-function judgeScoreArt(score, scoreImage, judgePhoto) {
-  const portrait = judgePhoto?.(score.judge_name);
+function judgeScoreArt(score, scoreImage, judgePhoto, judgeMember, imageFor) {
+  const member = judgeMember?.(score.judge_name);
+  const portrait = member && imageFor ? castThumbnailFor(imageFor(member)) : judgePhoto?.(score.judge_name);
   const label = `${html(score.judge_name)}: ${Number(score.score)}`;
   const scoreBadge = Number(score.score) >= 1 && Number(score.score) <= 10
     ? `<img class="judge-score-icon" src="${html(scoreImage(score.score))}" alt="" aria-hidden="true" width="28" height="28" loading="lazy" decoding="async">`
     : `<b aria-hidden="true">${Number(score.score)}</b>`;
   return portrait
-    ? `<span class="judge-score-art" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><img class="judge-score-portrait" src="${html(portrait)}" alt="" width="48" height="48" loading="lazy" decoding="async">${scoreBadge}</span>`
+    ? `<span class="judge-score-art" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><span class="judge-score-portrait-frame"><img class="judge-score-portrait" src="${html(portrait)}" style="${member ? avatarImageStyle(member) : ''}" alt="" width="48" height="48" loading="lazy" decoding="async"></span>${scoreBadge}</span>`
     : judgePhoto
       ? `<span class="judge-score-art judge-score-initial" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><i aria-hidden="true">${html(String(score.judge_name || 'J').charAt(0).toUpperCase())}</i>${scoreBadge}</span>`
     : `<span class="judge-score-art judge-score-paddle"><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"></span>`;
 }
 
-export function danceCard({ id, kind, title, shortTitle = '', danceType, song, scores, castNames = [], castMembers = [], imageFor = null, scoreImage, judgePhoto, photos = [], cardPhoto = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null }) {
+export function danceCard({ id, kind, title, shortTitle = '', danceType, song, scores, castNames = [], castMembers = [], imageFor = null, scoreImage, judgePhoto, judgeMember, photos = [], cardPhoto = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null }) {
   const total = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
   const songParts = splitDanceSong(song);
   const art = photos.length
@@ -200,12 +208,12 @@ export function danceCard({ id, kind, title, shortTitle = '', danceType, song, s
     ? `<strong class="dance-extra-cast" aria-label="${extraCast} additional cast member${extraCast === 1 ? '' : 's'}: ${html(castNames.join(', '))}" title="${html(castNames.join(', '))}">+${extraCast}<small>cast</small></strong>`
     : scores.length ? `<strong class="dance-judge-total" aria-label="Judges total ${total}">${total}<small>judges</small></strong>` : '';
   const scoresMarkup = kind === 'competitive'
-    ? `<div class="dance-details"><span class="dance-type-pill">${html(danceType || 'Dance type not set')}</span>${songParts.title ? `<span class="dance-song-pill" title="${html(song)}">${html(songParts.title)}${songParts.artist ? `<i> by ${html(songParts.artist)}</i>` : ''}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => judgeScoreArt(score, scoreImage, judgePhoto)).join('')}${scoreSummary}${pending ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''}</div>` : '';
+    ? `<div class="dance-details"><span class="dance-type-pill">${html(danceType || 'Dance type not set')}</span>${songParts.title ? `<span class="dance-song-pill" title="${html(song)}">${html(songParts.title)}${songParts.artist ? `<i> by ${html(songParts.artist)}</i>` : ''}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => judgeScoreArt(score, scoreImage, judgePhoto, judgeMember, imageFor)).join('')}${scoreSummary}${pending ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''}</div>` : '';
   const compactCast = castNames.length > 8;
   const castMarkup = kind === 'performance' && !photos.length && castNames.length
     ? `<div class="dance-performance-cast${compactCast ? ' is-avatar-grid' : ''}" aria-label="Cast: ${html(castNames.join(', '))}">${castMembers.length ? castMembers.map((member) => compactCast
       ? `<span class="dance-cast-circle" role="img" aria-label="${html(member.name)}" title="${html(member.name)}">${castAvatarMarkup(member, imageFor?.(member) || member.image_path || '')}</span>`
-      : `<span class="dance-cast-pill">${castAvatarMarkup(member, imageFor?.(member) || member.image_path || '')}<b>${html(member.name)}</b></span>`).join('') : castNames.map((name) => `<span class="dance-cast-pill"><b>${html(name)}</b></span>`).join('')}</div>` : '';
+      : `<span class="dance-cast-pill">${castAvatarMarkup(member, imageFor?.(member) || member.image_path || '')}<b>${html(member.name)}</b></span>`).join('') : castNames.map((name) => `<span class="dance-cast-pill"><b>${html(name)}</b></span>`).join('')}${compactCast ? '<span class="dance-cast-more" role="img" hidden></span>' : ''}</div>` : '';
   const prediction = kind === 'competitive' && weeklyPrediction
     ? `<div class="dance-market-prediction">${predictionRing(weeklyPrediction.percent, 'risk', 'small', weeklyPrediction.relative_position)}<span class="prediction-label"><small>${weekNumber ? `Week ${Number(weekNumber)}` : 'Weekly'}</small><strong>Elimination</strong></span></div>` : '';
   return `<article class="card dance-row dance-${html(kind)} ${art ? 'has-dance-photo' : ''}" data-dance-detail="${html(id)}" tabindex="0" role="button" aria-label="View details for ${html(title)}">${art}<div class="dance-card-body"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3${shortTitle ? ` data-full-title="${html(title)}" data-short-title="${html(shortTitle)}"` : ''}>${html(title)}</h3></div>${editButton ? `<button class="secondary" data-edit-dance="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>${scoresMarkup}${prediction}${castMarkup}</div></article>`;
@@ -227,6 +235,28 @@ export function fitDanceCardNames(root) {
     surname.setEnd(textNode, textNode.length);
     if (surname.getBoundingClientRect().top > givenName.getBoundingClientRect().top + 2) {
       heading.textContent = heading.dataset.shortTitle;
+    }
+  });
+}
+
+export function fitDanceCastAvatars(root) {
+  if (!root || typeof getComputedStyle === 'undefined') return;
+  root.querySelectorAll('.dance-performance-cast.is-avatar-grid').forEach((grid) => {
+    const avatars = [...grid.querySelectorAll('.dance-cast-circle')];
+    const more = grid.querySelector('.dance-cast-more');
+    if (!more || !avatars.length) return;
+    const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+    const circleWidth = avatars[0].getBoundingClientRect().width || 30;
+    const perRow = Math.max(1, Math.floor((grid.clientWidth + gap) / (circleWidth + gap)));
+    const capacity = Math.max(1, perRow * 2);
+    const visible = avatars.length > capacity ? capacity - 1 : avatars.length;
+    avatars.forEach((avatar, index) => { avatar.hidden = index >= visible; });
+    more.hidden = visible === avatars.length;
+    if (!more.hidden) {
+      const remaining = avatars.length - visible;
+      more.textContent = `+${remaining}`;
+      more.title = `${remaining} more cast members`;
+      more.setAttribute('aria-label', `${remaining} more cast members`);
     }
   });
 }
@@ -294,14 +324,14 @@ export function castProfile({ member, image, role, teamName, fantasyPoints, judg
   return `${backButton}<div class="cast-profile-hero"><img src="${html(image)}" style="object-position:${imagePosition(member.image_position)}% center" alt="${html(member.name)}"><div class="cast-profile-intro"><p class="eyebrow">${html(role)}</p><h2>${html(member.name)}</h2>${partnershipSubtitle}</div><div class="cast-profile-controls"><div class="cast-profile-desktop-row">${desktopTeam}${desktopPartner}${predictions.desktop}</div><div class="cast-profile-control-row"><div class="cast-profile-meta">${teamCard}${partnerCard}</div>${predictions.main}</div></div>${eliminated}</div><span class="cast-market-list-home" hidden></span>${predictions.expanded}${stats}${pointsNote ? `<p class="cast-profile-points-note">${html(pointsNote)}</p>` : ''}${biography}${profileDetails}${predictionFootnote}`;
 }
 
-export function danceDetail({ kind, title, danceType, song, scores, scoreImage, judgePhoto, teams, castRows, imageFor, photos = [], weekNumber = null, weeklyPrediction = null }) {
+export function danceDetail({ kind, title, danceType, song, scores, scoreImage, judgePhoto, judgeMember, teams, castRows, imageFor, photos = [], weekNumber = null, weeklyPrediction = null }) {
   const total = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
   const best = teams[0]?.points || 0;
   const leaders = best ? teams.filter((team) => team.points === best).map((team) => team.name) : [];
   const gallery = photos.length ? `<div class="dance-detail-gallery"><div class="dance-gallery-stage"><img class="dance-gallery-backdrop" src="${html(photos[0])}" alt="" aria-hidden="true" decoding="async"><img class="dance-gallery-main" src="${html(photos[0])}" alt="${html(title)} performing" decoding="async"></div>${photos.length > 1 ? `<div class="dance-gallery-rail" role="group" aria-label="Performance photos">${photos.map((photo, index) => `<button type="button" data-dance-gallery-photo="${html(photo)}" aria-label="Show photo ${index + 1} of ${photos.length}" aria-pressed="${index === 0}" class="${index === 0 ? 'selected' : ''}"><img src="${html(photo)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}</div>` : '';
   const prediction = kind === 'competitive' && weeklyPrediction
     ? `<section class="dance-detail-market">${predictionRing(weeklyPrediction.percent, 'risk', '', weeklyPrediction.relative_position)}<span class="prediction-label"><small>${weekNumber ? `Week ${Number(weekNumber)}` : 'Weekly'}</small><strong>Elimination</strong></span></section>` : '';
-  return `<div class="dance-detail">${gallery}<div class="dance-detail-content"><div class="dance-detail-head"><p class="eyebrow">${weekNumber ? `Week ${Number(weekNumber)} · ` : ''}${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${html(title)}</h2><p class="sub">${kind === 'competitive' ? html(danceType || 'Dance type not set') : 'Special performance'}${song ? ` · ${html(song)}` : ''}</p></div>${prediction}${kind === 'competitive' ? `<section class="detail-section dance-score-section"><div class="detail-section-title"><h3>Judges’ scores</h3><strong>${total || '—'}</strong></div><div class="detail-judges">${scores.map((score) => `<div>${judgeScoreArt(score, scoreImage, judgePhoto)}<span>${html(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section>` : ''}${castRows.length && kind === 'competitive' ? `<section class="dance-team-spotlight"><span>Top fantasy team${leaders.length === 1 ? '' : 's'}</span><strong>${html(leaders.join(' & ') || 'No points recorded')}</strong><small>${best ? `${best} point${best === 1 ? '' : 's'} earned from this dance` : 'Fantasy impact will appear when scoring is available.'}</small></section>` : ''}<section class="detail-section"><div class="detail-section-title"><h3>Cast & fantasy impact</h3>${castRows.length ? `<span>${castRows.length} cast member${castRows.length === 1 ? '' : 's'}</span>` : ''}</div>${castRows.length ? `<div class="dance-cast-impact-list">${castRows.map((row) => `<button type="button" data-dance-cast-profile="${html(row.member.id)}"><img src="${html(imageFor(row.member))}" style="object-position:${imagePosition(row.member.image_position)}% center" alt=""><span><b>${html(row.member.name)}</b><small>${html(row.role)} · ${html(row.teamName)}</small></span><strong>${row.points ? `+${row.points}` : '—'}</strong><i aria-hidden="true">›</i></button>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>${prediction ? predictionNote : ''}</div></div>`;
+  return `<div class="dance-detail">${gallery}<div class="dance-detail-content"><div class="dance-detail-head"><p class="eyebrow">${weekNumber ? `Week ${Number(weekNumber)} · ` : ''}${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h2>${html(title)}</h2><p class="sub">${kind === 'competitive' ? html(danceType || 'Dance type not set') : 'Special performance'}${song ? ` · ${html(song)}` : ''}</p></div>${prediction}${kind === 'competitive' ? `<section class="detail-section dance-score-section"><div class="detail-section-title"><h3>Judges’ scores</h3><strong>${total || '—'}</strong></div><div class="detail-judges">${scores.map((score) => `<div>${judgeScoreArt(score, scoreImage, judgePhoto, judgeMember, imageFor)}<span>${html(score.judge_name)}</span></div>`).join('') || '<p class="sub">No scores entered.</p>'}</div></section>` : ''}${castRows.length && kind === 'competitive' ? `<section class="dance-team-spotlight"><span>Top fantasy team${leaders.length === 1 ? '' : 's'}</span><strong>${html(leaders.join(' & ') || 'No points recorded')}</strong><small>${best ? `${best} point${best === 1 ? '' : 's'} earned from this dance` : 'Fantasy impact will appear when scoring is available.'}</small></section>` : ''}<section class="detail-section"><div class="detail-section-title"><h3>Cast & fantasy impact</h3>${castRows.length ? `<span>${castRows.length} cast member${castRows.length === 1 ? '' : 's'}</span>` : ''}</div>${castRows.length ? `<div class="dance-cast-impact-list">${castRows.map((row) => `<button type="button" data-dance-cast-profile="${html(row.member.id)}"><img src="${html(imageFor(row.member))}" style="object-position:${imagePosition(row.member.image_position)}% center" alt=""><span><b>${html(row.member.name)}</b><small>${html(row.role)} · ${html(row.teamName)}</small></span><strong>${row.points ? `+${row.points}` : '—'}</strong><i aria-hidden="true">›</i></button>`).join('')}</div>` : '<p class="sub">No cast appearances were recorded for this dance.</p>'}</section>${prediction ? predictionNote : ''}</div></div>`;
 }
 
 export function bindDanceGallery(container) {

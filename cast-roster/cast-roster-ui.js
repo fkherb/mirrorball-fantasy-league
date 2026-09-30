@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260930-avatar-frame-v78';
+import { db } from '../supabase-client.js?v=20260930-avatar-polish-v79';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

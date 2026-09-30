@@ -1,13 +1,13 @@
-import { db } from './supabase-client.js?v=20260930-avatar-frame-v78';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260930-avatar-frame-v78';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-avatar-frame-v78';
-import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260930-avatar-frame-v78';
-import { loadMarketPredictions } from './market-predictions.js?v=20260930-avatar-frame-v78';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-avatar-frame-v78';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260930-avatar-frame-v78';
-import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20260930-avatar-frame-v78';
-import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20260930-avatar-frame-v78';
-import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20260930-avatar-frame-v78';
+import { db } from './supabase-client.js?v=20260930-avatar-polish-v79';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260930-avatar-polish-v79';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-avatar-polish-v79';
+import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260930-avatar-polish-v79';
+import { loadMarketPredictions } from './market-predictions.js?v=20260930-avatar-polish-v79';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-avatar-polish-v79';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260930-avatar-polish-v79';
+import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20260930-avatar-polish-v79';
+import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20260930-avatar-polish-v79';
+import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20260930-avatar-polish-v79';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1458,6 +1458,7 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
   const sortedRows = [...detailRows].sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));
   openModal(`${context.backAction ? '<div class="modal-back-row"><button class="profile-back-button secondary" id="danceBackToProfile" type="button" aria-label="Back to profile">← Back</button></div>' : ''}${danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song,
     scores, scoreImage: judgeScoreImage, judgePhoto: isScoreDeskSurface ? null : judgePhotoImage,
+    judgeMember: isScoreDeskSurface ? null : (name) => judgeMemberFor(name, pairData.players),
     photos: danceImagesFor(week.number, title).map(danceAsset), weekNumber: week.number,
     weeklyPrediction: isScoreDeskSurface ? null : weeklyPredictionFor(star?.id, week,
       activePartnershipPredictionRows(context.predictions || [], pairData.partnerships, pairData.players)),

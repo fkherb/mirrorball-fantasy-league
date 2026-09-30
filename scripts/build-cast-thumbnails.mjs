@@ -5,6 +5,7 @@ import sharp from 'sharp';
 const images = new URL('../Images/', import.meta.url);
 const thumbnails = new URL('../Images/Cast%20Thumbnails/', import.meta.url);
 const manifestUrl = new URL('../cast-thumbnail-manifest.json', import.meta.url);
+const thumbnailVersion = 2;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 16);
 const checkOnly = process.argv.includes('--check');
 if (!checkOnly) await mkdir(thumbnails, { recursive: true });
@@ -22,17 +23,17 @@ for (const name of files) {
   let thumbnailBytes = null;
   try { thumbnailBytes = await readFile(target); } catch { /* New portrait. */ }
   const old = previousEntries.get(source);
-  if (!checkOnly && (!thumbnailBytes || previous && (!old || old.sourceSha !== sourceSha
+  if (!checkOnly && (!thumbnailBytes || previous && (previous.version !== thumbnailVersion || !old || old.sourceSha !== sourceSha
       || old.thumbnailSha !== hash(thumbnailBytes)))) {
     thumbnailBytes = await sharp(sourceBytes).rotate()
-      .resize(320, 320, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 76, effort: 5 }).toBuffer();
+      .resize(960, 960, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 84, effort: 5 }).toBuffer();
     await writeFile(target, thumbnailBytes);
   }
   if (!thumbnailBytes) throw new Error(`Missing cast thumbnail: ${name}`);
   entries.push({ source, sourceSha, thumbnail, thumbnailSha: hash(thumbnailBytes) });
 }
-const manifest = `${JSON.stringify({ version: 1, entries }, null, 2)}\n`;
+const manifest = `${JSON.stringify({ version: thumbnailVersion, entries }, null, 2)}\n`;
 if (checkOnly) {
   if (await readFile(manifestUrl, 'utf8') !== manifest) throw new Error('Cast thumbnail manifest is out of date. Run npm run photos.');
 } else await writeFile(manifestUrl, manifest);

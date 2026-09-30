@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail,
-  castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, judgePortraitFor } from '../postdraft-view.js';
+  castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, judgePortraitFor, judgeMemberFor } from '../postdraft-view.js';
 import { splitDanceSong, joinDanceSong } from '../dance-song.js';
 import { avatarFrameFor, avatarImageStyle } from '../cast-avatar-frame.js';
 
@@ -37,6 +37,7 @@ const scoredCard = danceCard({ id: 'dance-scored', kind: 'competitive', title: '
   judgePhoto: (name) => name === 'Carrie Ann' ? '/carrie.jpg' : '', photos: ['/dance.jpg'] });
 assert.match(scoredCard, /Viennese Waltz/);
 assert.match(scoredCard, /class="judge-score-art" role="img" aria-label="Carrie Ann: 7"/);
+assert.match(scoredCard, /class="judge-score-portrait-frame"/);
 assert.match(scoredCard, /class="judge-score-art judge-score-initial" role="img" aria-label="Guest: 8"/);
 assert.match(scoredCard, /class="judge-score-icon" src="\/paddle\.png"/);
 assert.doesNotMatch(scoredCard, /<b aria-hidden="true">7<\/b>/);
@@ -63,6 +64,7 @@ const largePerformanceCard = danceCard({ id: 'large-opening', kind: 'performance
   castMembers: Array.from({ length: 21 }, (_, index) => ({ name: `Cast ${index + 1}` })),
   imageFor: () => '/cast.webp' });
 assert.equal((largePerformanceCard.match(/class="dance-cast-circle"/g) || []).length, 21);
+assert.match(largePerformanceCard, /class="dance-cast-more" role="img" hidden/);
 assert.doesNotMatch(largePerformanceCard, /class="dance-cast-pill"/);
 assert.match(performanceCard, /src="\/cast.webp"/);
 assert.match(performanceCard, /class="cast-avatar-frame"/);
@@ -78,9 +80,14 @@ assert.doesNotMatch(danceCard({ id: 'opening-photo', kind: 'performance', title:
   scores: [], castNames: ['One'], photos: ['/dance.jpg'] }), /dance-performance-cast/);
 assert.match(danceCard({ id: 'opening-poster', kind: 'performance', title: 'Opening',
   scores: [], castNames: ['One'], poster: true }), /dance-performance-cast/);
-assert.equal(judgePortraitFor('Derek Hough'), 'Images/Cast Thumbnails/Derek Hough.webp');
-assert.equal(judgePortraitFor('Carrie Ann', '../'), '../Images/Cast Thumbnails/Carrie Ann Inaba.webp');
+assert.equal(judgePortraitFor('Derek Hough'), 'Images/Cast Thumbnails/Derek Hough.webp?v=2');
+assert.equal(judgePortraitFor('Carrie Ann', '../'), '../Images/Cast Thumbnails/Carrie Ann Inaba.webp?v=2');
 assert.equal(judgePortraitFor('Unknown Guest'), '');
+assert.equal(judgeMemberFor('Carrie Ann', [{ name: 'Carrie Ann Inaba', profile_details: {} }])?.name, 'Carrie Ann Inaba');
+assert.match(danceCard({ id: 'judge-frame', kind: 'competitive', title: 'Pair', scores: [{ judge_name: 'Derek', score: 7 }],
+  scoreImage: () => '/paddle.png', judgePhoto: () => '/derek.webp',
+  judgeMember: () => ({ name: 'Derek Hough', profile_details: { _avatar_frame: { x: 25, y: 40, zoom: 2 } } }),
+  imageFor: () => '/updated-derek.webp', castNames: [] }), /src="\/updated-derek.webp" style="object-position:25% 40%;transform:scale\(2\);transform-origin:25% 40%/);
 assert.match(danceCard({ id: 'dance-poster', kind: 'performance', title: 'Opening',
   scores: [], castNames: [], poster: true }), /dance-card-poster/);
 assert.match(teamPage({ weekHistory: '<button>Week 1</button>', total: 32, period: 'season',
