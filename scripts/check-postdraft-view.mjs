@@ -85,7 +85,7 @@ assert.match(performanceCard, /class="cast-avatar-frame"/);
 assert.deepEqual(avatarFrameFor({ profile_details: { _avatar_frame: { x: 30, y: 70, zoom: 2.2 } } }),
   { x: 30, y: 70, zoom: 2.2 });
 assert.equal(avatarImageStyle({ profile_details: { _avatar_frame: { x: 30, y: 70, zoom: 2.2 } } }),
-  'object-position:30% 70%;transform:scale(2.2);transform-origin:30% 70%');
+  'object-position:30% 70%;position:absolute;width:220%;height:220%;max-width:none;left:-36%;top:-84%');
 assert.deepEqual(avatarFrameFor({}), { x: 50, y: 50, zoom: 1 });
 assert.deepEqual(couplePhotoFrameFor({ profile_details: { _couple_photo_frames: {
   pro1: { x: 42, y: 63, zoom: 1.7 },
@@ -106,7 +106,7 @@ assert.equal(judgeMemberFor('Carrie Ann', [{ name: 'Carrie Ann Inaba', profile_d
 assert.match(danceCard({ id: 'judge-frame', kind: 'competitive', title: 'Pair', scores: [{ judge_name: 'Derek', score: 7 }],
   scoreImage: () => '/paddle.png', judgePhoto: () => '/derek.webp',
   judgeMember: () => ({ name: 'Derek Hough', profile_details: { _avatar_frame: { x: 25, y: 40, zoom: 2 } } }),
-  imageFor: () => '/updated-derek.webp', castNames: [] }), /src="\/updated-derek.webp" style="object-position:25% 40%;transform:scale\(2\);transform-origin:25% 40%/);
+  imageFor: () => '/updated-derek.webp', castNames: [] }), /src="\/updated-derek.webp" style="object-position:25% 40%;position:absolute;width:200%;height:200%;max-width:none;left:-25%;top:-40%/);
 assert.match(danceCard({ id: 'dance-poster', kind: 'performance', title: 'Opening',
   scores: [], castNames: [], poster: true }), /dance-card-poster/);
 assert.match(teamPage({ weekHistory: '<button>Week 1</button>', total: 32, period: 'season',

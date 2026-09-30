@@ -16,5 +16,9 @@ export function avatarFrameFor(member) {
 
 export function avatarImageStyle(member) {
   const { x, y, zoom } = avatarFrameFor(member);
-  return `object-position:${x}% ${y}%;transform:scale(${zoom});transform-origin:${x}% ${y}%`;
+  // Size the image before painting. Scaling an already-rasterized 24px circle
+  // with transform can look soft, then sharpen after a hover repaint.
+  const round = (value) => Math.round(value * 100) / 100;
+  const size = round(zoom * 100);
+  return `object-position:${x}% ${y}%;position:absolute;width:${size}%;height:${size}%;max-width:none;left:${round((1 - zoom) * x)}%;top:${round((1 - zoom) * y)}%`;
 }

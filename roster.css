@@ -1457,7 +1457,7 @@ dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-column: 1; grid-r
   .dance-row.has-dance-photo .dance-market-prediction { margin-top: 6px; }
 }
 
-.cast-avatar-frame { display: block; flex: none; width: 38px; height: 38px; overflow: hidden; border-radius: 50%; background: #e8dce6; }
+.cast-avatar-frame { position: relative; display: block; flex: none; width: 38px; height: 38px; overflow: hidden; border-radius: 50%; background: #e8dce6; }
 .cast-avatar-frame img, .cast-profile-avatar-button .cast-avatar-frame img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 0; }
 .cast-avatar-editor { margin: 8px 0 16px; padding: 12px; border: 1px solid #e5dce4; border-radius: 12px; }
 .cast-avatar-editor legend { padding: 0 5px; font-weight: 750; }

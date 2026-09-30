@@ -1,5 +1,5 @@
 import { splitDanceSong } from './dance-song.js?v=20260930-avatar-polish-v79';
-import { avatarImageStyle } from './cast-avatar-frame.js?v=20260930-avatar-polish-v79';
+import { avatarImageStyle } from './cast-avatar-frame.js?v=20260930-crisp-rings-v81';
 
 // Completed leagues share these view templates. Callers adapt their league-scoped
 // database records into the same view models and keep their own action handlers.
@@ -180,7 +180,7 @@ export function castThumbnailFor(image) {
 }
 
 function castAvatarMarkup(member, image) {
-  return `<span class="cast-avatar-frame"><img src="${html(castThumbnailFor(image))}" style="${avatarImageStyle(member)}" alt="" loading="lazy" decoding="async"></span>`;
+  return `<span class="cast-avatar-frame"><img src="${html(castThumbnailFor(image))}" style="${avatarImageStyle(member)}" alt="" decoding="sync"></span>`;
 }
 
 function judgeScoreArt(score, scoreImage, judgePhoto, judgeMember, imageFor) {
@@ -191,7 +191,7 @@ function judgeScoreArt(score, scoreImage, judgePhoto, judgeMember, imageFor) {
     ? `<img class="judge-score-icon" src="${html(scoreImage(score.score))}" alt="" aria-hidden="true" width="28" height="28" loading="lazy" decoding="async">`
     : `<b aria-hidden="true">${Number(score.score)}</b>`;
   return portrait
-    ? `<span class="judge-score-art" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><span class="judge-score-portrait-frame"><img class="judge-score-portrait" src="${html(portrait)}" style="${member ? avatarImageStyle(member) : ''}" alt="" width="48" height="48" loading="lazy" decoding="async"></span>${scoreBadge}</span>`
+    ? `<span class="judge-score-art" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><span class="judge-score-portrait-frame"><img class="judge-score-portrait" src="${html(portrait)}" style="${member ? avatarImageStyle(member) : ''}" alt="" width="48" height="48" decoding="sync"></span>${scoreBadge}</span>`
     : judgePhoto
       ? `<span class="judge-score-art judge-score-initial" role="img" aria-label="${label}" title="${html(score.judge_name)} · ${Number(score.score)} points"><i aria-hidden="true">${html(String(score.judge_name || 'J').charAt(0).toUpperCase())}</i>${scoreBadge}</span>`
     : `<span class="judge-score-art judge-score-paddle"><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"></span>`;
@@ -199,7 +199,7 @@ function judgeScoreArt(score, scoreImage, judgePhoto, judgeMember, imageFor) {
 
 function danceResultRing(id, value, top, bottom, label) {
   const pathId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
-  return `<span class="dance-result-ring" role="img" aria-label="${html(label)}" title="${html(label)}"><svg viewBox="0 0 40 40" aria-hidden="true"><defs><path id="result-top-${pathId}" d="M 5 20 A 15 15 0 0 1 35 20"/><path id="result-bottom-${pathId}" d="M 5 20 A 15 15 0 0 0 35 20"/></defs><circle cx="20" cy="20" r="17"/><text class="dance-result-arc"><textPath href="#result-top-${pathId}" startOffset="50%" text-anchor="middle">${html(top)}</textPath></text><text class="dance-result-arc"><textPath href="#result-bottom-${pathId}" startOffset="50%" text-anchor="middle">${html(bottom)}</textPath></text><text class="dance-result-value" x="20" y="23.5" text-anchor="middle">${html(value)}</text></svg></span>`;
+  return `<span class="dance-result-ring" role="img" aria-label="${html(label)}" title="${html(label)}"><svg viewBox="0 0 40 40" aria-hidden="true"><defs><path id="result-top-${pathId}" d="M 5 20 A 15 15 0 0 1 35 20"/><path id="result-bottom-${pathId}" d="M 4 20 A 16 16 0 0 0 36 20"/></defs><circle cx="20" cy="20" r="17"/><text class="dance-result-arc"><textPath href="#result-top-${pathId}" startOffset="50%" text-anchor="middle">${html(top)}</textPath></text><text class="dance-result-arc dance-result-bottom"><textPath href="#result-bottom-${pathId}" startOffset="50%" text-anchor="middle">${html(bottom)}</textPath></text><text class="dance-result-value" x="20" y="23.5" text-anchor="middle">${html(value)}</text></svg></span>`;
 }
 
 export function danceCard({ id, kind, title, shortTitle = '', danceType, song, scores, castNames = [], castMembers = [], imageFor = null, scoreImage, judgePhoto, judgeMember, photos = [], cardPhoto = '', placeholderPhoto = '', placeholderStyle = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null, complete = true }) {

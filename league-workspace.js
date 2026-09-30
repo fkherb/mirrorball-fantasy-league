@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20260930-couple-cards-v80';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-couple-cards-v80';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20260930-couple-cards-v80';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20260930-couple-cards-v80';
-import { loadMarketPredictions } from './market-predictions.js?v=20260930-couple-cards-v80';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-couple-cards-v80';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260930-couple-cards-v80';
-import { scoreLeague } from './scoring.js?v=20260930-couple-cards-v80';
+import { db } from './supabase-client.js?v=20260930-crisp-rings-v81';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-crisp-rings-v81';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20260930-crisp-rings-v81';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20260930-crisp-rings-v81';
+import { loadMarketPredictions } from './market-predictions.js?v=20260930-crisp-rings-v81';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-crisp-rings-v81';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260930-crisp-rings-v81';
+import { scoreLeague } from './scoring.js?v=20260930-crisp-rings-v81';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({

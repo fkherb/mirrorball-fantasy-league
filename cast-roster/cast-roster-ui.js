@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260930-couple-cards-v80';
+import { db } from '../supabase-client.js?v=20260930-crisp-rings-v81';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

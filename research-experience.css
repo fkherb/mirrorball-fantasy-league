@@ -305,6 +305,7 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-result-ring svg { display: block; width: 40px; height: 40px; overflow: visible; }
 .dance-result-ring circle { fill: #fff; stroke: #6d4c76; stroke-width: 2.2; }
 .dance-result-ring .dance-result-arc { fill: #5e3b69; stroke: #fff; stroke-width: 2.4px; paint-order: stroke fill; font: 800 5.8px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: .25px; }
+.dance-result-ring .dance-result-bottom { dominant-baseline: hanging; }
 .dance-result-ring .dance-result-value { fill: #4f305d; font: 800 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .dance-prediction-metric { gap: 2px; }
 .dance-prediction-metric small { color: #6d596e; font-size: 8px; font-weight: 800; line-height: 1; text-transform: uppercase; }
@@ -338,9 +339,9 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
    a readable badge instead of competing with the face. */
 .judge-paddles { flex-wrap: wrap; row-gap: 10px; }
 .judge-score-art:not(.judge-score-paddle) { flex: 0 0 44px; width: 44px; height: 44px; border: 2px solid #fff; border-radius: 50%; background: #eee8ee; box-shadow: 0 0 0 1px #d8c8d6, 0 3px 9px #26162e1e; transition: transform .18s ease, box-shadow .18s ease; }
-.judge-score-portrait-frame { display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; }
+.judge-score-portrait-frame { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 50%; }
 .judge-score-art .judge-score-portrait-frame img { width: 100%; height: 100%; border-radius: 0; object-fit: cover; }
-.judge-score-art:not(.judge-score-paddle):hover { transform: translateY(-3px); box-shadow: 0 0 0 1px #a87aa7, 0 7px 14px #26162e2c; }
+.judge-score-art:not(.judge-score-paddle):hover { box-shadow: 0 0 0 1px #a87aa7, 0 7px 14px #26162e2c; }
 .judge-score-art:not(.judge-score-paddle) img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center 32%; }
 .judge-score-art:not(.judge-score-paddle) img.judge-score-icon { position: absolute; right: -8px; bottom: -8px; z-index: 1; width: 28px; height: 28px; border: 1px solid #fff; border-radius: 50%; background: #fff; object-fit: contain; filter: drop-shadow(0 2px 3px #26162e55); }
 .judge-score-art:not(.judge-score-paddle) b { right: -7px; bottom: -5px; width: 23px; height: 23px; border-color: #fff; background: #50315d; font-size: 11px; }

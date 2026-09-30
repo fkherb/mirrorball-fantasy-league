@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260930-couple-cards-v80';
+import { db } from './supabase-client.js?v=20260930-crisp-rings-v81';
 
 let cached = [];
 let loadedAt = 0;
