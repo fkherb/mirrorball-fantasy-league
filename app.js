@@ -1,12 +1,13 @@
-import { db } from './supabase-client.js?v=20260930-dance-card-layout-v77';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260930-dance-card-layout-v77';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-dance-card-layout-v77';
-import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260930-dance-card-layout-v77';
-import { loadMarketPredictions } from './market-predictions.js?v=20260930-dance-card-layout-v77';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-dance-card-layout-v77';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260930-dance-card-layout-v77';
-import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20260930-dance-card-layout-v77';
-import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20260930-dance-card-layout-v77';
+import { db } from './supabase-client.js?v=20260930-avatar-frame-v78';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260930-avatar-frame-v78';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-avatar-frame-v78';
+import { danceImagesFor, startDanceImageUpdates } from './dance-images.js?v=20260930-avatar-frame-v78';
+import { loadMarketPredictions } from './market-predictions.js?v=20260930-avatar-frame-v78';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-avatar-frame-v78';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260930-avatar-frame-v78';
+import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20260930-avatar-frame-v78';
+import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20260930-avatar-frame-v78';
+import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20260930-avatar-frame-v78';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -319,7 +320,7 @@ async function openCastDetail(castMemberId, returnTeamId = null, returnAction = 
     fantasyPoints, judgesTotal: scoreEntry.official, appearanceCount: scoreEntry.appearanceCount,
     showJudges: isAnyPairRole(member.role), showWins: canHaveMirrorballWins(member.role, member.is_hough),
     details: member.profile_details && typeof member.profile_details === 'object'
-      ? Object.entries(member.profile_details).filter(([, value]) => value) : [],
+      ? Object.entries(member.profile_details).filter(([key, value]) => !key.startsWith('_') && value) : [],
     backLabel: returnAction ? backLabel || 'dance' : returnTeamId ? 'team' : '',
     partnerMember: linkedPartner ? partner : null,
     partnerImage: linkedPartner ? displayImagePath(partner) : '',
@@ -369,6 +370,7 @@ async function editPlayer(id) {
     const player = players.find((item) => item.id === id);
     const partner = partnerFor(player, partnerships, players);
     const partnership = partnerships.find((item) => item.star_id === player.id || item.pro_id === player.id);
+    const avatarFrame = avatarFrameFor(player);
     openModal(`<div class="cast-modal-heading"><img id="editPhotoPreview" class="cast-modal-photo" style="object-position:${player.image_position ?? 50}% center" src="${escapeHtml(displayImagePath(player))}" alt=""><div><p class="eyebrow">Cast Member</p><h2>${escapeHtml(player.name)}</h2><p class="sub">Update cast details, partnership, or portrait framing.</p></div></div>
       <label>Role<select id="editRole" ${player.role.startsWith('Eliminated') ? 'disabled' : ''}>${(player.role.startsWith('Eliminated') ? [player.role] : assignableRoles).map((role) => `<option ${role === player.role ? 'selected' : ''}>${role}</option>`).join('')}</select>${player.role.startsWith('Eliminated') ? '<span class="range-note">Eliminated roles are managed by completing a week.</span>' : ''}</label>
       <div id="roleDetailField" ${player.role === 'Judges + Hosts' ? '' : 'hidden'}><label>Type<select id="editRoleDetail"><option ${player.role_detail === 'Judge' ? 'selected' : ''}>Judge</option><option ${player.role_detail === 'Host' ? 'selected' : ''}>Host</option><option ${!player.role_detail || player.role_detail === 'Judge + Host' ? 'selected' : ''}>Judge + Host</option></select></label><label class="check-row"><input id="editIsHough" type="checkbox" ${player.is_hough || player.role === 'Hough' ? 'checked' : ''}> Hough scoring rate</label></div>
@@ -376,6 +378,7 @@ async function editPlayer(id) {
       <label id="partnerField" ${isAnyPairRole(player.role) ? '' : 'hidden'}>Partner<select id="editPartner"><option value="">No partner</option>${partnerOptions(activePairRole(player.role), players, partnerships, partner?.id)}</select></label>
       <label id="partnershipNameField" ${partner ? '' : 'hidden'}>Partnership name <span class="optional">(optional)</span><input id="partnershipName" value="${escapeHtml(partnership?.partnership_name || '')}" placeholder="e.g., Team Sparkle"></label>
       <label>Portrait position<input id="imagePosition" type="range" min="0" max="100" value="${player.image_position ?? 50}"><span class="range-note">Move left or right to center the image.</span></label>
+      <fieldset class="cast-avatar-editor"><legend>Frame profile picture</legend><div class="cast-avatar-preview-row"><span class="cast-avatar-frame"><img id="avatarFramePreview" src="${escapeHtml(displayImagePath(player))}" style="${avatarImageStyle(player)}" alt="Small circular preview of ${escapeHtml(player.name)}"></span><p>This separate crop is used in partner tags and dance cast pills. The full portrait stays as framed above.</p></div><label>Zoom<input id="avatarZoom" type="range" min="1" max="3" step="0.1" value="${avatarFrame.zoom}"></label><label>Move left or right<input id="avatarFrameX" type="range" min="0" max="100" value="${avatarFrame.x}"></label><label>Move up or down<input id="avatarFrameY" type="range" min="0" max="100" value="${avatarFrame.y}"></label></fieldset>
       <label>Biography <span class="optional">(optional)</span><textarea id="editBio" rows="4">${escapeHtml(player.bio || '')}</textarea></label>
       <label>Career highlights <span class="optional">(optional)</span><textarea id="editCareerHighlights" rows="3">${escapeHtml(player.career_highlights || '')}</textarea></label>
       <label id="editMirrorballWinsField" ${canHaveMirrorballWins(player.role, player.is_hough) ? '' : 'hidden'}>Past Mirrorball wins<input id="editMirrorballWins" type="number" min="0" max="99" value="${Number(player.mirrorball_wins || 0)}"></label>
@@ -392,6 +395,13 @@ async function editPlayer(id) {
     $('#editIsHough').addEventListener('change', syncEditWinsField);
     $('#editPartner').addEventListener('change', (event) => { $('#partnershipNameField').hidden = !event.target.value; });
     $('#imagePosition').addEventListener('input', (event) => { $('#editPhotoPreview').style.objectPosition = `${event.target.value}% center`; });
+    const updateAvatarPreview = () => {
+      $('#avatarFramePreview').style.cssText = avatarImageStyle({ profile_details: { _avatar_frame: {
+        x: Number($('#avatarFrameX').value), y: Number($('#avatarFrameY').value),
+        zoom: Number($('#avatarZoom').value),
+      } } });
+    };
+    ['#avatarZoom', '#avatarFrameX', '#avatarFrameY'].forEach((selector) => $(selector).addEventListener('input', updateAvatarPreview));
     $('#savePlayer').addEventListener('click', async () => {
       const saveButton = $('#savePlayer');
       if (saveButton.disabled) return;
@@ -413,6 +423,14 @@ async function editPlayer(id) {
         ...(role === 'Surprise' ? { p_surprise_base_role: $('#editSurpriseBaseRole').value } : {}),
       });
       if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save ${player.name}: ${saveError.message}`); }
+      const profileDetails = player.profile_details && typeof player.profile_details === 'object'
+        && !Array.isArray(player.profile_details) ? { ...player.profile_details } : {};
+      profileDetails._avatar_frame = {
+        x: Number($('#avatarFrameX').value), y: Number($('#avatarFrameY').value),
+        zoom: Number($('#avatarZoom').value),
+      };
+      const { error: frameError } = await db.from('cast_members').update({ profile_details: profileDetails }).eq('id', id);
+      if (frameError) { saveButton.disabled = false; return alert(`Cast details saved, but the small photo frame could not be saved: ${frameError.message}`); }
       $('#modal').close(); refreshRoster(); loadTeams(); loadStandings();
     });
     $('#deletePlayer').addEventListener('click', () => openConfirmation({ title: `Delete ${player.name}?`, message: 'This permanently removes the cast member and cannot be undone.', confirmLabel: 'Delete cast member', destructive: true, onCancel: () => editPlayer(id), onConfirm: async () => { const { error } = await db.rpc('delete_cast_member_atomic', { p_cast_member_id: id }); if (!error) { refreshRoster(); loadTeams(); loadStandings(); } return error; } }));

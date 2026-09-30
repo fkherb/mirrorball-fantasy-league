@@ -1,10 +1,10 @@
-import { db } from './supabase-client.js?v=20260930-dance-card-layout-v77';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, danceCard, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-dance-card-layout-v77';
-import { danceImagesFor, danceCardPhotoFor } from './dance-images.js?v=20260930-dance-card-layout-v77';
-import { loadMarketPredictions } from './market-predictions.js?v=20260930-dance-card-layout-v77';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-dance-card-layout-v77';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260930-dance-card-layout-v77';
-import { scoreLeague } from './scoring.js?v=20260930-dance-card-layout-v77';
+import { db } from './supabase-client.js?v=20260930-avatar-frame-v78';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, danceCard, fitDanceCardNames, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-avatar-frame-v78';
+import { danceImagesFor, danceCardPhotoFor } from './dance-images.js?v=20260930-avatar-frame-v78';
+import { loadMarketPredictions } from './market-predictions.js?v=20260930-avatar-frame-v78';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-avatar-frame-v78';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260930-avatar-frame-v78';
+import { scoreLeague } from './scoring.js?v=20260930-avatar-frame-v78';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -158,7 +158,7 @@ function openWorkspaceCastProfile(cast, teamName = 'Available cast', backAction 
     showJudges: ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(cast.role),
     showWins: ['Pro', 'Eliminated Pro'].includes(cast.role) || (cast.role === 'Judges + Hosts' && cast.is_hough),
     details: cast.profile_details && typeof cast.profile_details === 'object'
-      ? Object.entries(cast.profile_details).filter(([, value]) => value) : [],
+      ? Object.entries(cast.profile_details).filter(([key, value]) => !key.startsWith('_') && value) : [],
     backLabel: backAction ? backLabel : '',
     partnerMember: linkedPartner ? partner : null, partnerImage: linkedPartner ? castImage(partner) : '',
     seasonPredictions: seasonPredictionsFor(predictionStarId, activePredictions),
@@ -1221,7 +1221,10 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
     const castMembers = data.appearances.filter((item) => item.dance_id === dance.id)
       .map((appearance) => castById.get(appearance.cast_member_id)).filter(Boolean);
     const castNames = castMembers.map((member) => member.name);
-    return danceCard({ id: dance.id, kind: dance.kind, title: names,
+    const proName = pair ? nameFor(pair.pro_id).trim().split(/\s+/) : [];
+    const shortTitle = pair && proName.length > 1
+      ? `${nameFor(pair.star_id)} & ${proName.slice(0, -1).join(' ')}` : '';
+    return danceCard({ id: dance.id, kind: dance.kind, title: names, shortTitle,
       photos: danceImagesFor(week.number, names), cardPhoto: danceCardPhotoFor(week.number, names),
       poster: Number(week.number) <= 2,
       weekNumber: week.number,
@@ -1233,9 +1236,14 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
         activePartnershipPredictionRows(data.marketPredictions || [], data.pairs, data.cast)) });
   }).join('') || '<div class="card pad">No dances recorded for this week.</div>'}</div>`;
   danceSongResizeObserver?.disconnect();
+  fitDanceCardNames(content);
   fitDanceSongLabels(content);
   if (typeof ResizeObserver !== 'undefined') {
-    danceSongResizeObserver = new ResizeObserver(() => fitDanceSongLabels(content));
+    danceSongResizeObserver = new ResizeObserver(() => {
+      fitDanceCardNames(content);
+      fitDanceSongLabels(content);
+    });
+    content.querySelectorAll('.dance-row').forEach((row) => danceSongResizeObserver.observe(row));
     content.querySelectorAll('.dance-row .dance-details').forEach((details) => danceSongResizeObserver.observe(details));
   }
   content.querySelectorAll('[data-dance-detail]').forEach((button) => {

@@ -1,4 +1,5 @@
-import { splitDanceSong } from './dance-song.js?v=20260930-dance-card-layout-v77';
+import { splitDanceSong } from './dance-song.js?v=20260930-avatar-frame-v78';
+import { avatarImageStyle } from './cast-avatar-frame.js?v=20260930-avatar-frame-v78';
 
 // Completed leagues share these view templates. Callers adapt their league-scoped
 // database records into the same view models and keep their own action handlers.
@@ -171,6 +172,10 @@ export function castThumbnailFor(image) {
   return String(image || '').replace(/^((?:\.\.\/)?Images\/)([^/]+)\.(jpe?g|png|webp)$/i, '$1Cast Thumbnails/$2.webp');
 }
 
+function castAvatarMarkup(member, image) {
+  return `<span class="cast-avatar-frame"><img src="${html(castThumbnailFor(image))}" style="${avatarImageStyle(member)}" alt="" loading="lazy" decoding="async"></span>`;
+}
+
 function judgeScoreArt(score, scoreImage, judgePhoto) {
   const portrait = judgePhoto?.(score.judge_name);
   const label = `${html(score.judge_name)}: ${Number(score.score)}`;
@@ -184,7 +189,7 @@ function judgeScoreArt(score, scoreImage, judgePhoto) {
     : `<span class="judge-score-art judge-score-paddle"><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"></span>`;
 }
 
-export function danceCard({ id, kind, title, danceType, song, scores, castNames = [], castMembers = [], imageFor = null, scoreImage, judgePhoto, photos = [], cardPhoto = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null }) {
+export function danceCard({ id, kind, title, shortTitle = '', danceType, song, scores, castNames = [], castMembers = [], imageFor = null, scoreImage, judgePhoto, photos = [], cardPhoto = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null }) {
   const total = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
   const songParts = splitDanceSong(song);
   const art = photos.length
@@ -196,11 +201,34 @@ export function danceCard({ id, kind, title, danceType, song, scores, castNames 
     : scores.length ? `<strong class="dance-judge-total" aria-label="Judges total ${total}">${total}<small>judges</small></strong>` : '';
   const scoresMarkup = kind === 'competitive'
     ? `<div class="dance-details"><span class="dance-type-pill">${html(danceType || 'Dance type not set')}</span>${songParts.title ? `<span class="dance-song-pill" title="${html(song)}">${html(songParts.title)}${songParts.artist ? `<i> by ${html(songParts.artist)}</i>` : ''}</span>` : ''}</div><div class="judge-paddles" aria-label="Judge scores">${scores.map((score) => judgeScoreArt(score, scoreImage, judgePhoto)).join('')}${scoreSummary}${pending ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''}</div>` : '';
+  const compactCast = castNames.length > 8;
   const castMarkup = kind === 'performance' && !photos.length && castNames.length
-    ? `<div class="dance-performance-cast" aria-label="Cast: ${html(castNames.join(', '))}">${castMembers.length ? castMembers.map((member) => `<span class="dance-cast-pill"><img src="${html(castThumbnailFor(imageFor?.(member) || member.image_path || ''))}" alt="" loading="lazy" decoding="async"><b>${html(member.name)}</b></span>`).join('') : castNames.map((name) => `<span class="dance-cast-pill"><b>${html(name)}</b></span>`).join('')}</div>` : '';
+    ? `<div class="dance-performance-cast${compactCast ? ' is-avatar-grid' : ''}" aria-label="Cast: ${html(castNames.join(', '))}">${castMembers.length ? castMembers.map((member) => compactCast
+      ? `<span class="dance-cast-circle" role="img" aria-label="${html(member.name)}" title="${html(member.name)}">${castAvatarMarkup(member, imageFor?.(member) || member.image_path || '')}</span>`
+      : `<span class="dance-cast-pill">${castAvatarMarkup(member, imageFor?.(member) || member.image_path || '')}<b>${html(member.name)}</b></span>`).join('') : castNames.map((name) => `<span class="dance-cast-pill"><b>${html(name)}</b></span>`).join('')}</div>` : '';
   const prediction = kind === 'competitive' && weeklyPrediction
     ? `<div class="dance-market-prediction">${predictionRing(weeklyPrediction.percent, 'risk', 'small', weeklyPrediction.relative_position)}<span class="prediction-label"><small>${weekNumber ? `Week ${Number(weekNumber)}` : 'Weekly'}</small><strong>Elimination</strong></span></div>` : '';
-  return `<article class="card dance-row dance-${html(kind)} ${art ? 'has-dance-photo' : ''}" data-dance-detail="${html(id)}" tabindex="0" role="button" aria-label="View details for ${html(title)}">${art}<div class="dance-card-body"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${html(title)}</h3></div>${editButton ? `<button class="secondary" data-edit-dance="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>${scoresMarkup}${prediction}${castMarkup}</div></article>`;
+  return `<article class="card dance-row dance-${html(kind)} ${art ? 'has-dance-photo' : ''}" data-dance-detail="${html(id)}" tabindex="0" role="button" aria-label="View details for ${html(title)}">${art}<div class="dance-card-body"><div class="dance-card-top"><div class="dance-card-info"><p class="eyebrow">${kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3${shortTitle ? ` data-full-title="${html(title)}" data-short-title="${html(shortTitle)}"` : ''}>${html(title)}</h3></div>${editButton ? `<button class="secondary" data-edit-dance="${html(id)}">Edit</button>` : '<span class="card-chevron" aria-hidden="true">›</span>'}</div>${scoresMarkup}${prediction}${castMarkup}</div></article>`;
+}
+
+export function fitDanceCardNames(root) {
+  if (!root || typeof document === 'undefined') return;
+  root.querySelectorAll('.dance-row h3[data-short-title]').forEach((heading) => {
+    heading.textContent = heading.dataset.fullTitle;
+    const textNode = heading.firstChild;
+    const surnameStart = heading.dataset.shortTitle.length + 1;
+    const givenNameStart = heading.dataset.shortTitle.lastIndexOf(' ') + 1;
+    if (!textNode || surnameStart >= textNode.length || givenNameStart >= surnameStart - 1) return;
+    const givenName = document.createRange();
+    givenName.setStart(textNode, givenNameStart);
+    givenName.setEnd(textNode, surnameStart - 1);
+    const surname = document.createRange();
+    surname.setStart(textNode, surnameStart);
+    surname.setEnd(textNode, textNode.length);
+    if (surname.getBoundingClientRect().top > givenName.getBoundingClientRect().top + 2) {
+      heading.textContent = heading.dataset.shortTitle;
+    }
+  });
 }
 
 // Show the artist only when the dance type and complete song fit on one row.
@@ -247,11 +275,11 @@ export function castProfile({ member, image, role, teamName, fantasyPoints, judg
   const preview = longBio ? `${words.slice(0, 65).join(' ')}…` : bio;
   const bioMarkup = `<div class="cast-bio-body"><p class="cast-bio-preview">${html(preview)}</p>${longBio ? `<details class="cast-bio-expand"><summary><span class="bio-more-label">Continue reading</span><span class="bio-less-label">Show less</span></summary><p>${html(bio)}</p></details>` : ''}</div>`;
   const partnerCard = partnerMember && ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro'].includes(member.role)
-    ? `<div class="cast-mobile-pill" data-profile-control="partner"><button type="button" class="cast-profile-avatar-button" data-profile-reveal="partner" aria-expanded="false" aria-label="Show dance partner ${html(partnerMember.name)}"><img src="${html(partnerImage)}" alt=""></button><button type="button" class="cast-profile-reveal-action" data-profile-detail="partner" data-partner-profile="${html(partnerMember.id)}" hidden><strong>${html(partnerMember.name)}</strong><span aria-hidden="true">›</span></button></div>` : '';
+    ? `<div class="cast-mobile-pill" data-profile-control="partner"><button type="button" class="cast-profile-avatar-button" data-profile-reveal="partner" aria-expanded="false" aria-label="Show dance partner ${html(partnerMember.name)}">${castAvatarMarkup(partnerMember, partnerImage)}</button><button type="button" class="cast-profile-reveal-action" data-profile-detail="partner" data-partner-profile="${html(partnerMember.id)}" hidden><strong>${html(partnerMember.name)}</strong><span aria-hidden="true">›</span></button></div>` : '';
   const teamAvatarMarkup = teamAvatar ? `<img src="${html(teamAvatar)}" alt="">` : `<span class="cast-team-initial" aria-hidden="true">${html(String(teamName || 'T').charAt(0).toUpperCase())}</span>`;
   const teamCard = teamId ? `<div class="cast-mobile-pill" data-profile-control="team"><button type="button" class="cast-profile-avatar-button" data-profile-reveal="team" aria-expanded="false" aria-label="Show ${html(teamName)} team">${teamAvatarMarkup}</button><button type="button" class="cast-profile-reveal-action" data-profile-detail="team" data-cast-team-detail="${html(teamId)}" hidden><strong>${html(teamName)}</strong><span aria-hidden="true">›</span></button></div>` : `<span class="cast-profile-available">${html(teamName || 'Available cast')}</span>`;
   const desktopTeam = teamId ? `<button type="button" class="cast-profile-desktop-pill" data-cast-team-detail="${html(teamId)}">${teamAvatarMarkup}<span class="cast-desktop-pill-copy"><strong>${html(teamName)}</strong></span><span class="cast-desktop-pill-arrow" aria-hidden="true">›</span></button>` : `<span class="cast-profile-desktop-pill cast-desktop-available">Available cast</span>`;
-  const desktopPartner = partnerCard ? `<button type="button" class="cast-profile-desktop-pill" data-partner-profile="${html(partnerMember.id)}"><img src="${html(partnerImage)}" alt=""><span class="cast-desktop-pill-copy"><strong>${html(partnerMember.name)}</strong></span><span class="cast-desktop-pill-arrow" aria-hidden="true">›</span></button>` : '';
+  const desktopPartner = partnerCard ? `<button type="button" class="cast-profile-desktop-pill" data-partner-profile="${html(partnerMember.id)}">${castAvatarMarkup(partnerMember, partnerImage)}<span class="cast-desktop-pill-copy"><strong>${html(partnerMember.name)}</strong></span><span class="cast-desktop-pill-arrow" aria-hidden="true">›</span></button>` : '';
   const eliminated = member.role?.startsWith('Eliminated') ? '<p class="cast-eliminated-status">Eliminated from the competition</p>' : '';
   const predictions = member.role?.startsWith('Eliminated')
     ? { main: '', desktop: '', expanded: '' } : marketPredictionMarkup(seasonPredictions, weeklyPrediction,

@@ -1456,3 +1456,13 @@ dialog:has(.cast-profile-hero) .cast-profile-hero > img { grid-column: 1; grid-r
   .dance-row.has-dance-photo:has(.dance-market-prediction) .dance-card-body { overflow: visible; }
   .dance-row.has-dance-photo .dance-market-prediction { margin-top: 6px; }
 }
+
+.cast-avatar-frame { display: block; flex: none; width: 38px; height: 38px; overflow: hidden; border-radius: 50%; background: #e8dce6; }
+.cast-avatar-frame img, .cast-profile-avatar-button .cast-avatar-frame img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 0; }
+.cast-avatar-editor { margin: 8px 0 16px; padding: 12px; border: 1px solid #e5dce4; border-radius: 12px; }
+.cast-avatar-editor legend { padding: 0 5px; font-weight: 750; }
+.cast-avatar-preview-row { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.cast-avatar-preview-row .cast-avatar-frame { width: 76px; height: 76px; box-shadow: 0 0 0 1px #e0d3df; }
+.cast-avatar-preview-row p { margin: 0; color: #6e5965; font-size: 12px; line-height: 1.4; }
+.cast-avatar-editor label { display: block; margin-top: 8px; }
+.cast-avatar-editor input[type="range"] { width: 100%; }

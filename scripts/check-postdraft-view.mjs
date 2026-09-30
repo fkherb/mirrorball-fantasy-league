@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail,
   castRosterRow, danceCard, teamPage, roleRatesTable, castProfile, danceDetail, judgePortraitFor } from '../postdraft-view.js';
 import { splitDanceSong, joinDanceSong } from '../dance-song.js';
+import { avatarFrameFor, avatarImageStyle } from '../cast-avatar-frame.js';
 
 const member = { id: 'cast-1', name: 'A & B', image_position: 0 };
 const rows = [{ member, role: 'Pro', displayRole: 'Pro', appearanceRate: 1,
@@ -57,7 +58,22 @@ const performanceCard = danceCard({ id: 'opening', kind: 'performance', title: '
   castMembers: ['One', 'Two', 'Three', 'Four'].map((name) => ({ name })),
   imageFor: () => '/cast.webp' });
 assert.equal((performanceCard.match(/class="dance-cast-pill"/g) || []).length, 4);
+const largePerformanceCard = danceCard({ id: 'large-opening', kind: 'performance', title: 'Opening',
+  scores: [], castNames: Array.from({ length: 21 }, (_, index) => `Cast ${index + 1}`),
+  castMembers: Array.from({ length: 21 }, (_, index) => ({ name: `Cast ${index + 1}` })),
+  imageFor: () => '/cast.webp' });
+assert.equal((largePerformanceCard.match(/class="dance-cast-circle"/g) || []).length, 21);
+assert.doesNotMatch(largePerformanceCard, /class="dance-cast-pill"/);
 assert.match(performanceCard, /src="\/cast.webp"/);
+assert.match(performanceCard, /class="cast-avatar-frame"/);
+assert.deepEqual(avatarFrameFor({ profile_details: { _avatar_frame: { x: 30, y: 70, zoom: 2.2 } } }),
+  { x: 30, y: 70, zoom: 2.2 });
+assert.equal(avatarImageStyle({ profile_details: { _avatar_frame: { x: 30, y: 70, zoom: 2.2 } } }),
+  'object-position:30% 70%;transform:scale(2.2);transform-origin:30% 70%');
+assert.deepEqual(avatarFrameFor({}), { x: 50, y: 50, zoom: 1 });
+assert.match(danceCard({ id: 'long-pair', kind: 'competitive', title: 'Guillermo Rodriguez & Witney Carson',
+  shortTitle: 'Guillermo Rodriguez & Witney', scores: [], castNames: [] }),
+  /data-full-title="Guillermo Rodriguez &amp; Witney Carson" data-short-title="Guillermo Rodriguez &amp; Witney"/);
 assert.doesNotMatch(danceCard({ id: 'opening-photo', kind: 'performance', title: 'Opening',
   scores: [], castNames: ['One'], photos: ['/dance.jpg'] }), /dance-performance-cast/);
 assert.match(danceCard({ id: 'opening-poster', kind: 'performance', title: 'Opening',

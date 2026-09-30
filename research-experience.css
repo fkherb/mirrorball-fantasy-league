@@ -304,6 +304,10 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-cast-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 29px; padding: 3px 9px 3px 3px; border: 1px solid #e5dce4; border-radius: 999px; background: #faf7fa; color: #3d3141; }
 .dance-cast-pill img { flex: none; width: 23px; height: 23px; border-radius: 50%; object-fit: cover; }
 .dance-cast-pill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 10px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.dance-cast-pill .cast-avatar-frame { width: 23px; height: 23px; }
+.dance-performance-cast.is-avatar-grid { gap: 5px; }
+.dance-cast-circle { display: block; width: 30px; height: 30px; padding: 2px; border: 1px solid #e5dce4; border-radius: 50%; background: #faf7fa; }
+.dance-cast-circle .cast-avatar-frame { width: 24px; height: 24px; }
 .judge-paddles { gap: 8px; }
 .judge-score-art { position: relative; display: inline-grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; }
 .judge-paddles .judge-score-art img, .detail-judges .judge-score-art img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: center 28%; filter: none; }
