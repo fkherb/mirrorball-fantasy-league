@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20260930-crisp-rings-v81';
-import { prepareProfilePicture } from './profile-picture.js?v=20260930-crisp-rings-v81';
+import { db } from './supabase-client.js?v=20260930-result-rings-v82';
+import { prepareProfilePicture } from './profile-picture.js?v=20260930-result-rings-v82';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

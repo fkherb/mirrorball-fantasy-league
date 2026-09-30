@@ -44,6 +44,8 @@ assert.match(scoredCard, /class="judge-score-icon" src="\/paddle\.png"/);
 assert.doesNotMatch(scoredCard, /<b aria-hidden="true">7<\/b>/);
 assert.match(scoredCard, /Judges total 15/);
 assert.match(scoredCard, /class="dance-result-ring"/);
+assert.match(scoredCard, /class="dance-result-caption"><textPath[^>]*>JUDGES<\/textPath>/);
+assert.doesNotMatch(scoredCard, />TOTAL<\/textPath>/);
 const couplePlaceholderCard = danceCard({ id: 'couple-photo', kind: 'competitive', title: 'Pair',
   scores: [], castNames: [], placeholderPhoto: '/couple.avif',
   placeholderStyle: 'object-position:40% 60%', poster: true });
@@ -67,6 +69,8 @@ assert.match(extraCastCard, /class="dance-song-pill"/);
 assert.match(extraCastCard, /Escape \(The Piña Colada Song\)<i> by Rupert Holmes<\/i>/);
 assert.match(extraCastCard, /aria-label="2 additional cast members: One, Two"/);
 assert.match(extraCastCard, /class="dance-result-value"[^>]*>\+2<\/text>/);
+assert.match(extraCastCard, /class="dance-result-caption"><textPath[^>]*>CAST<\/textPath>/);
+assert.doesNotMatch(extraCastCard, />EXTRA<\/textPath>/);
 assert.doesNotMatch(extraCastCard, /Judges total 7|class="dance-cast"/);
 const performanceCard = danceCard({ id: 'opening', kind: 'performance', title: 'Opening',
   scores: [], castNames: ['One', 'Two', 'Three', 'Four'],

@@ -304,8 +304,7 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-result-ring, .dance-prediction-metric { display: grid; flex: none; width: 40px; min-height: 44px; place-items: center; margin-left: auto; }
 .dance-result-ring svg { display: block; width: 40px; height: 40px; overflow: visible; }
 .dance-result-ring circle { fill: #fff; stroke: #6d4c76; stroke-width: 2.2; }
-.dance-result-ring .dance-result-arc { fill: #5e3b69; stroke: #fff; stroke-width: 2.4px; paint-order: stroke fill; font: 800 5.8px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: .25px; }
-.dance-result-ring .dance-result-bottom { dominant-baseline: hanging; }
+.dance-result-ring .dance-result-caption { fill: #5e3b69; stroke: #fff; stroke-width: 2.5px; paint-order: stroke fill; dominant-baseline: hanging; font: 800 8px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: .3px; }
 .dance-result-ring .dance-result-value { fill: #4f305d; font: 800 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .dance-prediction-metric { gap: 2px; }
 .dance-prediction-metric small { color: #6d596e; font-size: 8px; font-weight: 800; line-height: 1; text-transform: uppercase; }

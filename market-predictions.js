@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20260930-crisp-rings-v81';
+import { db } from './supabase-client.js?v=20260930-result-rings-v82';
 
 let cached = [];
 let loadedAt = 0;
