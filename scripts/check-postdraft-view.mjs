@@ -44,8 +44,14 @@ assert.match(scoredCard, /class="judge-score-icon" src="\/paddle\.png"/);
 assert.doesNotMatch(scoredCard, /<b aria-hidden="true">7<\/b>/);
 assert.match(scoredCard, /Judges total 15/);
 assert.match(scoredCard, /class="dance-result-ring"/);
-assert.match(scoredCard, /class="dance-result-caption"><textPath[^>]*>JUDGES<\/textPath>/);
-assert.doesNotMatch(scoredCard, />TOTAL<\/textPath>/);
+assert.match(scoredCard, /--ring-value:50%;--ring-color:#6d4c76/);
+assert.match(scoredCard, /<strong>15<\/strong><\/span><small>Judges<\/small>/);
+const guestJudgeCard = danceCard({ id: 'guest-score', kind: 'competitive', title: 'Pair',
+  scores: [{ judge_name: 'Carrie Ann', score: 7 }, { judge_name: 'Derek', score: 8 },
+    { judge_name: 'Bruno', score: 8 }, { judge_name: 'Guest', score: 7 }],
+  castNames: [], guestJudge: true, scoreImage: () => '/paddle.png' });
+assert.match(guestJudgeCard, /--ring-value:75%;--ring-color:#6d4c76/);
+assert.match(guestJudgeCard, /<strong>30<\/strong><\/span><small>Judges<\/small>/);
 const couplePlaceholderCard = danceCard({ id: 'couple-photo', kind: 'competitive', title: 'Pair',
   scores: [], castNames: [], placeholderPhoto: '/couple.avif',
   placeholderStyle: 'object-position:40% 60%', poster: true });
@@ -68,10 +74,15 @@ const extraCastCard = danceCard({ id: 'dance-extra', kind: 'competitive', title:
 assert.match(extraCastCard, /class="dance-song-pill"/);
 assert.match(extraCastCard, /Escape \(The Piña Colada Song\)<i> by Rupert Holmes<\/i>/);
 assert.match(extraCastCard, /aria-label="2 additional cast members: One, Two"/);
-assert.match(extraCastCard, /class="dance-result-value"[^>]*>\+2<\/text>/);
-assert.match(extraCastCard, /class="dance-result-caption"><textPath[^>]*>CAST<\/textPath>/);
-assert.doesNotMatch(extraCastCard, />EXTRA<\/textPath>/);
+assert.match(extraCastCard, /--ring-value:20%;--ring-color:#6d4c76/);
+assert.match(extraCastCard, /<strong>\+2<\/strong><\/span><small>Cast<\/small>/);
 assert.doesNotMatch(extraCastCard, /Judges total 7|class="dance-cast"/);
+const cappedCastCard = danceCard({ id: 'large-cast', kind: 'competitive', title: 'Pair',
+  scores: [{ judge_name: 'Derek', score: 7 }],
+  castNames: Array.from({ length: 12 }, (_, index) => `Cast ${index + 1}`),
+  scoreImage: () => '/paddle.png' });
+assert.match(cappedCastCard, /--ring-value:100%;--ring-color:#6d4c76/);
+assert.match(cappedCastCard, /<strong>\+12<\/strong><\/span><small>Cast<\/small>/);
 const performanceCard = danceCard({ id: 'opening', kind: 'performance', title: 'Opening',
   scores: [], castNames: ['One', 'Two', 'Three', 'Four'],
   castMembers: ['One', 'Two', 'Three', 'Four'].map((name) => ({ name })),

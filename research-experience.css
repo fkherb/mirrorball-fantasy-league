@@ -301,13 +301,10 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-card-body .judge-paddles { margin-top: 7px; }
 .dance-card-footer { display: flex; align-items: center; gap: 8px; min-height: 50px; margin-top: auto; padding-top: 7px; }
 .dance-card-footer .judge-paddles { flex: 1; min-width: 0; margin: 0; }
-.dance-result-ring, .dance-prediction-metric { display: grid; flex: none; width: 40px; min-height: 44px; place-items: center; margin-left: auto; }
-.dance-result-ring svg { display: block; width: 40px; height: 40px; overflow: visible; }
-.dance-result-ring circle { fill: #fff; stroke: #6d4c76; stroke-width: 2.2; }
-.dance-result-ring .dance-result-caption { fill: #5e3b69; stroke: #fff; stroke-width: 2.5px; paint-order: stroke fill; dominant-baseline: hanging; font: 800 8px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: .3px; }
-.dance-result-ring .dance-result-value { fill: #4f305d; font: 800 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-.dance-prediction-metric { gap: 2px; }
-.dance-prediction-metric small { color: #6d596e; font-size: 8px; font-weight: 800; line-height: 1; text-transform: uppercase; }
+.dance-result-ring, .dance-prediction-metric { display: grid; flex: none; width: 40px; min-height: 48px; place-items: center; gap: 2px; margin-left: auto; }
+.dance-result-ring .prediction-ring-small strong { font-size: 12px; }
+.dance-result-ring small, .dance-prediction-metric small { color: #6d596e; font-size: 8px; font-weight: 800; line-height: 1; text-transform: uppercase; }
+.dance-result-ring small { color: #5e3b69; }
 .dance-performance-cast { display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start; max-height: 65px; overflow: hidden; margin-top: 12px; }
 .dance-cast-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 29px; padding: 3px 9px 3px 3px; border: 1px solid #e5dce4; border-radius: 999px; background: #faf7fa; color: #3d3141; }
 .dance-cast-pill img { flex: none; width: 23px; height: 23px; border-radius: 50%; object-fit: cover; }

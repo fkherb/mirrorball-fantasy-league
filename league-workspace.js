@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261001-live-team-names-v83';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-live-team-names-v83';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261001-live-team-names-v83';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-live-team-names-v83';
-import { loadMarketPredictions } from './market-predictions.js?v=20261001-live-team-names-v83';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-live-team-names-v83';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261001-live-team-names-v83';
-import { scoreLeague } from './scoring.js?v=20261001-live-team-names-v83';
+import { db } from './supabase-client.js?v=20261001-dance-metrics-v84';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-dance-metrics-v84';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261001-dance-metrics-v84';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-dance-metrics-v84';
+import { loadMarketPredictions } from './market-predictions.js?v=20261001-dance-metrics-v84';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-dance-metrics-v84';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261001-dance-metrics-v84';
+import { scoreLeague } from './scoring.js?v=20261001-dance-metrics-v84';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -1228,7 +1228,7 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
       photos: danceImagesFor(week.number, names), cardPhoto: danceCardPhotoFor(week.number, names),
       placeholderPhoto: dance.kind === 'competitive' ? couplePhotoFor(names) : '',
       placeholderStyle: pair ? couplePhotoStyle(couplePhotoFrameFor(castById.get(pair.star_id), pair.pro_id)) : '',
-      poster: true, complete: Boolean(week.is_complete),
+      poster: true, complete: Boolean(week.is_complete), guestJudge: Boolean(week.guest_judge_name),
       weekNumber: week.number,
       danceType: dance.dance_type, song: dance.song, scores: judges, castNames, castMembers,
       imageFor: castImage,

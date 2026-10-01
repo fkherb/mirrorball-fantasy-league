@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20261001-live-team-names-v83';
+import { db } from '../supabase-client.js?v=20261001-dance-metrics-v84';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

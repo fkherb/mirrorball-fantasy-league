@@ -197,12 +197,12 @@ function judgeScoreArt(score, scoreImage, judgePhoto, judgeMember, imageFor) {
     : `<span class="judge-score-art judge-score-paddle"><img src="${html(scoreImage(score.score))}" alt="${html(score.judge_name)}: ${Number(score.score)}"></span>`;
 }
 
-function danceResultRing(id, value, caption, label) {
-  const pathId = String(id).replace(/[^a-zA-Z0-9_-]/g, '');
-  return `<span class="dance-result-ring" role="img" aria-label="${html(label)}" title="${html(label)}"><svg viewBox="0 0 40 40" aria-hidden="true"><defs><path id="result-caption-${pathId}" d="M 3 20 A 17 17 0 0 0 37 20"/></defs><circle cx="20" cy="20" r="16"/><text class="dance-result-caption"><textPath href="#result-caption-${pathId}" startOffset="50%" text-anchor="middle">${html(caption)}</textPath></text><text class="dance-result-value" x="20" y="23.5" text-anchor="middle">${html(value)}</text></svg></span>`;
+function danceResultRing(value, caption, label, amount, maximum) {
+  const percent = Math.round(Math.max(0, Math.min(100, (Number(amount) || 0) / maximum * 100)) * 10) / 10;
+  return `<span class="dance-result-ring" role="img" aria-label="${html(label)}" title="${html(label)}"><span class="prediction-ring prediction-ring-small" style="--ring-value:${percent}%;--ring-color:#6d4c76"><strong>${html(value)}</strong></span><small>${html(caption)}</small></span>`;
 }
 
-export function danceCard({ id, kind, title, shortTitle = '', danceType, song, scores, castNames = [], castMembers = [], imageFor = null, scoreImage, judgePhoto, judgeMember, photos = [], cardPhoto = '', placeholderPhoto = '', placeholderStyle = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null, complete = true }) {
+export function danceCard({ id, kind, title, shortTitle = '', danceType, song, scores, castNames = [], castMembers = [], imageFor = null, scoreImage, judgePhoto, judgeMember, photos = [], cardPhoto = '', placeholderPhoto = '', placeholderStyle = '', poster = false, pending = false, editButton = false, weeklyPrediction = null, weekNumber = null, complete = true, guestJudge = false }) {
   const total = scores.reduce((sum, score) => sum + Number(score.score || 0), 0);
   const songParts = splitDanceSong(song);
   const art = photos.length
@@ -211,8 +211,9 @@ export function danceCard({ id, kind, title, shortTitle = '', danceType, song, s
     : poster ? '<div class="dance-card-photo dance-card-poster" aria-hidden="true"><span class="poster-mark">DWTS</span><b>THE SHOW</b></div>' : '';
   const extraCast = castNames.length;
   const result = extraCast
-    ? danceResultRing(id, `+${extraCast}`, 'CAST', `${extraCast} additional cast members: ${castNames.join(', ')}`)
-    : scores.length ? danceResultRing(id, total, 'JUDGES', `Judges total ${total}`) : '';
+    ? danceResultRing(`+${extraCast}`, 'Cast', `${extraCast} additional cast members: ${castNames.join(', ')}`, extraCast, 10)
+    : scores.length ? danceResultRing(total, 'Judges', `Judges total ${total}`, total,
+      guestJudge || scores.length > 3 ? 40 : 30) : '';
   const prediction = weeklyPrediction
     ? `<span class="dance-prediction-metric" role="img" aria-label="Week ${Number(weekNumber)} elimination prediction ${marketPercent(weeklyPrediction.percent)}" title="Week ${Number(weekNumber)} elimination prediction">${predictionRing(weeklyPrediction.percent, 'risk', 'small', weeklyPrediction.relative_position)}<small>Elim</small></span>`
     : weekNumber ? '<span class="dance-prediction-metric" role="img" aria-label="Elimination prediction to be announced" title="Elimination prediction to be announced"><span class="prediction-ring prediction-ring-tba prediction-ring-small"><strong>TBA</strong></span><small>Elim</small></span>' : '';
