@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20260930-result-rings-v82';
+import { db } from '../supabase-client.js?v=20261001-live-team-names-v83';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

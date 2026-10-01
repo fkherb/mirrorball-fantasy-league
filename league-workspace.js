@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20260930-result-rings-v82';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-result-rings-v82';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20260930-result-rings-v82';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20260930-result-rings-v82';
-import { loadMarketPredictions } from './market-predictions.js?v=20260930-result-rings-v82';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-result-rings-v82';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20260930-result-rings-v82';
-import { scoreLeague } from './scoring.js?v=20260930-result-rings-v82';
+import { db } from './supabase-client.js?v=20261001-live-team-names-v83';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-live-team-names-v83';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261001-live-team-names-v83';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-live-team-names-v83';
+import { loadMarketPredictions } from './market-predictions.js?v=20261001-live-team-names-v83';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-live-team-names-v83';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261001-live-team-names-v83';
+import { scoreLeague } from './scoring.js?v=20261001-live-team-names-v83';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -919,9 +919,7 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     scoringSection.querySelectorAll('[data-score-cast-detail]').forEach((row) => {
       const open = () => {
         const cast = data.cast.find((member) => member.id === row.dataset.scoreCastDetail);
-        if (cast) openWorkspaceCastProfile(cast, selectedWeek?.is_complete
-          ? score.snapshotByKey.get(`${selectedWeek.id}:${cast.id}`)?.team_name || ownTeam.team_name
-          : ownTeam.team_name);
+        if (cast) openWorkspaceCastProfile(cast, ownTeam.team_name || `${ownTeam.manager_name.split(' ')[0]}'s Team`);
       };
       row.addEventListener('click', open);
       row.addEventListener('keydown', (event) => {
@@ -1173,7 +1171,7 @@ function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week
       : role === 'Surprise' ? cast.custom_appearance_points : score.rateByName.get(role)) ?? 0;
     const appearanceCount = appearances.filter((item) => item.cast_member_id === cast.id).length;
     return { member: cast, role: role === 'DWTS Next Pro' ? 'Next Pro' : role,
-      teamId, teamName: snapshot?.team_name || team?.team_name || team?.display_name || 'Available cast',
+      teamId, teamName: team?.team_name || team?.display_name || snapshot?.team_name || 'Available cast',
       points: ((cast.id === star?.id || cast.id === pro?.id) && dance.kind === 'competitive' ? scoreTotal : 0)
         + appearanceCount * Number(rate || 0) };
   }).sort((a, b) => b.points - a.points || a.member.name.localeCompare(b.member.name));

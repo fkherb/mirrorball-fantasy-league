@@ -1,14 +1,14 @@
-import { db } from './supabase-client.js?v=20260930-result-rings-v82';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20260930-result-rings-v82';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20260930-result-rings-v82';
-import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20260930-result-rings-v82';
-import { loadMarketPredictions } from './market-predictions.js?v=20260930-result-rings-v82';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20260930-result-rings-v82';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20260930-result-rings-v82';
-import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20260930-result-rings-v82';
-import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20260930-result-rings-v82';
-import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20260930-result-rings-v82';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20260930-result-rings-v82';
+import { db } from './supabase-client.js?v=20261001-live-team-names-v83';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261001-live-team-names-v83';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-live-team-names-v83';
+import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261001-live-team-names-v83';
+import { loadMarketPredictions } from './market-predictions.js?v=20261001-live-team-names-v83';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-live-team-names-v83';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20261001-live-team-names-v83';
+import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20261001-live-team-names-v83';
+import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261001-live-team-names-v83';
+import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261001-live-team-names-v83';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-live-team-names-v83';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1482,7 +1482,7 @@ function openDanceDetail(week, dance, index, pairData, scores, cast, context = {
     const snapshot = snapshotMap.get(member.id);
     const teamId = snapshot?.fantasy_team_id ?? member.fantasy_team_id;
     const team = teamMap.get(teamId);
-    const teamName = snapshot?.team_name || team?.team_name || (snapshot?.manager_name ? defaultTeamName(snapshot.manager_name) : team?.manager_name ? defaultTeamName(team.manager_name) : 'Available cast');
+    const teamName = team?.team_name || (team?.manager_name ? defaultTeamName(team.manager_name) : snapshot?.team_name || (snapshot?.manager_name ? defaultTeamName(snapshot.manager_name) : 'Available cast'));
     const role = snapshot?.cast_role || roleAtWeek(member);
     return { member, role, teamId, teamName, points: contributions.get(member.id) || 0 };
   });
@@ -1543,7 +1543,8 @@ async function openWeekLedger(week) {
       const snapshot = snapshotByMember.get(member.id);
       const entry = weekMemberPoints.get(week.id)?.get(member.id) || { official: 0, appearances: 0, appearanceCount: 0, appearanceRates: [] };
       const role = snapshot?.cast_role || roleForWeek(member, week, weeksResult.data);
-      const team = snapshot ? { manager_name: snapshot.manager_name, team_name: snapshot.team_name } : teamById.get(member.fantasy_team_id);
+      const team = teamById.get(snapshot?.fantasy_team_id ?? member.fantasy_team_id)
+        || (snapshot ? { manager_name: snapshot.manager_name, team_name: snapshot.team_name } : null);
       const rate = member.is_hough ? Number(roleMap.get('Hough')) || 0 : role === 'Surprise' ? Number(member.custom_appearance_points) || 0 : Number(roleMap.get(role)) || 0;
       return { member, role, team, rate, ...entry, total: entry.official + entry.appearances };
     }).sort((a, b) => b.total - a.total || a.member.name.localeCompare(b.member.name));

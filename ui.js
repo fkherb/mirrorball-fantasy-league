@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20260930-result-rings-v82';
-import { prepareProfilePicture } from './profile-picture.js?v=20260930-result-rings-v82';
+import { db } from './supabase-client.js?v=20261001-live-team-names-v83';
+import { prepareProfilePicture } from './profile-picture.js?v=20261001-live-team-names-v83';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
