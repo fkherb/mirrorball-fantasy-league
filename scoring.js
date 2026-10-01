@@ -10,16 +10,19 @@ export function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
   if (!member) return 0;
   if (member.is_hough) return Number(roleMap.get('Hough')?.appearance_points) || 0;
   const role = snapshot?.cast_role || roleForWeek(member, week, weeks);
-  if (role === 'Surprise') return Number(member.custom_appearance_points) || 0;
+  if (role === 'Surprise') {
+    if (member.surprise_base_role) return (Number(roleMap.get(member.surprise_base_role)?.appearance_points) || 0) + 2;
+    return Number(member.custom_appearance_points) || 0;
+  }
   return Number(roleMap.get(role)?.appearance_points) || 0;
 }
 
-export function sharedAppearanceRate(member, snapshot, rateByName, isOriginalLeague = false) {
+export function sharedAppearanceRate(member, snapshot, rateByName) {
   if (!member) return 0;
   if (member.is_hough) return rateByName.get('Hough') || 0;
   const role = snapshot?.cast_role || member.role;
   if (role === 'Surprise') {
-    if (!isOriginalLeague && member.surprise_base_role) return (rateByName.get(member.surprise_base_role) || 0) + 2;
+    if (member.surprise_base_role) return (rateByName.get(member.surprise_base_role) || 0) + 2;
     return Number(member.custom_appearance_points) || 0;
   }
   return rateByName.get(role) || 0;
@@ -111,8 +114,7 @@ export function scoreLeague(data, context) {
     const cast = castById.get(appearance.cast_member_id);
     if (!cast) return;
     const snapshot = snapshotByKey.get(`${dance.week_id}:${cast.id}`);
-    const rate = sharedAppearanceRate(cast, snapshot, rateByName,
-      context.leagueId === '00000000-0000-4000-8000-000000000001');
+    const rate = sharedAppearanceRate(cast, snapshot, rateByName);
     add(cast.id, dance.week_id, rate, 'appearances');
   });
   return { totalByTeam, pointsByTeamCast, pointsByWeekTeam, pointsByWeekCast, scoringWeeks, rateByName, scoreByDance, snapshotByKey };

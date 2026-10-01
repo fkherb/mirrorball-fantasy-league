@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20261001-owner-role-rates-v85';
+import { db } from '../supabase-client.js?v=20261001-surprise-rates-v86';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

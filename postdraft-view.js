@@ -297,12 +297,12 @@ export function teamPage({ weekHistory, total, period, rosterRows, available, av
   return `<section class="card public-team-detail"><div class="team-summary-strip"><div class="team-history-strip">${weekHistory || '<p class="sub">Weekly history will appear after scoring begins.</p>'}</div><div class="league-detail-total"><strong>${total}</strong><span>${period} points</span></div></div><div class="public-team-columns"><section><div class="public-section-head"><div><p class="eyebrow">Scoring</p><h3>Team Roster</h3></div></div>${rosterRows}</section><div class="team-side-column"><section class="available-cast-panel"><div class="public-section-head"><div><p class="eyebrow">Free agents</p><h3>Available Cast</h3></div><span>${available} available</span></div><p class="sub">Cast members not currently assigned to a fantasy team.</p><div class="league-cast-grid available-grid">${availableMarkup || '<div class="empty compact-empty">Every cast member is currently assigned.</div>'}</div></section>${tradesMarkup}</div></div></section>`;
 }
 
-export function roleRatesTable(rates, { secondaryLeague = false } = {}) {
+export function roleRatesTable(rates) {
   const order = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
   const label = (name) => ({ 'Eliminated Star': 'Elim Star', 'Eliminated Pro': 'Elim Pro',
     'DWTS Next Pro': 'Next Pro', 'Judges + Hosts': 'Judge / Host' })[name] || name;
   const sorted = [...rates].sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name) || a.name.localeCompare(b.name));
-  return `<div class="card role-rate-table"><div class="role-rate-heading"><span>Cast role</span><span>Appearance points</span></div>${sorted.map((rate) => `<div class="role-rate-row"><span>${html(label(rate.name))}${rate.name === 'Surprise' ? ' *' : ''}</span><strong>${rate.name === 'Surprise' || rate.appearance_points == null ? 'Varies' : `+${Number(rate.appearance_points) || 0}`}</strong></div>`).join('')}</div><p class="surprise-rate-note">${secondaryLeague ? '* Surprise cast earns its normal Bonus role’s rate +2. Surprise pros and past stars use the eliminated-role rates.' : '* Surprise cast is added as seen on the show. Its custom rate is set on that cast member.'}</p>`;
+  return `<div class="card role-rate-table"><div class="role-rate-heading"><span>Cast role</span><span>Appearance points</span></div>${sorted.map((rate) => `<div class="role-rate-row"><span>${html(label(rate.name))}${rate.name === 'Surprise' ? ' *' : ''}</span><strong>${rate.name === 'Surprise' || rate.appearance_points == null ? 'Varies' : `+${Number(rate.appearance_points) || 0}`}</strong></div>`).join('')}</div><p class="surprise-rate-note">* Surprise cast earns its selected normal role’s current rate +2.</p>`;
 }
 
 export function castProfile({ member, image, role, teamName, fantasyPoints, judgesTotal,

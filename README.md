@@ -310,9 +310,9 @@ with a corresponding Bonus-pick limit. That draft-only exception does not
 permit additional active cast through later swaps. An over-limit existing player is retained
 after an elimination but another cannot be added. Secondary-league roster
 changes are blocked on either airing date in Eastern time, and that day's
-roster snapshot is used for weekly scoring. Surprise cast in secondary leagues
+roster snapshot is used for weekly scoring. Surprise cast in every league
 scores at the chosen normal Bonus-role rate plus two; classify any existing
-Surprise cast in the cast editor so their new-league scoring is unambiguous.
+Surprise cast in the cast editor so retroactive scoring is unambiguous.
 Cast profiles before and during the draft preview points from completed shows
 using the league's current appearance rates; these are not points already
 earned by a fantasy team.
@@ -428,10 +428,10 @@ appears with the other invitations in the account menu after sign-in.
 - Trades are available only to signed-in accounts linked to fantasy teams.
   Open offers are private to the two involved managers, and accepting an offer
   invalidates any other pending offer involving either traded cast member.
-- Appearance rates in Rules are league-wide. Completed secondary-league weeks
-  use the rate saved in their airing-day snapshot. The original league keeps
-  its cast-specific Surprise rates; secondary leagues use a normal Bonus-role
-  rate plus two.
+- Appearance rates shown in League are platform-wide and edited only by the
+  platform owner in Cast Roster. Completed weeks retain their team and role
+  snapshots, but appearance points recalculate from current rates. Surprise
+  cast earns its selected normal role's current rate plus two in every league.
 - Export or back up the Supabase data before making large commissioner edits.
 - `node scripts/check-cache-keys.mjs` verifies that every page references the
   same JavaScript and CSS cache key. The GitHub workflow runs this check on

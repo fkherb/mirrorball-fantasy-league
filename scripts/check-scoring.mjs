@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
-import { appearanceValue, calculateLeaguePoints, roleForWeek, scoreLeague } from '../scoring.js';
+import { appearanceValue, calculateLeaguePoints, roleForWeek, scoreLeague, sharedAppearanceRate } from '../scoring.js';
 
 const roleWeeks = [{ id: 'exit-week', number: 2 }, { id: 'later-week', number: 3 }];
 const eliminatedStar = { role: 'Eliminated Star', eliminated_week_id: 'exit-week' };
 assert.equal(roleForWeek(eliminatedStar, roleWeeks[0], roleWeeks), 'Star');
 assert.equal(roleForWeek(eliminatedStar, roleWeeks[1], roleWeeks), 'Eliminated Star');
 assert.equal(appearanceValue({ role: 'Pro', is_hough: true }, new Map([['Hough', { appearance_points: 7 }]]), roleWeeks[0], roleWeeks), 7);
+const surprise = { role: 'Surprise', surprise_base_role: 'Troupe', custom_appearance_points: 99 };
+assert.equal(appearanceValue(surprise, new Map([['Troupe', { appearance_points: 4 }]]), roleWeeks[0], roleWeeks), 6);
+assert.equal(sharedAppearanceRate(surprise, { cast_role: 'Surprise', appearance_points: 99 }, new Map([['Troupe', 8]])), 10);
 
 const fixture = {
   teams: [{ id: 'team-a' }, { id: 'team-b' }],
@@ -53,6 +56,15 @@ assert.equal(lateStart.totalByTeam.get('team-a'), 26);
 assert.equal(lateStart.totalByTeam.get('team-b'), 10);
 const rerated = scoreLeague({ ...fixture, roles: [{ id: 'troupe-rate', name: 'Troupe', appearance_points: 4 }] }, active);
 assert.equal(rerated.totalByTeam.get('team-b'), 8, 'changing the global rate reprices recorded appearances in past weeks');
+const surpriseFixture = {
+  ...fixture,
+  cast: fixture.cast.map((cast) => cast.id === 'bonus' ? { ...cast, ...surprise } : cast),
+  snapshots: fixture.snapshots.map((snapshot) => snapshot.cast_member_id === 'bonus'
+    ? { ...snapshot, cast_role: 'Surprise', appearance_points: 99 } : snapshot),
+};
+assert.equal(scoreLeague(surpriseFixture, active).totalByTeam.get('team-b'), 24);
+assert.equal(scoreLeague({ ...surpriseFixture, roles: [{ id: 'troupe-rate', name: 'Troupe', appearance_points: 4 }] }, active)
+  .totalByTeam.get('team-b'), 12, 'Surprise appearances in past weeks follow the updated base rate +2');
 assert.equal(scoreLeague(fixture, { ...active, leagueStatus: 'drafting' }).totalByTeam.get('team-a'), 0);
 assert.throws(() => scoreLeague({ ...fixture, snapshots: fixture.snapshots.filter((row) => row.week_id !== 'week-2') }, active), /missing this league’s roster snapshot/);
 assert.throws(() => scoreLeague({ ...fixture, snapshots: fixture.snapshots.filter((row) => !(row.week_id === 'week-2' && row.cast_member_id === 'pro')) }, active), /missing a cast roster snapshot/);
