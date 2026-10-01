@@ -1,5 +1,4 @@
-// Pure scorers for the live original league and league-scoped workspaces.
-// Keep both entry points until weekly/team totals match during cutover.
+// Pure scorers for the original league and league-scoped workspaces.
 export function roleForWeek(member, week, weeks) {
   if (!member?.role?.startsWith('Eliminated')) return member?.role || '';
   const eliminatedWeek = weeks.find((item) => item.id === member.eliminated_week_id);
@@ -13,6 +12,17 @@ export function appearanceValue(member, roleMap, week, weeks, snapshot = null) {
   const role = snapshot?.cast_role || roleForWeek(member, week, weeks);
   if (role === 'Surprise') return Number(member.custom_appearance_points) || 0;
   return Number(roleMap.get(role)?.appearance_points) || 0;
+}
+
+export function sharedAppearanceRate(member, snapshot, rateByName, isOriginalLeague = false) {
+  if (!member) return 0;
+  if (member.is_hough) return rateByName.get('Hough') || 0;
+  const role = snapshot?.cast_role || member.role;
+  if (role === 'Surprise') {
+    if (!isOriginalLeague && member.surprise_base_role) return (rateByName.get(member.surprise_base_role) || 0) + 2;
+    return Number(member.custom_appearance_points) || 0;
+  }
+  return rateByName.get(role) || 0;
 }
 
 export function calculateLeaguePoints(data) {
@@ -49,8 +59,8 @@ export function calculateLeaguePoints(data) {
   return { teams: data.teams, members: data.members, weeks: data.weeks, memberPoints, weekMemberPoints };
 }
 
-// Input rows are the show results and one league's frozen weekly rosters/rates;
-// inactive partnerships remain valid history.
+// Frozen snapshots preserve team and role; appearance counts come from recorded
+// dances, while every league uses the current global role rates.
 export function scoreLeague(data, context) {
   const teams = data.teams;
   const castById = new Map(data.cast.map((member) => [member.id, member]));
@@ -58,10 +68,7 @@ export function scoreLeague(data, context) {
   const weekById = new Map(data.weeks.map((week) => [week.id, week]));
   const danceById = new Map(data.dances.map((dance) => [dance.id, dance]));
   const scoreByDance = new Map();
-  const rateByName = new Map(data.roles.map((role) => {
-    const leagueRate = data.rates.find((rate) => rate.role_id === role.id);
-    return [role.name, Number(leagueRate?.appearance_points ?? role.appearance_points) || 0];
-  }));
+  const rateByName = new Map(data.roles.map((role) => [role.name, Number(role.appearance_points) || 0]));
   const snapshotByKey = new Map(data.snapshots.map((snapshot) => [`${snapshot.week_id}:${snapshot.cast_member_id}`, snapshot]));
   const totalByTeam = new Map(teams.map((team) => [team.id, 0]));
   const pointsByTeamCast = new Map(teams.map((team) => [team.id, new Map()]));
@@ -104,11 +111,8 @@ export function scoreLeague(data, context) {
     const cast = castById.get(appearance.cast_member_id);
     if (!cast) return;
     const snapshot = snapshotByKey.get(`${dance.week_id}:${cast.id}`);
-    const role = snapshot?.cast_role || cast.role;
-    const rate = snapshot?.appearance_points != null ? Number(snapshot.appearance_points)
-      : cast.is_hough ? rateByName.get('Hough') || 0
-        : role === 'Surprise' ? Number(cast.custom_appearance_points) || 0
-          : rateByName.get(role) || 0;
+    const rate = sharedAppearanceRate(cast, snapshot, rateByName,
+      context.leagueId === '00000000-0000-4000-8000-000000000001');
     add(cast.id, dance.week_id, rate, 'appearances');
   });
   return { totalByTeam, pointsByTeamCast, pointsByWeekTeam, pointsByWeekCast, scoringWeeks, rateByName, scoreByDance, snapshotByKey };

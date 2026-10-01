@@ -29,8 +29,7 @@ const fixture = {
     { dance_id: 'dance-1', cast_member_id: 'bonus' },
     { dance_id: 'dance-2', cast_member_id: 'bonus' },
   ],
-  roles: [{ id: 'troupe-rate', name: 'Troupe', appearance_points: 99 }],
-  rates: [{ role_id: 'troupe-rate', appearance_points: 10 }],
+  roles: [{ id: 'troupe-rate', name: 'Troupe', appearance_points: 10 }],
   snapshots: [
     { week_id: 'week-1', cast_member_id: 'star', fantasy_team_id: 'team-a', cast_role: 'Star' },
     { week_id: 'week-1', cast_member_id: 'pro', fantasy_team_id: 'team-a', cast_role: 'Pro' },
@@ -44,24 +43,24 @@ const fixture = {
 const active = { leagueStatus: 'active', scoringStartsAfterWeek: 0 };
 const scored = scoreLeague(fixture, active);
 assert.equal(scored.totalByTeam.get('team-a'), 94, 'an inactive partnership still scores historical dances and guest-judge scores');
-assert.equal(scored.totalByTeam.get('team-b'), 7, 'frozen weekly rates override current rates');
+assert.equal(scored.totalByTeam.get('team-b'), 20, 'both past weeks use the current universal rate');
 assert.equal(scored.pointsByWeekTeam.get('week-1:team-a'), 68);
 assert.equal(scored.pointsByWeekTeam.get('week-2:team-a'), 26);
-assert.deepEqual(scored.pointsByWeekCast.get('week-2:bonus'), { official: 0, appearances: 5 });
+assert.deepEqual(scored.pointsByWeekCast.get('week-2:bonus'), { official: 0, appearances: 10 });
 
 const lateStart = scoreLeague(fixture, { ...active, scoringStartsAfterWeek: 1 });
 assert.equal(lateStart.totalByTeam.get('team-a'), 26);
-assert.equal(lateStart.totalByTeam.get('team-b'), 5);
+assert.equal(lateStart.totalByTeam.get('team-b'), 10);
+const rerated = scoreLeague({ ...fixture, roles: [{ id: 'troupe-rate', name: 'Troupe', appearance_points: 4 }] }, active);
+assert.equal(rerated.totalByTeam.get('team-b'), 8, 'changing the global rate reprices recorded appearances in past weeks');
 assert.equal(scoreLeague(fixture, { ...active, leagueStatus: 'drafting' }).totalByTeam.get('team-a'), 0);
 assert.throws(() => scoreLeague({ ...fixture, snapshots: fixture.snapshots.filter((row) => row.week_id !== 'week-2') }, active), /missing this league’s roster snapshot/);
 assert.throws(() => scoreLeague({ ...fixture, snapshots: fixture.snapshots.filter((row) => !(row.week_id === 'week-2' && row.cast_member_id === 'pro')) }, active), /missing a cast roster snapshot/);
 
-// The two live paths must agree before the default league is routed through
-// the shared workspace. This fixture uses rates identical across both weeks.
+// The original and shared routes must agree on global rates and saved roles.
 const parityFixture = {
   ...fixture,
   roles: [{ id: 'troupe-rate', name: 'Troupe', appearance_points: 2 }],
-  rates: [{ role_id: 'troupe-rate', appearance_points: 2 }],
   snapshots: fixture.snapshots.map((snapshot) => ({ ...snapshot, appearance_points: snapshot.cast_member_id === 'bonus' ? 2 : null })),
 };
 const original = calculateLeaguePoints({

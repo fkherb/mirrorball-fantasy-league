@@ -33,10 +33,10 @@ commissioner controls, and platform-owner show administration.
   judges' scores, cast appearances, and completed-week corrections.
 - **Cast Roster Admin** lives at `/cast-roster/` and is likewise restricted to
   the platform owner. It owns canonical cast roles, partnerships, portraits,
-  biographies, career highlights, and past-win information.
+  biographies, career highlights, past-win information, and the universal role rates.
 - **League** is the public league directory: every fantasy team, the searchable
-  cast roster, and role rates. Commissioners manage league names, fantasy
-  teams, assignments, and role rates without changing canonical cast facts.
+  cast roster, and read-only role rates. Commissioners manage league names,
+  fantasy teams, and assignments without changing canonical cast facts or rates.
 - **Rules** is a compact header popup rather than a full navigation page.
 - Signed-in users choose their own display names in their account profile.
   Commissioners may edit fantasy-team names, not another member's display name.

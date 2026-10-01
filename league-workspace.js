@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261001-dance-metrics-v84';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-dance-metrics-v84';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261001-dance-metrics-v84';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-dance-metrics-v84';
-import { loadMarketPredictions } from './market-predictions.js?v=20261001-dance-metrics-v84';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-dance-metrics-v84';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261001-dance-metrics-v84';
-import { scoreLeague } from './scoring.js?v=20261001-dance-metrics-v84';
+import { db } from './supabase-client.js?v=20261001-owner-role-rates-v85';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-owner-role-rates-v85';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261001-owner-role-rates-v85';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-owner-role-rates-v85';
+import { loadMarketPredictions } from './market-predictions.js?v=20261001-owner-role-rates-v85';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-owner-role-rates-v85';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261001-owner-role-rates-v85';
+import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261001-owner-role-rates-v85';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -39,7 +39,7 @@ let lastSnapshotCheckAt = 0;
 let lastSnapshotLeagueId = null;
 const fullWorkspaceRefreshMs = 2 * 60 * 1000;
 const snapshotCheckMs = 5 * 60 * 1000;
-const fastWorkspaceKeys = new Set(['league', 'assignments', 'weeks', 'dances', 'scores', 'appearances']);
+const fastWorkspaceKeys = new Set(['league', 'assignments', 'roles', 'weeks', 'dances', 'scores', 'appearances']);
 
 function dialog(markup) {
   const modal = $('#modal');
@@ -586,7 +586,6 @@ async function loadWorkspaceData(context, { light = false, previous = null } = {
     members: db.rpc('list_league_members', { p_league_id: leagueId }),
     readiness: db.rpc('get_league_draft_readiness', { p_league_id: leagueId }),
     roles: db.from('roles').select('id,name,appearance_points'),
-    rates: db.from('league_role_rates').select('role_id,appearance_points').eq('league_id', leagueId),
     weeks: db.from('weeks').select('*').order('number'),
     pairs: db.from('partnerships').select('id,star_id,pro_id,active,partnership_name'),
     dances: db.from('dances').select('id,week_id,kind,partnership_id,name,dance_type,song,sort_order').order('sort_order'),
@@ -704,8 +703,8 @@ function renderStandings(context, data, score, assignmentMap, memberByTeam, refr
         return total;
       }, { official: 0, appearances: 0 });
       const role = cast.role;
-      const appearanceRate = cast.is_hough ? score.rateByName.get('Hough') || 0
-        : role === 'Surprise' ? Number(cast.custom_appearance_points) || 0 : score.rateByName.get(role) || 0;
+      const appearanceRate = sharedAppearanceRate(cast, null, score.rateByName,
+        context.leagueId === defaultLeagueId);
       return { member: cast, role, appearanceRate, displayRole: role === 'DWTS Next Pro' ? 'Next Pro' : role,
         official: parts.official, appearances: parts.appearances, total: points };
     });
@@ -845,8 +844,8 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     const parts = scoreForCast(member);
     const snapshot = selectedWeek?.is_complete ? score.snapshotByKey.get(`${selectedWeek.id}:${member.id}`) : null;
     const role = snapshot?.cast_role || member.role;
-    const rate = snapshot?.appearance_points ?? (member.is_hough ? score.rateByName.get('Hough')
-      : role === 'Surprise' ? member.custom_appearance_points : score.rateByName.get(role)) ?? 0;
+    const rate = sharedAppearanceRate(member, snapshot, score.rateByName,
+      context.leagueId === defaultLeagueId);
     return { member, role, appearanceRate: Number(rate) || 0,
       displayRole: role === 'DWTS Next Pro' ? 'Next Pro' : role,
       official: parts.official, appearances: parts.appearances, total: parts.official + parts.appearances };
@@ -1167,8 +1166,8 @@ function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week
     const teamId = snapshot?.fantasy_team_id ?? assignmentMap.get(cast.id);
     const team = memberByTeam.get(teamId);
     const role = snapshot?.cast_role || cast.role;
-    const rate = snapshot?.appearance_points ?? (cast.is_hough ? score.rateByName.get('Hough')
-      : role === 'Surprise' ? cast.custom_appearance_points : score.rateByName.get(role)) ?? 0;
+    const rate = sharedAppearanceRate(cast, snapshot, score.rateByName,
+      activeWorkspaceDetail?.context?.leagueId === defaultLeagueId);
     const appearanceCount = appearances.filter((item) => item.cast_member_id === cast.id).length;
     return { member: cast, role: role === 'DWTS Next Pro' ? 'Next Pro' : role,
       teamId, teamName: team?.team_name || team?.display_name || snapshot?.team_name || 'Available cast',
@@ -1353,19 +1352,8 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
     };
   });
   drawCast();
-  const rateByRole = new Map(data.roles.map((role) => [role.id, role]));
-  $('#roleRatesContent').innerHTML = roleRatesTable(data.rates.map((rate) => ({
-    name: rateByRole.get(rate.role_id)?.name || 'Role', appearance_points: rate.appearance_points })), { secondaryLeague: true });
-  $('#editRules').hidden = context.leagueRole !== 'owner';
-  $('#editRules').onclick = () => {
-    dialog(`<h2>Edit Appearance Rates</h2><p class="sub">These points per recorded dance appearance belong only to ${safe(context.leagueName)}. Surprise cast scores at its normal Bonus role rate plus 2.</p><div class="rate-editor">${data.rates.filter((rate) => rate.appearance_points != null).map((rate) => `<label>${safe(rateByRole.get(rate.role_id)?.name || 'Role')}<input type="number" min="0" max="99" step="1" inputmode="numeric" data-workspace-rate="${safe(rateByRole.get(rate.role_id)?.name || '')}" value="${rate.appearance_points}"></label>`).join('')}</div><div class="modal-actions"><button id="saveWorkspaceRates">Save rules</button></div>`);
-    $('#saveWorkspaceRates').addEventListener('click', () => runAction(
-      () => db.rpc('update_league_role_rates', { p_league_id: context.leagueId,
-        p_rates: [...$('#modalBody').querySelectorAll('[data-workspace-rate]')].map((input) => ({ name: input.dataset.workspaceRate, appearance_points: Number(input.value) })) }),
-      async () => { $('#modal').close(); await refresh(); },
-      $('#saveWorkspaceRates'),
-    ));
-  };
+  $('#roleRatesContent').innerHTML = roleRatesTable(data.roles,
+    { secondaryLeague: context.leagueId !== defaultLeagueId });
   $('#league').querySelector('#workspacePeople')?.remove();
   $('#commissionerTeamResults').querySelectorAll('[data-remove-member]').forEach((button) => button.addEventListener('click', () => {
     const member = data.members.find((item) => item.user_id === button.dataset.removeMember);

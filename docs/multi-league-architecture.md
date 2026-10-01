@@ -75,7 +75,7 @@ All claims, releases, trades, team displays, and current standings should read t
 
 ### Scoring settings and snapshots
 
-Keep the role catalog global, but store configurable rates in `league_role_rates (league_id, role_id, appearance_points)`. Completed-week snapshots must include `league_id` and have a unique key such as `(league_id, week_id, cast_member_id)`.
+Keep the role catalog and appearance rates global in `roles`. `league_role_rates` remains only as a compatibility mirror for older clients and must not be used to score leagues. Completed-week snapshots include `league_id` and uniquely identify `(league_id, week_id, cast_member_id)`; their team and role are historical, while appearance points are recalculated from recorded dance appearances and current global rates.
 
 Fantasy scoring then becomes:
 

@@ -1,14 +1,14 @@
-import { db } from './supabase-client.js?v=20261001-dance-metrics-v84';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261001-dance-metrics-v84';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-dance-metrics-v84';
-import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261001-dance-metrics-v84';
-import { loadMarketPredictions } from './market-predictions.js?v=20261001-dance-metrics-v84';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-dance-metrics-v84';
-import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20261001-dance-metrics-v84';
-import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20261001-dance-metrics-v84';
-import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261001-dance-metrics-v84';
-import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261001-dance-metrics-v84';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-dance-metrics-v84';
+import { db } from './supabase-client.js?v=20261001-owner-role-rates-v85';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261001-owner-role-rates-v85';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-owner-role-rates-v85';
+import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261001-owner-role-rates-v85';
+import { loadMarketPredictions } from './market-predictions.js?v=20261001-owner-role-rates-v85';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-owner-role-rates-v85';
+import { appearanceValue, calculateLeaguePoints, roleForWeek } from './scoring.js?v=20261001-owner-role-rates-v85';
+import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20261001-owner-role-rates-v85';
+import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261001-owner-role-rates-v85';
+import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261001-owner-role-rates-v85';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-owner-role-rates-v85';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1846,26 +1846,30 @@ async function loadRules() {
   const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts', 'Surprise'];
   const rates = [...roleRows].sort((a, b) => (roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)) || a.name.localeCompare(b.name));
   $('#roleRatesContent').innerHTML = roleRatesTable(rates);
-  $('#editRules').hidden = !canEdit;
-  $('#editRules').onclick = () => openRulesEditor(rates);
 }
 
 function openRulesSummary() {
-  openModal(`<div class="rules-summary"><p class="eyebrow">Mirrorball Fantasy League</p><h2>Rules & Scoring</h2><p class="sub">The short version of how your roster earns points.</p><div class="rules-summary-list"><article><b>Competitive dances</b><p>Both members of a competing couple receive the total of the official judges’ scores.</p></article><article><b>Cast appearances</b><p>Cast appearing in another recorded dance earns the appearance rate for their role.</p></article><article><b>Eliminations</b><p>A couple keeps its regular roles through elimination night. Eliminated-role rates begin the following week.</p></article><article><b>Surprise cast</b><p>Surprise additions use a custom appearance rate set by the commissioner.</p></article></div><p class="rules-summary-note">Guest-judge scores count toward competitive totals. Current role rates are listed on the League page.</p></div>`);
+  openModal(`<div class="rules-summary"><p class="eyebrow">Mirrorball Fantasy League</p><h2>Rules & Scoring</h2><p class="sub">The short version of how your roster earns points.</p><div class="rules-summary-list"><article><b>Competitive dances</b><p>Both members of a competing couple receive the total of the official judges’ scores.</p></article><article><b>Cast appearances</b><p>Cast appearing in another recorded dance earns the appearance rate for their role.</p></article><article><b>Eliminations</b><p>A couple keeps its regular roles through elimination night. Eliminated-role rates begin the following week.</p></article><article><b>Surprise cast</b><p>Surprise additions use a custom appearance rate set by the platform owner.</p></article></div><p class="rules-summary-note">Guest-judge scores count toward competitive totals. Current role rates are listed on the League page.</p></div>`);
 }
 
-function openRulesEditor(rates) {
-  const editableRates = rates.filter((role) => role.name !== 'Surprise');
-  openModal(`<h2>Edit Appearance Rates</h2><p class="sub">These are the default points per recorded dance appearance. Surprise cast keeps a per-person custom rate in the Cast Roster.</p><div class="rate-editor">${editableRates.map((role) => `<label>${escapeHtml(role.name)}<input type="number" min="0" max="99" step="1" inputmode="numeric" data-role-rate="${escapeHtml(role.name)}" value="${Number(role.appearance_points) || 0}"></label>`).join('')}</div><div class="modal-actions"><button id="saveRules">Save rules</button></div>`);
+async function openPlatformRatesEditor() {
+  if (!canManageCast) return;
+  const { data, error } = await db.from('roles').select('name,appearance_points');
+  if (error) return alert(`Couldn’t load role rates: ${error.message}`);
+  const roleOrder = ['Star', 'Pro', 'Eliminated Star', 'Eliminated Pro', 'Troupe', 'DWTS Next Pro', 'Hough', 'Judges + Hosts'];
+  const rates = data.filter((row) => row.name !== 'Surprise')
+    .sort((a, b) => (roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)) || a.name.localeCompare(b.name));
+  openModal(`<h2>Edit Appearance Rates</h2><p class="sub">These rates apply to every league, including past weeks. Saved rosters and appearance counts stay the same; scores recalculate using the new rates. Surprise cast uses its cast-specific rule.</p><div class="rate-editor">${rates.map((role) => `<label>${escapeHtml(role.name)}<input type="number" min="0" max="99" step="1" inputmode="numeric" data-role-rate="${escapeHtml(role.name)}" value="${role.appearance_points ?? ''}"></label>`).join('')}</div><div class="modal-actions"><button id="saveRules">Save rates</button></div>`);
   $('#saveRules').addEventListener('click', async () => {
     const saveButton = $('#saveRules');
     if (saveButton.disabled) return;
+    const inputs = [...$('#modalBody').querySelectorAll('[data-role-rate]')];
+    const edits = inputs.map((input) => ({ name: input.dataset.roleRate, appearance_points: Number(input.value) }));
+    if (inputs.some((input) => input.value.trim() === '') || edits.some((edit) => !Number.isInteger(edit.appearance_points) || edit.appearance_points < 0 || edit.appearance_points > 99)) return alert('Every appearance rate must be a whole number from 0 to 99.');
     saveButton.disabled = true;
-    const edits = [...document.querySelectorAll('[data-role-rate]')].map((input) => ({ name: input.dataset.roleRate, appearance_points: Number(input.value) }));
-    if (edits.some((edit) => !Number.isInteger(edit.appearance_points) || edit.appearance_points < 0 || edit.appearance_points > 99)) { saveButton.disabled = false; return alert('Every appearance rate must be a whole number from 0 to 99.'); }
-    const { error } = await db.rpc('update_role_rates_atomic', { p_rates: edits });
-    if (error) { saveButton.disabled = false; return alert(`Couldn’t save rules: ${error.message}`); }
-    $('#modal').close(); loadRules(); loadStandings();
+    const { error: saveError } = await db.rpc('update_role_rates_atomic', { p_rates: edits });
+    if (saveError) { saveButton.disabled = false; return alert(`Couldn’t save rates: ${saveError.message}`); }
+    $('#modal').close();
   });
 }
 
@@ -1892,6 +1896,7 @@ if (isScoreDeskSurface) {
     loadRoster();
   }));
   $('#newPlayer').addEventListener('click', openAddPlayer);
+  $('#editPlatformRates').addEventListener('click', openPlatformRatesEditor);
   window.addEventListener('mirrorball-auth-change', (event) => {
     canManageCast = event.detail.isPlatformAdmin === true;
     $('#newPlayer').hidden = !canManageCast;

@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20261001-dance-metrics-v84';
+import { db } from './supabase-client.js?v=20261001-owner-role-rates-v85';
 
 let cached = [];
 let loadedAt = 0;
