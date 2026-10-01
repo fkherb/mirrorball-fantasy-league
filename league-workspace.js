@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261001-surprise-rates-v86';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-surprise-rates-v86';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261001-surprise-rates-v86';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-surprise-rates-v86';
-import { loadMarketPredictions } from './market-predictions.js?v=20261001-surprise-rates-v86';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-surprise-rates-v86';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261001-surprise-rates-v86';
-import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261001-surprise-rates-v86';
+import { db } from './supabase-client.js?v=20261001-dance-types-v87';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-dance-types-v87';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261001-dance-types-v87';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-dance-types-v87';
+import { loadMarketPredictions } from './market-predictions.js?v=20261001-dance-types-v87';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-dance-types-v87';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261001-dance-types-v87';
+import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261001-dance-types-v87';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({

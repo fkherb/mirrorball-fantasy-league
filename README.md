@@ -412,6 +412,10 @@ appears with the other invitations in the account menu after sign-in.
 
 - Score Desk is the source of truth for dances, judges’ scores, and cast
   appearances.
+- Run `supabase/standardize-dance-types.sql` before deploying the dance-type
+  dropdown. Its `dance_types` catalog is the approved spelling list for every
+  competitive dance; add future types with an SQL insert into that table. Fusion
+  uses two different catalog styles and is saved as `First/Second Fusion`.
 - Create a competitive dance ahead of the show with its couple, dance type,
   and song. Judge scores may stay blank until they are announced. Use Edit on
   the week to update its details and optional one- or two-night airing dates,

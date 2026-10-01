@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20261001-surprise-rates-v86';
+import { db } from './supabase-client.js?v=20261001-dance-types-v87';
 
 let cached = [];
 let loadedAt = 0;

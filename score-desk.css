@@ -4,6 +4,8 @@
 .score-desk-page .dance-row { min-height: 118px; padding: 15px 16px; }
 .score-desk-page .dance-row .dance-card-info h3 { font: 750 16px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .score-desk-page .dance-row .dance-details { margin: 8px 0 5px; }
+.score-desk-page .fusion-dance-types { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.score-desk-page .fusion-dance-types[hidden] { display: none; }
 .score-desk-page .judge-grid label { width: min(120px, calc(50% - 5px)); }
 .score-desk-page .judge-grid select { width: 100%; min-height: 44px; padding: 9px 28px 9px 10px; cursor: pointer; }
 .score-desk-judge-scores { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; min-height: 22px; }
@@ -35,4 +37,7 @@
 @media (max-width: 700px) {
   .score-desk-page .dance-list { grid-template-columns: minmax(0, 1fr); }
   .score-desk-page .dance-detail-content { padding: 17px; }
+}
+@media (max-width: 420px) {
+  .score-desk-page .fusion-dance-types { grid-template-columns: minmax(0, 1fr); }
 }
