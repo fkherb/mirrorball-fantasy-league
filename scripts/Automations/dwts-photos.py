@@ -2,14 +2,15 @@
 """Fetch DWTS couple photos and upload them to GitHub, returning only JSON.
 
 Usage:
-  python3 dwts-photos.py --week 3 --couples @couples.json --git-token YOUR_TOKEN --print
-  python3 dwts-photos.py --week 3 --couples @couples.json --git-token YOUR_TOKEN --dry-run --print
+  DWTS_GITHUB_TOKEN=YOUR_TOKEN python3 dwts-photos.py --week 3 --couples @couples.json --print
+  DWTS_GITHUB_TOKEN=YOUR_TOKEN python3 dwts-photos.py --week 3 --couples @couples.json --dry-run --print
 
 --couples accepts the same inline JSON or @filename format as the wiki reader:
 {"Amber Glenn": "Pasha Pashkov"}, or a list of star_name/pro_name objects.
 Both FULL names must occur in a post caption, as in the original photo script.
 remaining_couples can be fed directly back into --couples on the next run.
-The token is required on the command line, never read from environment variables.
+The token is read from DWTS_GITHUB_TOKEN, or from --git-token for older local callers.
+Prefer the environment variable so the token does not appear in process arguments.
 
 Dry runs read the timeline, repository, and existing state, but do not download,
 upload, or save state. Planned matches do not count as successful uploads.
@@ -457,21 +458,22 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--week", type=int, required=True, help="Week number for Images/Dances/Week N.")
     parser.add_argument("--couples", required=True, metavar="JSON_OR_@FILE", help="Full-name couples JSON, inline or @filename.")
-    parser.add_argument("--git-token", required=True, help="GitHub token; required explicitly, never read from the shell environment.")
+    parser.add_argument("--git-token", help="GitHub token for older local callers; prefer DWTS_GITHUB_TOKEN.")
     parser.add_argument("--since", help="Only posts on/after YYYY-MM-DD (default: today in the local timezone).")
     parser.add_argument("--dry-run", action="store_true", help="Preview matches without downloads, uploads, or state changes.")
     parser.add_argument("--print", dest="pretty", action="store_true", help="Indent the JSON output; default is compact JSON.")
     args = parser.parse_args(argv)
+    git_token = args.git_token or os.environ.get("DWTS_GITHUB_TOKEN", "")
     try:
         couples = read_couples(args.couples)
-        result = run(args.week, couples, args.git_token, args.since, args.dry_run)
+        result = run(args.week, couples, git_token, args.since, args.dry_run)
     except (PhotoError, OSError, ValueError) as exc:
         result = new_result(args.week, [], args.dry_run)
         record_error(result, exc, "configuration")
     # Never allow a supplied token to be echoed in an error, subprocess output, etc.
     output = json.dumps(result, ensure_ascii=False, indent=2 if args.pretty else None,
                         separators=None if args.pretty else (",", ":"))
-    print(output.replace(args.git_token, "[REDACTED]") if args.git_token else output)
+    print(output.replace(git_token, "[REDACTED]") if git_token else output)
     return 1 if result["failed_run"] else 0
 
 
