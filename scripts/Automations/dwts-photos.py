@@ -2,20 +2,19 @@
 """Fetch DWTS couple photos and upload them to GitHub, returning only JSON.
 
 Usage:
-  DWTS_GITHUB_TOKEN=YOUR_TOKEN python3 dwts-photos.py --week 3 --couples @couples.json --print
-  DWTS_GITHUB_TOKEN=YOUR_TOKEN python3 dwts-photos.py --week 3 --couples @couples.json --dry-run --print
+  python3 dwts-photos.py --week 3 --couples @couples.json --git-token YOUR_TOKEN --print
+  python3 dwts-photos.py --week 3 --couples @couples.json --git-token YOUR_TOKEN --dry-run --print
 
 --couples accepts the same inline JSON or @filename format as the wiki reader:
 {"Amber Glenn": "Pasha Pashkov"}, or a list of star_name/pro_name objects.
 Both FULL names must occur in a post caption, as in the original photo script.
 remaining_couples can be fed directly back into --couples on the next run.
-The token is read from DWTS_GITHUB_TOKEN, or from --git-token for older local callers.
-Prefer the environment variable so the token does not appear in process arguments.
+The token is required on the command line, never read from environment variables.
 
 Dry runs read the timeline, repository, and existing state, but do not download,
 upload, or save state. Planned matches do not count as successful uploads.
 Rate limits end the run immediately; skip_next_run is true only when a known
-cooldown exceeds 300 seconds. retry_at covers cooldowns longer than one run.
+cooldown exceeds 300 seconds. Cooldown details appear only in rate-limit errors.
 """
 
 import argparse
@@ -35,7 +34,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
@@ -331,8 +330,8 @@ def uploaded_file(path, commit=None):
 
 
 def new_result(week, couples, dry_run):
-    return {"week": week, "dry_run": dry_run, "failed_run": False,
-            "skip_next_run": False, "cooldown_seconds": None, "retry_at": None,
+    return {"script": "dwts-photos.py", "week": week, "dry_run": dry_run, "failed_run": False,
+            "skip_next_run": False,
             "repository": GITHUB_REPO, "folder": f"{DANCES_DIR}/Week {week}",
             "uploaded_couples": [], "remaining_couples": list(couples),
             "planned_uploads": [], "errors": []}
@@ -346,12 +345,8 @@ def record_error(result, exc, stage, couple=None):
     if isinstance(exc, RateLimitError):
         error["service"] = exc.service
         error["cooldown_seconds"] = exc.seconds
-        previous = result["cooldown_seconds"]
         if exc.seconds is not None:
-            seconds = max(previous or 0, exc.seconds)
-            result["cooldown_seconds"] = seconds
-            result["skip_next_run"] = seconds > 300
-            result["retry_at"] = datetime.fromtimestamp(time.time() + seconds, timezone.utc).isoformat()
+            result["skip_next_run"] = result["skip_next_run"] or exc.seconds > 300
         else:
             error["cooldown_known"] = False
     result["errors"].append(error)
@@ -385,8 +380,7 @@ def run(week, couples, git_token, since=None, dry_run=False):
                             and entry.get("couple") == name and entry.get("files")]
                 if previous:
                     paths = [f"{result['folder']}/{filename}" for _, entry in previous for filename in entry["files"]]
-                    result["uploaded_couples"].append({**couple, "already_uploaded": True,
-                        "post_ids": [pid for pid, _ in previous],
+                    result["uploaded_couples"].append({**couple,
                         "files": [uploaded_file(path) for path in paths]})
             refresh_remaining(result)
         targets = result["remaining_couples"]
@@ -410,7 +404,7 @@ def run(week, couples, git_token, since=None, dry_run=False):
                 name = couple_name(couple)
                 url = f"https://x.com/{HANDLE}/status/{pid}"
                 if dry_run:
-                    result["planned_uploads"].append({**couple, "post_id": pid,
+                    result["planned_uploads"].append({**couple,
                         "post_url": url, "folder": result["folder"],
                         "filename_prefix": f"{name}-{next_index(existing, name)}"})
                     continue
@@ -425,7 +419,7 @@ def run(week, couples, git_token, since=None, dry_run=False):
                 if not photos:
                     continue  # Empty downloads are never successes or saved post IDs.
                 number, filenames = next_index(existing, name), []
-                info = uploaded.setdefault(name, {**couple, "already_uploaded": False, "post_ids": [], "files": []})
+                info = uploaded.setdefault(name, {**couple, "files": []})
                 for photo in photos:
                     extension = ".jpeg" if photo.suffix.lower() in {".jpg", ".jpeg"} else photo.suffix.lower()
                     filename = f"{name}-{number}{extension}"
@@ -435,7 +429,6 @@ def run(week, couples, git_token, since=None, dry_run=False):
                     staged.append((path, photo))
                     info["files"].append(path)
                     number += 1
-                info["post_ids"].append(pid)
                 done[pid] = {"couple": name, "week": week, "files": filenames}
             if staged:
                 stage = "github_upload"
@@ -443,7 +436,6 @@ def run(week, couples, git_token, since=None, dry_run=False):
                 for info in uploaded.values():
                     info["files"] = [uploaded_file(path, commit) for path in info["files"]]
                     result["uploaded_couples"].append(info)
-                result["commit_sha"] = commit
                 refresh_remaining(result)
                 stage = "save_state"
                 state["downloaded"].update(done)
@@ -458,22 +450,21 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--week", type=int, required=True, help="Week number for Images/Dances/Week N.")
     parser.add_argument("--couples", required=True, metavar="JSON_OR_@FILE", help="Full-name couples JSON, inline or @filename.")
-    parser.add_argument("--git-token", help="GitHub token for older local callers; prefer DWTS_GITHUB_TOKEN.")
+    parser.add_argument("--git-token", required=True, help="GitHub token; required explicitly, never read from the shell environment.")
     parser.add_argument("--since", help="Only posts on/after YYYY-MM-DD (default: today in the local timezone).")
     parser.add_argument("--dry-run", action="store_true", help="Preview matches without downloads, uploads, or state changes.")
     parser.add_argument("--print", dest="pretty", action="store_true", help="Indent the JSON output; default is compact JSON.")
     args = parser.parse_args(argv)
-    git_token = args.git_token or os.environ.get("DWTS_GITHUB_TOKEN", "")
     try:
         couples = read_couples(args.couples)
-        result = run(args.week, couples, git_token, args.since, args.dry_run)
+        result = run(args.week, couples, args.git_token, args.since, args.dry_run)
     except (PhotoError, OSError, ValueError) as exc:
         result = new_result(args.week, [], args.dry_run)
         record_error(result, exc, "configuration")
     # Never allow a supplied token to be echoed in an error, subprocess output, etc.
     output = json.dumps(result, ensure_ascii=False, indent=2 if args.pretty else None,
                         separators=None if args.pretty else (",", ":"))
-    print(output.replace(git_token, "[REDACTED]") if git_token else output)
+    print(output.replace(args.git_token, "[REDACTED]") if args.git_token else output)
     return 1 if result["failed_run"] else 0
 
 

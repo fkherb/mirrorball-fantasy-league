@@ -27,7 +27,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -346,7 +345,7 @@ def elimination_information(raw):
             eliminated = True
         elif re.search(r"\bsafe\b", text) and not re.search(r"\beliminated\b", text):
             eliminated = False
-    return {"eliminated": eliminated, "result": raw}
+    return {"eliminated": eliminated}
 
 
 def parse_information(html, mode, couples=None, week_tag=None, page_url=DEFAULT_PAGE, revision_id=None):
@@ -359,12 +358,9 @@ def parse_information(html, mode, couples=None, week_tag=None, page_url=DEFAULT_
     parser = DocumentParser()
     parser.feed(html)
     weeks = weekly_sections(parser.root, source_url)
-    result = {
-        "mode": mode, "source_url": source_url, "revision_id": revision_id,
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-    }
+    result = {"script": "dwts-wiki.py", "mode": mode, "source_url": source_url}
     if mode == "get-weeks":
-        result["weeks"] = [{key: value for key, value in week.items() if key != "nodes"} for week in weeks]
+        result["weeks"] = [{key: week[key] for key in ("week", "week_tag", "url")} for week in weeks]
         return result
     if not isinstance(week_tag, str) or not week_tag.strip():
         raise WikiError("--week-tag is required for pre-show, live-show, and post-show.")
@@ -378,6 +374,7 @@ def parse_information(html, mode, couples=None, week_tag=None, page_url=DEFAULT_
     required = {"pre-show": {"couple", "dance", "music"},
                 "live-show": {"couple", "scores"}, "post-show": {"couple", "result"}}[mode]
     recognized = 0
+    warnings = []
     for table in (n for n in week["nodes"] if n.tag == "table" and n.ancestor("table") is None):
         grid = table_grid(table)
         header_index, columns = None, {}
@@ -393,9 +390,8 @@ def parse_information(html, mode, couples=None, week_tag=None, page_url=DEFAULT_
         if header_index is None:
             continue
         recognized += 1
-        caption = next((clean(n.text()) for n in table.children if isinstance(n, Node) and n.tag == "caption"), None)
         table_pairs = {}
-        for row_index, row in enumerate(grid[header_index + 1:], start=1):
+        for row in grid[header_index + 1:]:
             label = field_value(row, columns, "couple")
             record = lookup.get(pair_key(label)) if label else None
             if record is None:
@@ -406,19 +402,21 @@ def parse_information(html, mode, couples=None, week_tag=None, page_url=DEFAULT_
             if key in table_pairs and table_pairs[key] != label:
                 raise WikiError(f"Ambiguous Wikipedia rows for first-name pair {key}.")
             table_pairs[key] = label
-            data = {"wiki_couple": label, "table": caption,
-                    "table_index": recognized, "row_index": row_index}
+            data = {}
             if mode == "pre-show":
                 data["dance"] = field_value(row, columns, "dance")
                 data.update(music_information(field_value(row, columns, "music")))
             elif mode == "live-show":
                 data.update(score_information(field_value(row, columns, "scores")))
+                warning = data.pop("warning", None)
+                if warning:
+                    warnings.append(f"{record['star_name']} and {record['pro_name']}: {warning}")
             else:
                 data.update(elimination_information(field_value(row, columns, "result")))
             record["found"] = True
             record["performances"].append(data)
     result["couples"] = records
-    result["warnings"] = []
+    result["warnings"] = warnings
     if not recognized:
         result["warnings"].append("No table with the required headings is available in this week section.")
     return result
@@ -442,7 +440,7 @@ def main(argv=None):
     for mode, description in (
         ("pre-show", "Get dance types, songs, and explicitly listed artists."),
         ("live-show", "Get individual judge scores and listed totals."),
-        ("post-show", "Get elimination flags and raw result text."),
+        ("post-show", "Get elimination flags."),
         ("get-weeks", "List week headings/tags under Weekly scores."),
     ):
         modes.add_argument("--" + mode, dest="mode", action="store_const", const=mode, help=description)
@@ -460,7 +458,7 @@ def main(argv=None):
         result = fetch_information(args.mode, couples, args.week_tag, args.page_url)
         status = 0
     except WikiError as exc:
-        result = {"error": str(exc), "mode": args.mode}
+        result = {"script": "dwts-wiki.py", "error": str(exc), "mode": args.mode}
         status = 1
     print(json.dumps(result, ensure_ascii=False, indent=2 if args.pretty else None,
                      separators=None if args.pretty else (",", ":")))
@@ -469,4 +467,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-
