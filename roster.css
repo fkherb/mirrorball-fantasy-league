@@ -104,6 +104,15 @@ dialog:has(.account-picture-picker) .close { position: absolute; top: 12px; righ
 #accountProfileFields { margin-top: 14px; }
 #accountProfileActions { display: flex; gap: 8px; margin-top: 11px; }
 .account-menu #accountProfileActions button { width: auto; flex: 1; margin: 0; }
+.account-menu .account-delete-button { margin-top: 12px; border: 1px solid #e7c7d0; background: #fff8fa; color: #9d3159; }
+.account-delete-dialog { padding: 24px; }
+.account-delete-dialog h2 { margin-top: 0; }
+.account-delete-dialog label { display: block; margin-top: 20px; }
+.account-delete-dialog input { width: 100%; }
+.account-delete-dialog .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.account-delete-message { margin: 10px 0 0; color: #9d3159; font-size: 13px; }
+.account-delete-message:empty { display: none; }
+.account-delete-dialog button:disabled { opacity: .5; cursor: not-allowed; }
 .account-profile-summary:has(+ #accountProfileFields:not([hidden])) { margin-bottom: 10px; }
 #joinInviteBanner:not(:empty) { max-width: 760px; margin: 0 0 24px; }
 #joinInviteBanner[hidden] { display: none; }

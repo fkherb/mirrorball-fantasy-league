@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20261001-dance-types-v87';
+import { db } from './supabase-client.js?v=20261002-account-deletion-v88';
 
 let cached = [];
 let loadedAt = 0;

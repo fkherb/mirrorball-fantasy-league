@@ -440,3 +440,25 @@ appears with the other invitations in the account menu after sign-in.
 - `node scripts/check-cache-keys.mjs` verifies that every page references the
   same JavaScript and CSS cache key. The GitHub workflow runs this check on
   every push and pull request.
+
+### Account deletion
+
+Before publishing the account-deletion UI, run `supabase/account-deletion.sql`
+in the Supabase SQL editor, then deploy `supabase/functions/delete-account`
+with JWT verification enabled (`supabase functions deploy delete-account --project-ref mdrrnanxqazecqviaass`).
+The function uses Supabase's existing `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and
+`SUPABASE_SERVICE_ROLE_KEY` server-side secrets; never put the service-role key
+in website code. Test with a disposable account before announcing the feature.
+
+Users delete their own account from the account menu by typing `DELETE`.
+Uploaded profile photos, sign-in credentials, profile, invitations, and league
+memberships are removed. A team stays in the league without a manager, with
+its manager name anonymized. An active manager automatically becomes
+commissioner if the deleted user owned a league. The last platform owner and
+the only manager in a league must assign a successor or delete the league
+before deleting their account. Commissioners may rename only these unmanaged
+teams. Eligible trades requested from an unmanaged team complete immediately,
+still subject to the usual roster and airing checks. The hourly database job
+fully deletes unmanaged teams and their team-specific history after the
+season-finale week is complete and the airing lock has passed. Confirm the
+`cleanup-deleted-account-teams` job exists in Supabase Cron.

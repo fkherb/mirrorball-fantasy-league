@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20261001-dance-types-v87';
-import { prepareProfilePicture } from './profile-picture.js?v=20261001-dance-types-v87';
+import { db } from './supabase-client.js?v=20261002-account-deletion-v88';
+import { prepareProfilePicture } from './profile-picture.js?v=20261002-account-deletion-v88';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
@@ -53,6 +53,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const auth = document.querySelector('#auth');
   const menu = document.querySelector('#accountMenu');
+  const deleteAccountButton = document.createElement('button');
+  deleteAccountButton.id = 'deleteAccount';
+  deleteAccountButton.type = 'button';
+  deleteAccountButton.className = 'account-delete-button';
+  deleteAccountButton.textContent = 'Delete account';
+  menu.querySelector('#signOut').before(deleteAccountButton);
   const providerLinks = document.createElement('div');
   providerLinks.className = 'account-provider-links';
   providerLinks.innerHTML = '<p class="eyebrow">Link an account</p><p class="account-profile-hint">Add another way to sign in to this same profile.</p><button id="connectGoogle" type="button" class="secondary">Link Google</button><button id="connectApple" type="button" class="secondary">Link Apple</button><p id="providerLinkMessage" class="account-profile-hint" role="status"></p>';
@@ -553,6 +559,59 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
   document.querySelector('#signOut').addEventListener('click', async () => { await db.auth.signOut(); });
+  deleteAccountButton.addEventListener('click', async () => {
+    const modal = document.querySelector('#modal');
+    const body = document.querySelector('#modalBody');
+    body.replaceChildren();
+    const panel = document.createElement('div');
+    panel.className = 'account-delete-dialog';
+    panel.innerHTML = '<p class="eyebrow">Account settings</p><h2>Delete your account?</h2><p class="sub">This permanently removes your sign-in, profile, invitations, and uploaded pictures. Your fantasy teams remain as unmanaged teams until the season ends. Their scores stay in the league during the season, and trades with them complete automatically. If you run a league, another active manager becomes commissioner.</p><label for="deleteAccountConfirmation">Type DELETE to confirm<input id="deleteAccountConfirmation" autocomplete="off" autocapitalize="characters" spellcheck="false"></label><p id="deleteAccountMessage" role="alert" class="account-delete-message"></p><div class="modal-actions"><button id="cancelAccountDeletion" type="button" class="secondary">Cancel</button><button id="confirmAccountDeletion" type="button" class="danger" disabled>Delete account permanently</button></div>';
+    body.append(panel);
+    const confirm = panel.querySelector('#confirmAccountDeletion');
+    const input = panel.querySelector('#deleteAccountConfirmation');
+    const message = panel.querySelector('#deleteAccountMessage');
+    input.addEventListener('input', () => { confirm.disabled = input.value !== 'DELETE'; });
+    panel.querySelector('#cancelAccountDeletion').addEventListener('click', () => modal.close());
+    document.querySelector('#modalClose').onclick = () => modal.close();
+    modal.oncancel = null;
+    if (!modal.open) modal.showModal();
+    const { data: blockers, error: checkError } = await db.rpc('account_deletion_blockers');
+    if (!modal.open || !panel.isConnected) return;
+    if (checkError) {
+      message.textContent = 'Account deletion is not available yet. Please try again later.';
+      confirm.disabled = true;
+      input.disabled = true;
+      return;
+    }
+    if (blockers?.length) {
+      message.textContent = blockers.join(' ');
+      confirm.disabled = true;
+      input.disabled = true;
+      return;
+    }
+    input.focus();
+    confirm.addEventListener('click', async () => {
+      if (input.value !== 'DELETE' || confirm.disabled) return;
+      confirm.disabled = true;
+      input.disabled = true;
+      confirm.textContent = 'Deleting…';
+      const { data, error } = await db.functions.invoke('delete-account', {
+        body: { confirmation: 'DELETE' },
+      });
+      if (error || !data?.deleted) {
+        let detail = data?.error;
+        try { detail ||= (await error?.context?.json())?.error; } catch { /* Keep fallback. */ }
+        message.textContent = detail || 'Could not delete your account. Please try again.';
+        confirm.disabled = false;
+        input.disabled = false;
+        confirm.textContent = 'Delete account permanently';
+        return;
+      }
+      await db.auth.signOut({ scope: 'local' });
+      localStorage.removeItem('mirrorball-active-league');
+      location.assign(`${location.pathname}#signin`);
+    });
+  });
   const queryError = new URLSearchParams(location.search);
   const fragmentError = new URLSearchParams(location.hash.slice(1));
   const oauthError = fragmentError.get('error_description') || queryError.get('error_description')

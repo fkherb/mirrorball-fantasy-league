@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261001-dance-types-v87';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261001-dance-types-v87';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261001-dance-types-v87';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261001-dance-types-v87';
-import { loadMarketPredictions } from './market-predictions.js?v=20261001-dance-types-v87';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261001-dance-types-v87';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261001-dance-types-v87';
-import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261001-dance-types-v87';
+import { db } from './supabase-client.js?v=20261002-account-deletion-v88';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261002-account-deletion-v88';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261002-account-deletion-v88';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261002-account-deletion-v88';
+import { loadMarketPredictions } from './market-predictions.js?v=20261002-account-deletion-v88';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261002-account-deletion-v88';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261002-account-deletion-v88';
+import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261002-account-deletion-v88';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -580,7 +580,7 @@ async function loadWorkspaceData(context, { light = false, previous = null } = {
   const leagueId = context.leagueId;
   const queries = {
     league: db.from('leagues').select('id,name,status,roster_size,roster_size_overridden,scoring_starts_after_week,draft_pick_deadline_at,draft_paused_at,draft_timer_disabled').eq('id', leagueId).single(),
-    teams: db.from('fantasy_teams').select('id,league_id,manager_name,team_name').eq('league_id', leagueId),
+    teams: db.from('fantasy_teams').select('id,league_id,manager_name,team_name,orphaned_by_account_deletion').eq('league_id', leagueId),
     assignments: db.from('league_roster_assignments').select('cast_member_id,fantasy_team_id').eq('league_id', leagueId),
     cast: db.from('cast_members').select('*').order('name'),
     members: db.rpc('list_league_members', { p_league_id: leagueId }),
@@ -1109,7 +1109,8 @@ function openWorkspaceTradeBuilder(context, data, assignmentMap, memberByTeam, r
     const theirs = state.team ? data.cast.filter((member) => assignmentMap.get(member.id) === state.team) : [];
     const issue = state.mine && state.team && state.theirs ? tradeRoleLimitIssue(context, data, assignmentMap,
       context.fantasyTeamId, state.mine, state.team, state.theirs) : '';
-    dialog(`<p class="eyebrow">New trade</p><h2>Propose a Trade</h2><p class="sub">Choose one of your cast members, another team, and the cast member you want. The other manager has 48 hours.</p><h3>You send</h3><div class="workspace-trade-picker">${own.map((member) => `<button class="${state.mine === member.id ? 'selected' : ''}" data-builder-mine="${member.id}">${castTile(member, '', 'span')}</button>`).join('')}</div><h3>Trade with</h3><div class="workspace-trade-team-picker">${others.map((team) => `<button class="${state.team === team.id ? 'selected' : ''}" data-builder-team="${team.id}">${safe(team.team_name || memberByTeam.get(team.id)?.display_name || 'Team')}</button>`).join('')}</div>${state.team ? `<h3>You receive</h3><div class="workspace-trade-picker">${theirs.map((member) => `<button class="${state.theirs === member.id ? 'selected' : ''}" data-builder-theirs="${member.id}">${castTile(member, '', 'span')}</button>`).join('')}</div>` : ''}${issue ? `<p class="sub" role="alert">${safe(issue)}</p>` : ''}<div class="modal-actions"><button id="sendWorkspaceTrade" ${state.mine && state.theirs && !issue ? '' : 'disabled'}>Send Trade</button></div>`);
+    const unmanaged = others.find((team) => team.id === state.team)?.orphaned_by_account_deletion;
+    dialog(`<p class="eyebrow">New trade</p><h2>Propose a Trade</h2><p class="sub">Choose one of your cast members, another team, and the cast member you want. ${unmanaged ? 'This unmanaged team accepts eligible trades automatically.' : 'The other manager has 48 hours.'}</p><h3>You send</h3><div class="workspace-trade-picker">${own.map((member) => `<button class="${state.mine === member.id ? 'selected' : ''}" data-builder-mine="${member.id}">${castTile(member, '', 'span')}</button>`).join('')}</div><h3>Trade with</h3><div class="workspace-trade-team-picker">${others.map((team) => `<button class="${state.team === team.id ? 'selected' : ''}" data-builder-team="${team.id}">${safe(team.team_name || memberByTeam.get(team.id)?.display_name || 'Team')}</button>`).join('')}</div>${state.team ? `<h3>You receive</h3><div class="workspace-trade-picker">${theirs.map((member) => `<button class="${state.theirs === member.id ? 'selected' : ''}" data-builder-theirs="${member.id}">${castTile(member, '', 'span')}</button>`).join('')}</div>` : ''}${issue ? `<p class="sub" role="alert">${safe(issue)}</p>` : ''}<div class="modal-actions"><button id="sendWorkspaceTrade" ${state.mine && state.theirs && !issue ? '' : 'disabled'}>Send Trade</button></div>`);
     $('#modalBody').querySelectorAll('[data-builder-mine]').forEach((button) => button.addEventListener('click', () => { state.mine = button.dataset.builderMine; render(); }));
     $('#modalBody').querySelectorAll('[data-builder-team]').forEach((button) => button.addEventListener('click', () => { state.team = button.dataset.builderTeam; state.theirs = null; render(); }));
     $('#modalBody').querySelectorAll('[data-builder-theirs]').forEach((button) => button.addEventListener('click', () => { state.theirs = button.dataset.builderTheirs; render(); }));
@@ -1305,8 +1306,10 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
     return teamCard({ id: team.id, manager: managerName, name: teamName,
       roster: roster.map((cast) => ({ name: cast.name, role: cast.role === 'DWTS Next Pro' ? 'Next Pro' : cast.role })),
       emptyMessage: context.leagueStatus === 'setup' ? member?.member_role === 'owner' ? 'Commissioner' : readyManagerIds.has(member?.user_id) ? 'Ready to draft' : 'Not ready yet' : context.leagueStatus === 'drafting' ? 'Waiting for first pick' : 'No cast on this team',
-      footerHtml: context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member?.member_role === 'member'
-        ? `<button class="secondary workspace-remove-manager" data-remove-member="${member.user_id}">Remove manager</button>` : '' });
+      footerHtml: context.leagueRole === 'owner' && team.orphaned_by_account_deletion
+        ? `<button class="secondary workspace-rename-orphan" data-rename-orphan="${team.id}">Edit team name</button>`
+        : context.leagueRole === 'owner' && context.leagueStatus === 'setup' && member?.member_role === 'member'
+          ? `<button class="secondary workspace-remove-manager" data-remove-member="${member.user_id}">Remove manager</button>` : '' });
   }).join('');
   $('#commissionerTeamResults').querySelectorAll('[data-team-detail]').forEach((card) => {
     const open = () => openWorkspaceTeamDetail(card.dataset.teamDetail);
@@ -1358,6 +1361,17 @@ async function renderLeague(context, data, assignmentMap, memberByTeam, score, r
       () => db.rpc('remove_league_member', { p_league_id: context.leagueId, p_user_id: button.dataset.removeMember }),
       async () => { $('#modal').close(); await refresh(); },
       $('#confirmRemoveMember'),
+    ));
+  }));
+  $('#commissionerTeamResults').querySelectorAll('[data-rename-orphan]').forEach((button) => button.addEventListener('click', () => {
+    const team = data.teams.find((item) => item.id === button.dataset.renameOrphan);
+    if (!team?.orphaned_by_account_deletion) return;
+    dialog(`<p class="eyebrow">Unmanaged team</p><h2>Edit team name</h2><p class="sub">The former manager’s account was deleted. This changes only the team’s name.</p><label>Team name<input id="orphanTeamName" maxlength="80" value="${safe(team.team_name || '')}"></label><div class="modal-actions"><button id="saveOrphanTeamName">Save name</button></div>`);
+    $('#saveOrphanTeamName').addEventListener('click', () => runAction(
+      () => db.rpc('rename_orphaned_team', { p_league_id: context.leagueId,
+        p_team_id: team.id, p_team_name: $('#orphanTeamName').value.trim() }),
+      async () => { $('#modal').close(); await refresh(); },
+      $('#saveOrphanTeamName'),
     ));
   }));
   if (context.leagueRole === 'owner' && context.leagueStatus === 'setup') {
