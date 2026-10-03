@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20261002-account-deletion-v88';
-import { prepareProfilePicture } from './profile-picture.js?v=20261002-account-deletion-v88';
+import { db } from './supabase-client.js?v=20261002-account-delete-ux-v89';
+import { prepareProfilePicture } from './profile-picture.js?v=20261002-account-delete-ux-v89';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
@@ -58,7 +58,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   deleteAccountButton.type = 'button';
   deleteAccountButton.className = 'account-delete-button';
   deleteAccountButton.textContent = 'Delete account';
-  menu.querySelector('#signOut').before(deleteAccountButton);
+  deleteAccountButton.hidden = true;
+  menu.querySelector('#accountProfileActions').after(deleteAccountButton);
   const providerLinks = document.createElement('div');
   providerLinks.className = 'account-provider-links';
   providerLinks.innerHTML = '<p class="eyebrow">Link an account</p><p class="account-profile-hint">Add another way to sign in to this same profile.</p><button id="connectGoogle" type="button" class="secondary">Link Google</button><button id="connectApple" type="button" class="secondary">Link Apple</button><p id="providerLinkMessage" class="account-profile-hint" role="status"></p>';
@@ -128,6 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const syncProfileControls = () => {
     profileFields.hidden = !profileEditing;
     profileActions.hidden = !profileEditing && !pictureDirty;
+    deleteAccountButton.hidden = !profileEditing;
     profileEdit.textContent = profileEditing ? 'Editing' : 'Edit';
     profileEdit.disabled = profileEditing;
   };
@@ -565,12 +567,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     body.replaceChildren();
     const panel = document.createElement('div');
     panel.className = 'account-delete-dialog';
-    panel.innerHTML = '<p class="eyebrow">Account settings</p><h2>Delete your account?</h2><p class="sub">This permanently removes your sign-in, profile, invitations, and uploaded pictures. Your fantasy teams remain as unmanaged teams until the season ends. Their scores stay in the league during the season, and trades with them complete automatically. If you run a league, another active manager becomes commissioner.</p><label for="deleteAccountConfirmation">Type DELETE to confirm<input id="deleteAccountConfirmation" autocomplete="off" autocapitalize="characters" spellcheck="false"></label><p id="deleteAccountMessage" role="alert" class="account-delete-message"></p><div class="modal-actions"><button id="cancelAccountDeletion" type="button" class="secondary">Cancel</button><button id="confirmAccountDeletion" type="button" class="danger" disabled>Delete account permanently</button></div>';
+    panel.innerHTML = '<p class="eyebrow">Account settings</p><h2>Delete your account?</h2><p class="sub">Your sign-in, profile, invitations, and uploaded pictures will be permanently removed. Your fantasy teams and scores remain in their leagues without a manager until the season ends; eligible trades with those teams complete automatically. If you run a league, another active manager becomes commissioner.</p><label class="account-delete-acknowledgement"><input id="deleteAccountAcknowledgement" type="checkbox"><span>I understand this permanently deletes my account and cannot be undone.</span></label><p id="deleteAccountMessage" role="alert" class="account-delete-message"></p><div class="modal-actions"><button id="cancelAccountDeletion" type="button" class="secondary">Cancel</button><button id="confirmAccountDeletion" type="button" class="danger" disabled>Confirm deletion</button></div>';
     body.append(panel);
     const confirm = panel.querySelector('#confirmAccountDeletion');
-    const input = panel.querySelector('#deleteAccountConfirmation');
+    const acknowledgement = panel.querySelector('#deleteAccountAcknowledgement');
     const message = panel.querySelector('#deleteAccountMessage');
-    input.addEventListener('input', () => { confirm.disabled = input.value !== 'DELETE'; });
+    let preflightReady = false;
+    acknowledgement.addEventListener('change', () => { confirm.disabled = !preflightReady || !acknowledgement.checked; });
     panel.querySelector('#cancelAccountDeletion').addEventListener('click', () => modal.close());
     document.querySelector('#modalClose').onclick = () => modal.close();
     modal.oncancel = null;
@@ -580,20 +583,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (checkError) {
       message.textContent = 'Account deletion is not available yet. Please try again later.';
       confirm.disabled = true;
-      input.disabled = true;
+      acknowledgement.disabled = true;
       return;
     }
     if (blockers?.length) {
       message.textContent = blockers.join(' ');
       confirm.disabled = true;
-      input.disabled = true;
+      acknowledgement.disabled = true;
       return;
     }
-    input.focus();
+    preflightReady = true;
+    acknowledgement.focus();
     confirm.addEventListener('click', async () => {
-      if (input.value !== 'DELETE' || confirm.disabled) return;
+      if (!acknowledgement.checked || confirm.disabled) return;
       confirm.disabled = true;
-      input.disabled = true;
+      acknowledgement.disabled = true;
       confirm.textContent = 'Deleting…';
       const { data, error } = await db.functions.invoke('delete-account', {
         body: { confirmation: 'DELETE' },
@@ -603,8 +607,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { detail ||= (await error?.context?.json())?.error; } catch { /* Keep fallback. */ }
         message.textContent = detail || 'Could not delete your account. Please try again.';
         confirm.disabled = false;
-        input.disabled = false;
-        confirm.textContent = 'Delete account permanently';
+        acknowledgement.disabled = false;
+        confirm.textContent = 'Confirm deletion';
         return;
       }
       await db.auth.signOut({ scope: 'local' });

@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261002-account-deletion-v88';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261002-account-deletion-v88';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261002-account-deletion-v88';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261002-account-deletion-v88';
-import { loadMarketPredictions } from './market-predictions.js?v=20261002-account-deletion-v88';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261002-account-deletion-v88';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261002-account-deletion-v88';
-import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261002-account-deletion-v88';
+import { db } from './supabase-client.js?v=20261002-account-delete-ux-v89';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261002-account-delete-ux-v89';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261002-account-delete-ux-v89';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261002-account-delete-ux-v89';
+import { loadMarketPredictions } from './market-predictions.js?v=20261002-account-delete-ux-v89';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261002-account-delete-ux-v89';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261002-account-delete-ux-v89';
+import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261002-account-delete-ux-v89';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({

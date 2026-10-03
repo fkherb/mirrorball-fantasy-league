@@ -450,7 +450,9 @@ The function uses Supabase's existing `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and
 `SUPABASE_SERVICE_ROLE_KEY` server-side secrets; never put the service-role key
 in website code. Test with a disposable account before announcing the feature.
 
-Users delete their own account from the account menu by typing `DELETE`.
+Users delete their own account while editing their account profile. The
+confirmation dialog requires an acknowledgement checkbox before they can
+confirm deletion.
 Uploaded profile photos, sign-in credentials, profile, invitations, and league
 memberships are removed. A team stays in the league without a manager, with
 its manager name anonymized. An active manager automatically becomes
