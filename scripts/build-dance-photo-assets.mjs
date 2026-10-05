@@ -12,6 +12,7 @@ const imagePattern = /^(.+)-(\d+)\.(jpe?g|png|webp)$/i;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 16);
 const relativePath = (url) => path.relative(fileURLToPath(root), fileURLToPath(url)).split(path.sep).join('/');
 const entries = [];
+const recordedCards = new Set();
 let previousEntries = new Map();
 try {
   previousEntries = new Map(JSON.parse(await readFile(manifestUrl, 'utf8')).entries
@@ -34,6 +35,8 @@ for (const folder of folders) {
     const match = imagePattern.exec(filename);
     const original = new URL(encodeURIComponent(filename), sourceFolder);
     const card = new URL(`${encodeURIComponent(match[1])}-${match[2]}.webp`, cardFolder);
+    const cardPath = relativePath(card);
+    const firstForCard = !recordedCards.has(cardPath);
     let sourceBytes = await readFile(original);
     originalBytes += sourceBytes.length;
     if (!checkOnly) {
@@ -49,21 +52,25 @@ for (const folder of folders) {
         optimized += 1;
       }
       const originalPath = relativePath(original);
-      const cardPath = relativePath(card);
-      let existingCard = null;
-      try { existingCard = await readFile(card); } catch { /* New photo. */ }
-      if (!existingCard || previousEntries.get(originalPath) !== hash(sourceBytes)
-        || previousEntries.get(cardPath) !== hash(existingCard)) {
-        const cardBytes = await sharp(sourceBytes).rotate()
-          .resize(640, 640, { fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 76, effort: 5 }).toBuffer();
-        await writeFile(card, cardBytes);
+      if (firstForCard) {
+        let existingCard = null;
+        try { existingCard = await readFile(card); } catch { /* New photo. */ }
+        if (!existingCard || previousEntries.get(originalPath) !== hash(sourceBytes)
+          || previousEntries.get(cardPath) !== hash(existingCard)) {
+          const cardBytes = await sharp(sourceBytes).rotate()
+            .resize(640, 640, { fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 76, effort: 5 }).toBuffer();
+          await writeFile(card, cardBytes);
+        }
       }
     }
     finalBytes += sourceBytes.length;
-    const cardBytes = await readFile(card);
     entries.push({ path: relativePath(original), sha: hash(sourceBytes) });
-    entries.push({ path: relativePath(card), sha: hash(cardBytes) });
+    if (firstForCard) {
+      const cardBytes = await readFile(card);
+      entries.push({ path: cardPath, sha: hash(cardBytes) });
+      recordedCards.add(cardPath);
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { danceImagesFor, danceCardPhotoFor, couplePhotoFor, refreshDanceImages, uploadedDancePhotos } from '../dance-images.js';
 
 for (const pair of [
@@ -16,16 +16,17 @@ for (const pair of [
   assert.ok(photo && existsSync(decodeURIComponent(photo)), `Missing couple placeholder: ${pair}`);
 }
 
+const manifestEntries = JSON.parse(readFileSync('dance-photo-manifest.json', 'utf8')).entries;
+const uploadedUrls = [...uploadedDancePhotos(manifestEntries).values()].flat();
 for (const week of [1, 2]) {
   const folder = `Images/Dances/Week ${week}`;
   for (const filename of readdirSync(folder)) {
     if (filename.startsWith('Elimination-')) continue; // Editorial elimination photos, not a specific dance.
-    const stem = filename.replace(/-\d+\.jpeg$/, '');
-    const urls = danceImagesFor(week, stem.replace(' and ', ' & '));
-    assert.ok(urls.some((url) => decodeURIComponent(url).endsWith(filename)), `Unmapped: ${filename}`);
-    urls.forEach((url) => assert.ok(existsSync(decodeURIComponent(url)), `Missing: ${url}`));
+    assert.ok(uploadedUrls.some((url) => decodeURIComponent(url.split('?')[0]).endsWith(`${folder}/${filename}`)),
+      `Unmapped: ${filename}`);
   }
 }
+assert.equal(uploadedDancePhotos(manifestEntries).get('2:eliminated pro dance')?.length, 2);
 assert.equal(danceImagesFor(3, 'Amber Glenn & Pasha Pashkov').length, 0);
 assert.equal(danceImagesFor(1, 'Derek Hough\'s Tour Performance').length, 1);
 assert.ok(existsSync(decodeURIComponent(danceCardPhotoFor(1, 'Amber Glenn & Pasha Pashkov'))));
