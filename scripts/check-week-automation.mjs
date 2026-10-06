@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import { automationFields, automationStatus, jobStatus, readAutomationFields } from '../week-automation.js';
+const now = Date.parse('2026-10-06T18:00:00Z');
+const data = {server_time:new Date(now).toISOString(),settings:{enabled:true,modes:['get-weeks','pre-show','photos'],wiki_tag:'#Week_4:_Test'},previous_complete:true,
+  worker:{last_heartbeat_at:new Date(now-60000).toISOString()},progress:{total:12,dance_types:12,songs:12,scores:0,photos:4},jobs:[]};
+const week = {number:4,is_complete:false};
+const job = {mode:'photos',pending:8,next_run_at:new Date(now+300000).toISOString(),window:new Date(now).toISOString()};
+assert.match(jobStatus(job,data,week,now),/^Next check/);
+assert.equal(jobStatus({...job,lease_until:new Date(now+60000).toISOString()},data,week,now),'Running');
+assert.equal(jobStatus({...job,pending:0},data,week,now),'Done');
+assert.equal(jobStatus(job,{...data,settings:{...data.settings,enabled:false}},week,now),'Paused');
+assert.equal(jobStatus(job,{...data,previous_complete:false},week,now),'Waiting for previous week completion');
+assert.equal(jobStatus({...job,window:null},data,week,now),'Airing window unavailable or ended');
+assert.match(jobStatus(job,{...data,worker:{photos_not_before:new Date(now+60000).toISOString()}},week,now),/^Cooldown/);
+assert.equal(jobStatus(job,data,{...week,is_complete:true},now),'Week complete');
+assert.match(automationStatus(data,week),/12\/12/);
+assert.match(automationStatus(data,week),/Connected/);
+assert.match(automationFields(data,'Guest <script>'),/Guest &lt;script&gt;/);
+assert.ok(!automationFields(data,'Guest <script>').includes('Guest <script>'));
+const inputs = {'#weekWikiAutomatic':{checked:true},'#weekAutomationEnabled':{checked:true},'#weekWikiTag':{value:''}};
+const root={querySelector:(selector)=>inputs[selector],querySelectorAll:(selector)=>selector.includes('mode')?[{dataset:{automationMode:'live-show'}}]:[{value:'Carrie Ann'},{value:'Derek'},{value:'Bruno'},{value:'Guest'}]};
+assert.deepEqual(readAutomationFields(root,'Guest').modes,['get-weeks','live-show']);
+root.querySelectorAll=(selector)=>selector.includes('mode')?[{dataset:{automationMode:'live-show'}}]:[{value:''},{value:''},{value:''},{value:''}];
+assert.throws(()=>readAutomationFields(root,'Guest'),/judge order/);
+console.log('Per-week automation settings, guest order, progress, status, cooldowns and escaping verified.');

@@ -1,15 +1,16 @@
-import { db } from './supabase-client.js?v=20261002-account-delete-ux-v89';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261002-account-delete-ux-v89';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261002-account-delete-ux-v89';
-import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261002-account-delete-ux-v89';
-import { loadMarketPredictions } from './market-predictions.js?v=20261002-account-delete-ux-v89';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261002-account-delete-ux-v89';
-import { appearanceValue, calculateLeaguePoints, roleForWeek, sharedAppearanceRate } from './scoring.js?v=20261002-account-delete-ux-v89';
-import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20261002-account-delete-ux-v89';
-import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261002-account-delete-ux-v89';
-import { splitDanceType, joinDanceType } from './dance-type.js?v=20261002-account-delete-ux-v89';
-import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261002-account-delete-ux-v89';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261002-account-delete-ux-v89';
+import { db } from './supabase-client.js?v=20261006-week-automation-v90';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261006-week-automation-v90';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-week-automation-v90';
+import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261006-week-automation-v90';
+import { loadMarketPredictions } from './market-predictions.js?v=20261006-week-automation-v90';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-week-automation-v90';
+import { appearanceValue, calculateLeaguePoints, roleForWeek, sharedAppearanceRate } from './scoring.js?v=20261006-week-automation-v90';
+import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20261006-week-automation-v90';
+import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261006-week-automation-v90';
+import { splitDanceType, joinDanceType } from './dance-type.js?v=20261006-week-automation-v90';
+import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261006-week-automation-v90';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-week-automation-v90';
+import { automationFields, automationStatus, judgeOrderFields, readAutomationFields } from './week-automation.js?v=20261006-week-automation-v90';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1356,6 +1357,13 @@ async function loadScoreDesk() {
   $('#weekTabs').innerHTML = visibleWeeks.map((week) => `<button role="tab" aria-selected="${week.id === selectedWeekId}" class="${week.id === selectedWeekId ? 'selected' : ''}" data-score-week="${week.id}">Week ${week.number}</button>`).join('');
   document.querySelectorAll('[data-score-week]').forEach((button) => button.addEventListener('click', () => { selectedWeekId = button.dataset.scoreWeek; editingWeekId = null; loadScoreDesk(); }));
   const week = visibleWeeks.find((item) => item.id === selectedWeekId);
+  let automationData = null;
+  if (isScoreDeskSurface && canManageShow) {
+    const automationResult = await db.rpc('get_week_automation_status', { p_week_id: week.id });
+    if (loadVersion !== scoreDeskLoadVersion) return;
+    if (automationResult.error) console.warn('Automation status unavailable:', automationResult.error.message);
+    else automationData = automationResult.data;
+  }
   const { data: dances, error: danceError } = await db.from('dances').select('id,kind,partnership_id,name,dance_type,song,sort_order').eq('week_id', week.id).order('sort_order');
   if (loadVersion !== scoreDeskLoadVersion) return;
   if (danceError) { console.error(danceError); return renderLoadError($('#scoreDeskContent'), 'load dances', loadScoreDesk); }
@@ -1420,6 +1428,31 @@ async function loadScoreDesk() {
   // cards and photography belong on the Dances page, not this workspace.
   $('#scoreDeskContent').innerHTML = `<div class="score-week-head card ${weekEditing ? 'week-editing' : ''}"><div class="week-heading"><p class="eyebrow">Week ${week.number}</p><div class="week-title-line"><h2>${escapeHtml(weekTitle(week))}</h2>${editable && !weekEditing ? '<button class="week-edit-pill" id="editWeek">Edit</button>' : ''}</div>${weekEditing ? weekFields : `<p class="sub">${week.guest_judge_name ? `Guest judge: ${escapeHtml(week.guest_judge_name)} · ` : ''}${weekStatus}</p>`}</div>${weekEditing ? '<div class="week-edit-actions"><button class="secondary" id="cancelWeekEdit">Cancel</button><button id="saveWeek">Save changes</button></div>' : `<div class="week-summary"><span>${competitiveCount} competitive</span><span>${performanceCount} performances</span>${week.is_complete ? '<span class="week-complete">Complete</span>' : ''}</div><div class="score-week-actions">${week.is_complete && canManageShow ? '<button class="secondary" id="weekLedger">Week ledger</button>' : ''}${editable ? `<button id="newDance">Add Dance</button>${supportsCompletion ? '<button class="secondary" id="completeWeek">Mark Complete</button>' : ''}` : ''}</div>`}</div>
     ${weekEditing ? '<p class="reorder-hint">Drag the handles to match the show order, then save the week. Arrow keys also move a focused handle.</p>' : ''}<div class="dance-list ${weekEditing ? 'reorder-mode' : ''}">${dances.length ? dances.map((dance, index) => { const scores = scoresForDance(dance.id); const details = [dance.dance_type, dance.song].filter(Boolean).map(escapeHtml); const title = escapeHtml(labelForDance(dance, index)); const scoreStatus = dance.kind === 'competitive' && scores.length < 3 + (week.guest_judge_name ? 1 : 0) ? `<span class="dance-score-pending">${scores.length ? `${scores.length} judge scores entered` : 'Awaiting scores'}</span>` : ''; return `<article class="card dance-row dance-${dance.kind}" ${weekEditing ? `data-reorder-id="${dance.id}"` : `data-dance-detail="${dance.id}" tabindex="0" role="button" aria-label="View details for ${title}"`}><div class="dance-card-top">${weekEditing ? `<button type="button" class="dance-drag-handle" aria-label="Move ${title}" title="Drag to reorder">☰</button>` : ''}<div class="dance-card-info"><p class="eyebrow">${dance.kind === 'competitive' ? 'Competitive dance' : 'Performance'}</p><h3>${title}</h3>${weekEditing ? `<p class="reorder-detail">${escapeHtml([dance.dance_type, dance.song].filter(Boolean).join(' · '))}${scoreStatus}</p>` : ''}</div>${editable ? `<button class="secondary" data-edit-dance="${dance.id}">Edit</button>` : !weekEditing ? '<span class="card-chevron" aria-hidden="true">›</span>' : ''}</div>${!weekEditing && dance.kind === 'competitive' ? `<div class="dance-details"><span>${details[0] || 'Dance type not set'}</span>${details[1] ? `<span>${details[1]}</span>` : ''}</div><div class="score-desk-judge-scores" aria-label="Judge scores">${scores.map((score) => `<span><b>${escapeHtml(score.judge_name)}</b> ${Number(score.score)}</span>`).join('')}${scores.length ? `<strong>${scores.reduce((sum, score) => sum + Number(score.score || 0), 0)} total</strong>` : ''}${scoreStatus}</div>` : ''}${weekEditing ? '' : appearanceSummary(dance.id)}</article>`; }).join('') : '<div class="card empty">No dances entered for this week.</div>'}</div>`;
+  if (isScoreDeskSurface && canManageShow) {
+    if (weekEditing) $('#scoreDeskContent .week-heading').insertAdjacentHTML('beforeend', automationFields(automationData, week.guest_judge_name));
+    $('#scoreDeskContent .score-week-head').insertAdjacentHTML('afterend', `<div id="weekAutomationStatus">${automationStatus(automationData, week)}</div>`);
+    const statusContainer = $('#weekAutomationStatus');
+    statusContainer.addEventListener('click', async (event) => {
+      const button = event.target.closest('#refreshWeekAutomation');
+      if (!button) return;
+      button.disabled = true;
+      const result = await db.rpc('get_week_automation_status', { p_week_id: week.id });
+      if (loadVersion !== scoreDeskLoadVersion) return;
+      if (result.error) { button.disabled = false; return alert(`Couldn’t refresh automation: ${result.error.message}`); }
+      statusContainer.innerHTML = automationStatus(result.data, week);
+      statusContainer.querySelector('details').open = true;
+    });
+    $('#weekWikiAutomatic')?.addEventListener('change', (event) => { $('#weekWikiTagField').hidden = event.target.checked; });
+    const updateAutomationJudges = () => {
+      const container = $('#weekAutomationJudgeOrder');
+      if (!container) return;
+      const order = [...container.querySelectorAll('[data-automation-judge]')].map((input) => input.value);
+      const guest = $('#guestJudgeEnabled').checked ? $('#guestJudgeName').value.trim() : '';
+      container.innerHTML = judgeOrderFields(guest, order);
+    };
+    $('#guestJudgeEnabled')?.addEventListener('change', updateAutomationJudges);
+    $('#guestJudgeName')?.addEventListener('input', updateAutomationJudges);
+  }
   if (!week.is_complete && !isScoreDeskSurface) {
     document.querySelectorAll('#scoreDeskContent .dance-score-pending').forEach((item) => item.remove());
     document.querySelectorAll('#scoreDeskContent .week-summary span').forEach((item) => { if (item.textContent === '0 performances') item.remove(); });
@@ -1652,6 +1685,11 @@ async function saveInlineWeek(week, dances) {
   if (!airStartTime || !airEndTime || airStartTime >= airEndTime) return alert('The first airing end time must be after its start time.');
   if (secondAirDate && (!secondAirStartTime || !secondAirEndTime || secondAirStartTime >= secondAirEndTime)) return alert('The second airing end time must be after its start time.');
   if ($('#weekEliminationPredictions').checked && !airDate) return alert('Set an air date before enabling weekly elimination predictions.');
+  let automationSetup = null;
+  if (isScoreDeskSurface && $('#weekAutomationEnabled')) {
+    try { automationSetup = readAutomationFields($('#scoreDeskContent'), guestJudge); }
+    catch (error) { return alert(error.message); }
+  }
   const danceIds = [...document.querySelectorAll('#scoreDeskContent [data-reorder-id]')].map((row) => row.dataset.reorderId);
   const payload = { p_week_id: week.id, p_theme: theme || null, p_title: title, p_guest_judge_name: guestJudge || null,
     p_double_elimination: !isFinale && $('#doubleElimination').checked, p_is_finale: isFinale,
@@ -1661,10 +1699,12 @@ async function saveInlineWeek(week, dances) {
     p_second_air_start_time: secondAirStartTime, p_second_air_end_time: secondAirEndTime,
     p_elimination_predictions_enabled: !isFinale && $('#weekEliminationPredictions').checked };
   const saveButton = $('#saveWeek'); saveButton.disabled = true;
-  const { error } = await db.rpc('update_week_setup_with_market_schedule', payload);
+  const { error } = automationSetup
+    ? await db.rpc('save_week_with_automation', { p_setup: payload, p_automation: automationSetup })
+    : await db.rpc('update_week_setup_with_market_schedule', payload);
   if (missingRpc(error)) {
     saveButton.disabled = false;
-    return alert('Run the market prediction history and schedule SQL migration in Supabase before saving week details.');
+    return alert(automationSetup ? 'Run add-score-desk-automation-controls.sql in Supabase before saving automation settings.' : 'Run the market prediction history and schedule SQL migration in Supabase before saving week details.');
   }
   saveButton.disabled = false;
   if (error) return alert(`Couldn’t save Week ${week.number}: ${error.message}`);

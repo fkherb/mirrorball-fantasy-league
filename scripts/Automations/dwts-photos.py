@@ -9,7 +9,7 @@ Usage:
 {"Amber Glenn": "Pasha Pashkov"}, or a list of star_name/pro_name objects.
 Both FULL names must occur in a post caption, as in the original photo script.
 remaining_couples can be fed directly back into --couples on the next run.
-The token is required on the command line, never read from environment variables.
+The token may be supplied through DWTS_PHOTOS_GITHUB_TOKEN in the adjacent .env.
 
 Dry runs read the timeline, repository, and existing state, but do not download,
 upload, or save state. Planned matches do not count as successful uploads.
@@ -358,7 +358,7 @@ def refresh_remaining(result):
                                   if (c["star_name"], c["pro_name"]) not in successful]
 
 
-def run(week, couples, git_token, since=None, dry_run=False):
+def run(week, couples, git_token, since=None, dry_run=False, external_state=None):
     couples = normalize_couples(couples)
     result = new_result(week, couples, dry_run)
     stage = "configuration"
@@ -370,9 +370,9 @@ def run(week, couples, git_token, since=None, dry_run=False):
         day = datetime.strptime(since, "%Y-%m-%d") if since else datetime.now()
         since_time = day.replace(hour=0, minute=0, second=0, microsecond=0).astimezone()
         stage = "state"
-        state = load_state()
+        state = load_state() if external_state is None else external_state
         # Recover successes from earlier runs (including the old state format).
-        if not dry_run:
+        if not dry_run and external_state is None:
             for couple in couples:
                 name = couple_name(couple)
                 previous = [(pid, entry) for pid, entry in state["downloaded"].items()
@@ -402,6 +402,8 @@ def run(week, couples, git_token, since=None, dry_run=False):
                     continue
                 couple = matches[0]
                 name = couple_name(couple)
+                if name in uploaded:
+                    continue  # One photo-bearing post per couple is sufficient.
                 url = f"https://x.com/{HANDLE}/status/{pid}"
                 if dry_run:
                     result["planned_uploads"].append({**couple,
@@ -419,7 +421,7 @@ def run(week, couples, git_token, since=None, dry_run=False):
                 if not photos:
                     continue  # Empty downloads are never successes or saved post IDs.
                 number, filenames = next_index(existing, name), []
-                info = uploaded.setdefault(name, {**couple, "files": []})
+                info = uploaded.setdefault(name, {**couple, "files": [], "post_ids": [pid]})
                 for photo in photos:
                     extension = ".jpeg" if photo.suffix.lower() in {".jpg", ".jpeg"} else photo.suffix.lower()
                     filename = f"{name}-{number}{extension}"
@@ -434,12 +436,14 @@ def run(week, couples, git_token, since=None, dry_run=False):
                 stage = "github_upload"
                 commit = commit_files(staged, f"Add Week {week} dance photos: {', '.join(uploaded)}", git_token)
                 for info in uploaded.values():
+                    info["commit_sha"] = commit
                     info["files"] = [uploaded_file(path, commit) for path in info["files"]]
                     result["uploaded_couples"].append(info)
                 refresh_remaining(result)
                 stage = "save_state"
                 state["downloaded"].update(done)
-                save_state(state)
+                if external_state is None:
+                    save_state(state)
         return result
     except (PhotoError, urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
         record_error(result, exc, stage)
@@ -450,11 +454,17 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--week", type=int, required=True, help="Week number for Images/Dances/Week N.")
     parser.add_argument("--couples", required=True, metavar="JSON_OR_@FILE", help="Full-name couples JSON, inline or @filename.")
-    parser.add_argument("--git-token", required=True, help="GitHub token; required explicitly, never read from the shell environment.")
+    parser.add_argument("--git-token", help="Optional override for DWTS_PHOTOS_GITHUB_TOKEN.")
     parser.add_argument("--since", help="Only posts on/after YYYY-MM-DD (default: today in the local timezone).")
     parser.add_argument("--dry-run", action="store_true", help="Preview matches without downloads, uploads, or state changes.")
     parser.add_argument("--print", dest="pretty", action="store_true", help="Indent the JSON output; default is compact JSON.")
     args = parser.parse_args(argv)
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).resolve().parent / ".env")
+    except ImportError:
+        pass  # Explicit CLI tokens and exported environment variables still work.
+    args.git_token = args.git_token or os.environ.get("DWTS_PHOTOS_GITHUB_TOKEN")
     try:
         couples = read_couples(args.couples)
         result = run(args.week, couples, args.git_token, args.since, args.dry_run)

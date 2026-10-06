@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20261002-account-delete-ux-v89';
-import { prepareProfilePicture } from './profile-picture.js?v=20261002-account-delete-ux-v89';
+import { db } from './supabase-client.js?v=20261006-week-automation-v90';
+import { prepareProfilePicture } from './profile-picture.js?v=20261006-week-automation-v90';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

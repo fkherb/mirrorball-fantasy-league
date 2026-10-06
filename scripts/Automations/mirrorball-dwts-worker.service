@@ -1,0 +1,24 @@
+[Unit]
+Description=Mirrorball Supabase automation worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fkherb
+Group=fkherb
+WorkingDirectory=/home/fkherb/scripts/mirrorball-fantasy
+ExecStart=/home/fkherb/scripts/mirrorball-fantasy/.venv/bin/python /home/fkherb/scripts/mirrorball-fantasy/dwts-worker.py
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/New_York
+Restart=on-failure
+RestartSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/fkherb/scripts/mirrorball-fantasy/.worker-state
+
+[Install]
+WantedBy=multi-user.target

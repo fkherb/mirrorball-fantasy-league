@@ -1,4 +1,18 @@
 /* Score Desk is an editing workspace, not the public dance-photo archive. */
+.week-automation { margin: 18px 0 0; padding: 16px; border: 1px solid #d8ccd9; border-radius: 12px; background: #faf7fb; color: #302536; min-width: 0; }
+.week-automation legend { font-weight: 750; padding: 0 6px; }
+.week-automation .sub, .week-automation-status .sub { font-size: 12px; line-height: 1.5; }
+.automation-mode-grid, .automation-judge-order { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.week-automation details { padding-top: 8px; }
+.week-automation summary, .week-automation-status summary { cursor: pointer; font-weight: 700; }
+.week-automation-status { border: 1px solid #e1d7e3; background: #fff; border-radius: 12px; padding: 14px 16px; margin: 12px 0; color: #493450; }
+.automation-progress { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.automation-progress span { background: #f2edf4; padding: 6px 9px; border-radius: 8px; font-size: 12px; }
+.automation-jobs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.automation-jobs > div { display: grid; align-content: start; gap: 5px; padding: 10px; border: 1px solid #eee6ef; border-radius: 9px; font-size: 12px; overflow-wrap: anywhere; }
+.automation-jobs small { color: #6c6171; }
+.automation-jobs .automation-error { color: #a42e56; }
+@media (max-width: 500px) { .automation-mode-grid, .automation-jobs, .automation-judge-order { grid-template-columns: minmax(0, 1fr); } }
 .score-desk-page .dance-list { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
 .score-desk-page .dance-list.reorder-mode { grid-template-columns: minmax(0, 1fr); }
 .score-desk-page .dance-row { min-height: 118px; padding: 15px 16px; }
