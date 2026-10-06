@@ -4,6 +4,14 @@ begin;
 -- Starting a draft is allowed during the pre-show blackout. The existing
 -- pick/clock guards still hold the new draft until the week is complete.
 drop trigger if exists guard_league_draft_start_airing_window on public.leagues;
+-- Some deployments may retain the guard under a different trigger name.
+-- Make the guard itself permissive without touching the separate pick/clock guards.
+create or replace function public.guard_league_draft_start_airing_window()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  return new;
+end;
+$$;
 
 alter table public.league_members
   add column if not exists auto_draft_enabled boolean not null default false;
