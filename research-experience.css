@@ -298,6 +298,8 @@ dialog:has(.cast-profile-hero) .modal, dialog:has(.team-detail-head) .modal, dia
 .dance-card-body .dance-details > span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
 .dance-card-body .dance-details > .dance-song-pill.is-title-only { white-space: normal; overflow-wrap: anywhere; }
 .dance-card-body .dance-song-pill i { font-style: normal; }
+.dance-performance-details { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; }
+.dance-performance-details span { max-width: 100%; padding: 4px 7px; border-radius: 6px; background: #f4f0f3; color: #715d6e; font-size: 10px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dance-card-body .judge-paddles { margin-top: 7px; }
 .dance-card-footer { display: flex; align-items: center; gap: 8px; min-height: 50px; margin-top: auto; padding-top: 7px; }
 .dance-card-footer .judge-paddles { flex: 1; min-width: 0; margin: 0; }

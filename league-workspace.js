@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261006-week-automation-v90';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-week-automation-v90';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261006-week-automation-v90';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-week-automation-v90';
-import { loadMarketPredictions } from './market-predictions.js?v=20261006-week-automation-v90';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-week-automation-v90';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261006-week-automation-v90';
-import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261006-week-automation-v90';
+import { db } from './supabase-client.js?v=20261006-performance-details-v91';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-performance-details-v91';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261006-performance-details-v91';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-performance-details-v91';
+import { loadMarketPredictions } from './market-predictions.js?v=20261006-performance-details-v91';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-performance-details-v91';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261006-performance-details-v91';
+import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261006-performance-details-v91';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -588,7 +588,7 @@ async function loadWorkspaceData(context, { light = false, previous = null } = {
     roles: db.from('roles').select('id,name,appearance_points'),
     weeks: db.from('weeks').select('*').order('number'),
     pairs: db.from('partnerships').select('id,star_id,pro_id,active,partnership_name'),
-    dances: db.from('dances').select('id,week_id,kind,partnership_id,name,dance_type,song,sort_order').order('sort_order'),
+    dances: db.from('dances').select('*').order('sort_order'),
     scores: db.from('dance_judge_scores').select('dance_id,judge_name,score'),
     appearances: db.from('dance_appearances').select('dance_id,cast_member_id'),
     snapshots: db.from('league_weekly_roster_snapshots').select('*').eq('league_id', leagueId),
@@ -1175,7 +1175,7 @@ function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week
   const totals = new Map();
   rows.forEach((row) => { if (row.teamId) totals.set(row.teamName, (totals.get(row.teamName) || 0) + row.points); });
   const title = star && pro ? `${star.name} & ${pro.name}` : dance.name || 'Performance';
-  dialog(`${backToProfile ? '<div class="modal-back-row"><button class="profile-back-button secondary" id="danceBackToProfile" type="button" aria-label="Back to profile">← Back</button></div>' : ''}${danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song, photos: danceImagesFor(week.number, title), placeholderPhoto: dance.kind === 'competitive' ? couplePhotoFor(title) : '', weekNumber: week.number,
+  dialog(`${backToProfile ? '<div class="modal-back-row"><button class="profile-back-button secondary" id="danceBackToProfile" type="button" aria-label="Back to profile">← Back</button></div>' : ''}${danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, song: dance.song, choreography: dance.choreography, photos: danceImagesFor(week.number, title), placeholderPhoto: dance.kind === 'competitive' ? couplePhotoFor(title) : '', weekNumber: week.number,
     scores, scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
     judgePhoto: judgePortraitFor,
     judgeMember: (name) => judgeMemberFor(name, data.cast),
@@ -1227,7 +1227,7 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
       placeholderStyle: pair ? couplePhotoStyle(couplePhotoFrameFor(castById.get(pair.star_id), pair.pro_id)) : '',
       poster: true, complete: Boolean(week.is_complete), guestJudge: Boolean(week.guest_judge_name),
       weekNumber: week.number,
-      danceType: dance.dance_type, song: dance.song, scores: judges, castNames, castMembers,
+      danceType: dance.dance_type, song: dance.song, choreography: dance.choreography, scores: judges, castNames, castMembers,
       imageFor: castImage,
       scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
       judgePhoto: judgePortraitFor,

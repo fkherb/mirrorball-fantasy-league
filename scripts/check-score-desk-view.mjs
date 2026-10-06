@@ -20,6 +20,11 @@ assert.doesNotMatch(app, /<input data-judge=/, 'Judge scores should not need typ
 assert.match(app, /db\.from\('dance_types'\)\.select\('name'\)/, 'Score Desk must load the shared dance-type catalog.');
 assert.match(app, /<select id="danceType">/, 'Dance type must use a selector.');
 assert.doesNotMatch(app, /<input id="danceType"/, 'Dance type must not require typed entry.');
+assert.match(app, /id="danceChoreography"/, 'Performance dances need choreography editing.');
+assert.match(app, /week\.is_complete && dance\.kind === 'performance'/,
+  'Completed performances need a details-only editor.');
+assert.match(app, /update_performance_dance_details/,
+  'Performance metadata should save without changing historical scoring.');
 assert.match(app, /id="fusionTypeOne"/);
 assert.match(app, /id="fusionTypeTwo"/);
 assert.deepEqual(splitDanceType('Cha-cha/Tango Fusion'), { type: 'Fusion', first: 'Cha-cha', second: 'Tango' });

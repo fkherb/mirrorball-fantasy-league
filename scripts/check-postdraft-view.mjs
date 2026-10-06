@@ -155,5 +155,12 @@ assert.match(danceDetail({ kind: 'competitive', title: 'Pair', scores: [], teams
   photos: ['/photo-1.jpeg', '/photo-2.jpeg'], imageFor: () => '' }), /data-dance-gallery-photo="\/photo-2.jpeg"/);
 assert.match(danceDetail({ kind: 'competitive', title: 'Pair', scores: [], teams: [], castRows: [],
   placeholderPhoto: '/couple.avif', imageFor: () => '' }), /src="\/couple.avif"/);
+const detailedPerformanceCard = danceCard({ id: 'performance', kind: 'performance', title: 'Opening Number',
+  song: 'Fantasy by Mariah Carey', choreography: 'The troupe', scores: [], castNames: [] });
+assert.match(detailedPerformanceCard, /Fantasy by Mariah Carey/);
+assert.match(detailedPerformanceCard, /Choreography: The troupe/);
+assert.match(danceDetail({ kind: 'performance', title: 'Opening Number',
+  song: 'Fantasy by Mariah Carey', choreography: 'The troupe', scores: [], teams: [], castRows: [],
+  imageFor: () => '' }), /Choreography: The troupe/);
 
 console.log('Shared post-draft views verified.');
