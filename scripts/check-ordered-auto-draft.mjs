@@ -9,6 +9,8 @@ assert.match(airingChange, /create or replace function public\.league_draft_airi
   'Draft picks and the clock must no longer pause for airing.');
 assert.doesNotMatch(airingChange, /create or replace function public\.league_trade_airing_locked/,
   'The trade and free-agent airing lock must remain unchanged.');
+assert.match(airingChange, /for v_league_id in select id from public\.leagues where status = 'drafting'[\s\S]*?perform public\.advance_league_draft_clock\(v_league_id\);/,
+  'Previously paused drafts must resume when the SQL is applied.');
 
 assert.match(sql, /drop trigger if exists guard_league_draft_start_airing_window on public\.leagues;/,
   'The pre-show rule must not block starting a draft.');
