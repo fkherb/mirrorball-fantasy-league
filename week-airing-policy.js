@@ -1,4 +1,4 @@
-import { airingWindows, easternDateTime } from './market-prediction-model.js?v=20261006-ordered-auto-draft-v95';
+import { airingWindows, easternDateTime } from './market-prediction-model.js?v=20261006-airing-draft-v96';
 
 function shiftedEasternClock(clock, minutes) {
   const [date, time] = clock.split('T');
@@ -13,8 +13,7 @@ export function isTradeAiringLocked(weeks, now = Date.now()) {
     clock >= shiftedEasternClock(start, -120) && clock < shiftedEasternClock(end, 120)));
 }
 
-export function isDraftAiringLocked(weeks, now = Date.now()) {
-  const clock = easternDateTime(now);
-  return weeks.some((week) => !week.is_complete && airingWindows(week).some(([start]) =>
-    clock >= shiftedEasternClock(start, -15)));
+export function isDraftAiringLocked() {
+  // Draft turns may continue during an airing. Trade/free-agent locks remain.
+  return false;
 }

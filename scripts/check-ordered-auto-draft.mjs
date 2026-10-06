@@ -4,6 +4,11 @@ import { readFile } from 'node:fs/promises';
 const sql = await readFile(new URL('../supabase/ordered-auto-draft.sql', import.meta.url), 'utf8');
 const ui = await readFile(new URL('../league-workspace.js', import.meta.url), 'utf8');
 const startFix = await readFile(new URL('../supabase/allow-draft-start-during-airing-fix.sql', import.meta.url), 'utf8');
+const airingChange = await readFile(new URL('../supabase/allow-drafting-during-airing.sql', import.meta.url), 'utf8');
+assert.match(airingChange, /create or replace function public\.league_draft_airing_lock_start\([\s\S]*?select null::timestamptz;/,
+  'Draft picks and the clock must no longer pause for airing.');
+assert.doesNotMatch(airingChange, /create or replace function public\.league_trade_airing_locked/,
+  'The trade and free-agent airing lock must remain unchanged.');
 
 assert.match(sql, /drop trigger if exists guard_league_draft_start_airing_window on public\.leagues;/,
   'The pre-show rule must not block starting a draft.');
