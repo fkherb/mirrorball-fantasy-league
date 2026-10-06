@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261006-dance-airing-night-v93';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-dance-airing-night-v93';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261006-dance-airing-night-v93';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-dance-airing-night-v93';
-import { loadMarketPredictions } from './market-predictions.js?v=20261006-dance-airing-night-v93';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-dance-airing-night-v93';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261006-dance-airing-night-v93';
-import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261006-dance-airing-night-v93';
+import { db } from './supabase-client.js?v=20261006-complete-performance-v94';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-complete-performance-v94';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261006-complete-performance-v94';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-complete-performance-v94';
+import { loadMarketPredictions } from './market-predictions.js?v=20261006-complete-performance-v94';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-complete-performance-v94';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261006-complete-performance-v94';
+import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261006-complete-performance-v94';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({

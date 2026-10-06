@@ -1,13 +1,4 @@
 // Never substitute another dance's photograph when a dance has no matching image.
-const weekTwo = [
-  'Amber Glenn and Pasha Pashkov', 'Ciara Miller and Brandon Armstrong',
-  'Connor Wood and Rylee Arnold', 'Ezra Frech and Daniella Karagach',
-  'Giada De Laurentiis and Alan Bersten', 'Guillermo Rodriguez and Witney Carson',
-  'Harry Shum Jr. and Jenna Johnson', 'Jackson Olson and Emma Slater',
-  'Jenna Dewan and Val Chmerkovskiy', 'Julia Stiles and Ezra Sosa',
-  'Maura Higgins and Mark Ballas', 'Tatyana Ali and Jan Ravnik',
-  'Taylor Hanson and Britt Stewart', 'Tyler Cameron and Sharna Burgess',
-];
 const key = (value) => String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
 const couplePhotoNames = [
   'Amber Glenn Pro and Pasha Pashkov', 'Ciara Miller and Brandon Armstrong',
@@ -28,11 +19,10 @@ export function couplePhotoFor(title) {
   const name = couplePhotoNamesByPair.get(key(title));
   return name ? `Images/Couples/${encodeURIComponent(name)}.avif` : '';
 }
-const manifests = [null, null, new Map(weekTwo.map((name) => [key(name), name]))];
 const treeUrl = 'https://api.github.com/repos/fkherb/mirrorball-fantasy-league/git/trees/main?recursive=1';
 const rawRoot = 'https://raw.githubusercontent.com/fkherb/mirrorball-fantasy-league/main/';
 const manifestUrls = [`${rawRoot}dance-photo-manifest.json`, new URL('./dance-photo-manifest.json', import.meta.url).href];
-const storageKey = 'mirrorball-dance-photos-v2';
+const storageKey = 'mirrorball-dance-photos-v3';
 const refreshMs = 5 * 60 * 1000;
 let uploadedPhotos = new Map();
 let uploadedCards = new Map();
@@ -45,40 +35,8 @@ const photoKey = (week, title, night = null) => `${week}:${key(title)}${night ? 
 const photoUrl = (path, sha) => `${rawRoot}${path.split('/').map(encodeURIComponent).join('/')}?v=${encodeURIComponent(sha)}`;
 const originalPattern = /^Images\/Dances\/Week (\d+)\/(.+?)(?:-Night ([12]))?-(\d+)\.(jpe?g|png|webp)$/i;
 const cardPattern = /^Images\/Dances\/Card\/Week (\d+)\/(.+?)(?:-Night ([12]))?-(\d+)\.webp$/i;
-const photoAliases = new Map([
-  ['troupe dance', 'troupe'], ['troupe break', 'troupe'], ['break troupe dance', 'troupe'],
-  ['troupe showcase dance', 'troupe showcase'],
-  ['opening troupe dance', 'opening number'],
-  ['dwts next pro', 'dwts next pro dance'],
-  ['derek houghs tour performance', 'symphony of dance performance'],
-  ['derek hough s tour performance', 'symphony of dance performance'],
-  ['juliannes paris baguette dance', 'paris baguette performance'],
-  ['julianne s paris baguette dance', 'paris baguette performance'],
-  ['eliminated pro dance', 'eliminated pros'], ['elim pros break', 'eliminated pros'],
-]);
-const titleNight = (title) => {
-  const match = String(title || '').match(/\bNight\s+(One|Two|1|2)$/i);
-  return match ? /^(one|1)$/i.test(match[1]) ? 1 : 2 : null;
-};
-const photoStemKeys = (title) => {
-  const stripped = String(title || '').replace(/\s+Night\s+(One|Two|1|2)$/i, '');
-  const normalized = key(stripped);
-  return [...new Set([normalized, photoAliases.get(normalized)].filter(Boolean))];
-};
 const uploadedFor = (map, week, title, night) => {
-  const chosenNight = [1, 2].includes(Number(night)) ? Number(night) : titleNight(title);
-  for (const stem of photoStemKeys(title)) {
-    if (chosenNight) {
-      const selected = map.get(photoKey(week, stem, chosenNight)) || map.get(photoKey(week, stem));
-      if (selected) return selected;
-      continue;
-    }
-    const legacy = map.get(photoKey(week, stem));
-    if (legacy) return legacy;
-    const nightMatches = [1, 2].map((value) => map.get(photoKey(week, stem, value))).filter(Boolean);
-    if (nightMatches.length === 1) return nightMatches[0];
-  }
-  return null;
+  return map.get(photoKey(week, title, [1, 2].includes(Number(night)) ? Number(night) : null)) || null;
 };
 
 // GitHub Pages cannot list a folder, so discover uploaded files from the public
@@ -128,7 +86,7 @@ try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
     if (Array.isArray(saved?.entries)) applyPhotos(saved.entries);
   }
-} catch { /* Storage can be disabled; static Week 1–2 photos still work. */ }
+} catch { /* Storage can be disabled; photos load from the published manifest. */ }
 
 async function fallbackManifest(fetcher) {
   for (const url of manifestUrls) {
@@ -188,21 +146,9 @@ export function startDanceImageUpdates() {
 }
 
 export function danceImagesFor(weekNumber, title, night = null) {
-  const week = Number(weekNumber);
-  const uploaded = uploadedFor(uploadedPhotos, week, title, night);
-  if (uploaded) return uploaded;
-  const manifest = manifests[week];
-  if (!manifest) return [];
-  const stem = photoStemKeys(title).map((candidate) => manifest.get(candidate)).find(Boolean);
-  if (!stem) return [];
-  const count = stem === 'Derek Houghs Tour Performance' ? 1 : week === 2 && ['Maura Higgins and Mark Ballas', 'Tatyana Ali and Jan Ravnik'].includes(stem) ? 2 : 3;
-  return Array.from({ length: count }, (_, index) => `Images/Dances/Week ${week}/${encodeURIComponent(stem)}-${index + 1}.jpeg`);
+  return uploadedFor(uploadedPhotos, Number(weekNumber), title, night) || [];
 }
 
 export function danceCardPhotoFor(weekNumber, title, night = null) {
-  const week = Number(weekNumber);
-  const uploaded = uploadedFor(uploadedCards, week, title, night);
-  if (uploaded) return uploaded;
-  const stem = photoStemKeys(title).map((candidate) => manifests[week]?.get(candidate)).find(Boolean);
-  return stem ? `Images/Dances/Card/Week ${week}/${encodeURIComponent(stem)}-1.webp` : '';
+  return uploadedFor(uploadedCards, Number(weekNumber), title, night) || '';
 }

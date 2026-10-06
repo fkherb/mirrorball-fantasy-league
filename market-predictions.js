@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20261006-dance-airing-night-v93';
+import { db } from './supabase-client.js?v=20261006-complete-performance-v94';
 
 let cached = [];
 let loadedAt = 0;

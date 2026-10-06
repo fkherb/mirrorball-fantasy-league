@@ -7,6 +7,8 @@ const desk = await readFile(new URL('../score-desk/index.html', import.meta.url)
 const styles = await readFile(new URL('../score-desk.css', import.meta.url), 'utf8');
 const danceTypeSql = await readFile(new URL('../supabase/standardize-dance-types.sql', import.meta.url), 'utf8');
 const danceNightSql = await readFile(new URL('../supabase/add-dance-airing-night.sql', import.meta.url), 'utf8');
+const completePerformanceSql = await readFile(new URL('../supabase/require-complete-performance-dances.sql', import.meta.url), 'utf8');
+const atomicDanceSql = await readFile(new URL('../supabase/atomic-dance-saves-and-week-order.sql', import.meta.url), 'utf8');
 assert.doesNotMatch(app, /readOnlyCards|danceCardPhotoFor/, 'Score Desk must not render the public photo cards.');
 assert.match(app, /dances\.length \? dances\.map\(/, 'All weeks need the compact Score Desk dance rows.');
 assert.match(app, /score-desk-judge-scores/, 'Score Desk needs readable text scores.');
@@ -23,17 +25,24 @@ assert.match(app, /<select id="danceType">/, 'Dance type must use a selector.');
 assert.doesNotMatch(app, /<input id="danceType"/, 'Dance type must not require typed entry.');
 assert.match(app, /id="danceChoreography"/, 'Performance dances need choreography editing.');
 assert.match(app, /id="performanceType"/, 'Performance dances need a Type field.');
-assert.match(app, /id="performanceTitle"/, 'Completed performance titles should remain editable for backfill.');
 assert.match(app, /id="danceAiringNight"/, 'Both kinds of dance need a two-night airing selector.');
-assert.match(app, /week\.is_complete && week\.second_air_date && dance\.kind === 'competitive'/,
-  'Completed competitive dances need a night-only editor.');
-assert.match(app, /airing_night: night/, 'The selected night must be saved with each dance.');
+assert.match(app, /details\.airing_night = airingNight/, 'The selected night must be saved with each dance.');
 assert.match(danceNightSql, /check \(airing_night in \(1, 2\)\)/,
   'The database must constrain airing nights to one or two.');
-assert.match(app, /week\.is_complete && dance\.kind === 'performance'/,
-  'Completed performances need a details-only editor.');
-assert.match(app, /\.eq\('week_id', week\.id\)\.eq\('kind', 'performance'\)\.select\('id'\)/,
-  'Completed performance metadata should save without changing historical scoring.');
+assert.match(app, /week\.is_complete && !scoresOnly\) return/,
+  'Completed dance details must be locked while ledger score corrections remain available.');
+assert.doesNotMatch(app, /Edit night|id="performanceTitle"|id="savePerformanceDetails"/,
+  'Completed-week detail and night editors should be removed.');
+assert.match(app, /elimination_confirmed && dance\.elimination_result/,
+  'A confirmed Wiki elimination should preselect the couple at completion.');
+assert.match(atomicDanceSql, /values \(p_week_id, p_kind, p_partnership_id, p_name, p_dance_type, p_song/,
+  'An incomplete performance may be saved without a title or cast.');
+assert.match(completePerformanceSql, /nullif\(btrim\(d\.name\), ''\) is null/,
+  'Completed performances must have titles.');
+assert.match(completePerformanceSql, /public\.dance_appearances a where a\.dance_id = d\.id/,
+  'Completed performances must have cast.');
+assert.match(completePerformanceSql, /public\.dance_judge_scores s where s\.dance_id = d\.id/,
+  'Completed competitive dances must have the full judge panel scored.');
 assert.match(app, /id="fusionTypeOne"/);
 assert.match(app, /id="fusionTypeTwo"/);
 assert.deepEqual(splitDanceType('Cha-cha/Tango Fusion'), { type: 'Fusion', first: 'Cha-cha', second: 'Tango' });
