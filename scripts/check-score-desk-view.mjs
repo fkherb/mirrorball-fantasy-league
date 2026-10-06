@@ -6,6 +6,7 @@ const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const desk = await readFile(new URL('../score-desk/index.html', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../score-desk.css', import.meta.url), 'utf8');
 const danceTypeSql = await readFile(new URL('../supabase/standardize-dance-types.sql', import.meta.url), 'utf8');
+const danceNightSql = await readFile(new URL('../supabase/add-dance-airing-night.sql', import.meta.url), 'utf8');
 assert.doesNotMatch(app, /readOnlyCards|danceCardPhotoFor/, 'Score Desk must not render the public photo cards.');
 assert.match(app, /dances\.length \? dances\.map\(/, 'All weeks need the compact Score Desk dance rows.');
 assert.match(app, /score-desk-judge-scores/, 'Score Desk needs readable text scores.');
@@ -23,6 +24,12 @@ assert.doesNotMatch(app, /<input id="danceType"/, 'Dance type must not require t
 assert.match(app, /id="danceChoreography"/, 'Performance dances need choreography editing.');
 assert.match(app, /id="performanceType"/, 'Performance dances need a Type field.');
 assert.match(app, /id="performanceTitle"/, 'Completed performance titles should remain editable for backfill.');
+assert.match(app, /id="danceAiringNight"/, 'Both kinds of dance need a two-night airing selector.');
+assert.match(app, /week\.is_complete && week\.second_air_date && dance\.kind === 'competitive'/,
+  'Completed competitive dances need a night-only editor.');
+assert.match(app, /airing_night: night/, 'The selected night must be saved with each dance.');
+assert.match(danceNightSql, /check \(airing_night in \(1, 2\)\)/,
+  'The database must constrain airing nights to one or two.');
 assert.match(app, /week\.is_complete && dance\.kind === 'performance'/,
   'Completed performances need a details-only editor.');
 assert.match(app, /\.eq\('week_id', week\.id\)\.eq\('kind', 'performance'\)\.select\('id'\)/,

@@ -32,6 +32,10 @@ assert.match(danceCard({ id: 'dance-1', kind: 'competitive', title: member.name,
 assert.match(danceCard({ id: 'dance-photo', kind: 'competitive', title: 'Pair',
   danceType: 'Foxtrot', song: 'Song', scores: [], castNames: [], scoreImage: () => '/paddle.png',
   photos: ['Images/Dances/Week%201/Pair-1.jpeg'] }), /dance-card-photo/);
+assert.match(danceCard({ id: 'night-two', kind: 'competitive', title: 'Pair',
+  scores: [], castNames: [], airingNight: 2 }), /Night 2/);
+assert.match(danceDetail({ kind: 'performance', title: 'Troupe', weekNumber: 1,
+  airingNight: 1, photos: [], scores: [], castRows: [], teams: [] }), /Week 1 · Night 1 · Performance/);
 const scoredCard = danceCard({ id: 'dance-scored', kind: 'competitive', title: 'Pair',
   danceType: 'Viennese Waltz', scores: [{ judge_name: 'Carrie Ann', score: 7 },
     { judge_name: 'Guest', score: 8 }], castNames: [], scoreImage: () => '/paddle.png',

@@ -26,10 +26,9 @@ for (const week of [1, 2]) {
       `Unmapped: ${filename}`);
   }
 }
-assert.equal(uploadedDancePhotos(manifestEntries).get('2:eliminated pro dance')?.length, 2);
+assert.equal(uploadedDancePhotos(manifestEntries).get('2:eliminated pros')?.length, 2);
 assert.equal(danceImagesFor(3, 'Amber Glenn & Pasha Pashkov').length, 0);
-assert.equal(danceImagesFor(1, 'Derek Hough\'s Tour Performance').length, 1);
-assert.ok(existsSync(decodeURIComponent(danceCardPhotoFor(1, 'Amber Glenn & Pasha Pashkov'))));
+assert.equal(danceImagesFor(1, 'Derek Hough\'s Tour Performance').length, 0);
 const tree = [
   { type: 'blob', path: 'Images/Dances/Week 3/Amber Glenn and Pasha Pashkov-2.jpg', sha: 'photo-two' },
   { type: 'blob', path: 'Images/Dances/Week 3/Amber Glenn and Pasha Pashkov-1.jpeg', sha: 'photo-one' },
@@ -62,4 +61,15 @@ assert.match(weekThree[1], /Amber%20Glenn%20and%20Pasha%20Pashkov-2\.jpg\?v=phot
 assert.equal(danceImagesFor(3, 'Unmatched Pair').length, 0);
 assert.equal(await refreshDanceImages({ fetcher, now: 1000001 }), false);
 assert.equal(fetchCount, 1);
+const currentManifestFetcher = async () => ({ ok: true, json: async () => ({ tree: manifestEntries, truncated: false }) });
+assert.equal(await refreshDanceImages({ fetcher: currentManifestFetcher, force: true, now: 2000000 }), true);
+assert.equal(danceImagesFor(1, 'Amber Glenn & Pasha Pashkov', 2).length, 3);
+assert.equal(danceImagesFor(1, 'Amber Glenn & Pasha Pashkov', 1).length, 0);
+assert.match(danceCardPhotoFor(1, 'Amber Glenn & Pasha Pashkov', 2), /Amber%20Glenn%20and%20Pasha%20Pashkov-Night%202-1\.webp/);
+assert.match(danceImagesFor(1, 'Opening Number Night One', 1)[0], /Opening%20Number-Night%201-1\.jpg/);
+assert.match(danceImagesFor(1, 'Troupe Dance Night Two', 2)[0], /Troupe-Night%202-1\.jpg/);
+assert.equal(danceImagesFor(1, 'Opening Number').length, 0, 'Unassigned dances must not mix the two nights.');
+assert.ok(danceImagesFor(1, 'Derek Hough\'s Tour Performance', 2).length > 0);
+assert.ok(danceImagesFor(1, 'DWTS Next Pro', 1).length > 0);
+assert.equal(danceImagesFor(2, 'Eliminated Pro Dance').length, 2);
 console.log('Existing and automatically discovered dance photos verified.');

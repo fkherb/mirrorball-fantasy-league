@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261006-performance-type-v92';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-performance-type-v92';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261006-performance-type-v92';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-performance-type-v92';
-import { loadMarketPredictions } from './market-predictions.js?v=20261006-performance-type-v92';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-performance-type-v92';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261006-performance-type-v92';
-import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261006-performance-type-v92';
+import { db } from './supabase-client.js?v=20261006-dance-airing-night-v93';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-dance-airing-night-v93';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261006-dance-airing-night-v93';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-dance-airing-night-v93';
+import { loadMarketPredictions } from './market-predictions.js?v=20261006-dance-airing-night-v93';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-dance-airing-night-v93';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261006-dance-airing-night-v93';
+import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261006-dance-airing-night-v93';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -1175,7 +1175,7 @@ function openWorkspaceDanceDetail(data, score, assignmentMap, memberByTeam, week
   const totals = new Map();
   rows.forEach((row) => { if (row.teamId) totals.set(row.teamName, (totals.get(row.teamName) || 0) + row.points); });
   const title = star && pro ? `${star.name} & ${pro.name}` : dance.name || 'Performance';
-  dialog(`${backToProfile ? '<div class="modal-back-row"><button class="profile-back-button secondary" id="danceBackToProfile" type="button" aria-label="Back to profile">← Back</button></div>' : ''}${danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, performanceType: dance.performance_type, song: dance.song, choreography: dance.choreography, photos: danceImagesFor(week.number, title), placeholderPhoto: dance.kind === 'competitive' ? couplePhotoFor(title) : '', weekNumber: week.number,
+  dialog(`${backToProfile ? '<div class="modal-back-row"><button class="profile-back-button secondary" id="danceBackToProfile" type="button" aria-label="Back to profile">← Back</button></div>' : ''}${danceDetail({ kind: dance.kind, title, danceType: dance.dance_type, performanceType: dance.performance_type, song: dance.song, choreography: dance.choreography, photos: danceImagesFor(week.number, title, dance.airing_night), placeholderPhoto: dance.kind === 'competitive' ? couplePhotoFor(title) : '', weekNumber: week.number, airingNight: week.second_air_date ? dance.airing_night : null,
     scores, scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,
     judgePhoto: judgePortraitFor,
     judgeMember: (name) => judgeMemberFor(name, data.cast),
@@ -1222,11 +1222,11 @@ function renderDances(context, data, score, assignmentMap, memberByTeam) {
     const shortTitle = pair && proName.length > 1
       ? `${nameFor(pair.star_id)} & ${proName.slice(0, -1).join(' ')}` : '';
     return danceCard({ id: dance.id, kind: dance.kind, title: names, shortTitle,
-      photos: danceImagesFor(week.number, names), cardPhoto: danceCardPhotoFor(week.number, names),
+      photos: danceImagesFor(week.number, names, dance.airing_night), cardPhoto: danceCardPhotoFor(week.number, names, dance.airing_night),
       placeholderPhoto: dance.kind === 'competitive' ? couplePhotoFor(names) : '',
       placeholderStyle: pair ? couplePhotoStyle(couplePhotoFrameFor(castById.get(pair.star_id), pair.pro_id)) : '',
       poster: true, complete: Boolean(week.is_complete), guestJudge: Boolean(week.guest_judge_name),
-      weekNumber: week.number,
+      weekNumber: week.number, airingNight: week.second_air_date ? dance.airing_night : null,
       danceType: dance.dance_type, performanceType: dance.performance_type, song: dance.song, choreography: dance.choreography, scores: judges, castNames, castMembers,
       imageFor: castImage,
       scoreImage: (value) => `Images/Judges Scores/${Number(value)}.png?v=20260921-optimized`,

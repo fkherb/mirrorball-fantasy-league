@@ -1,16 +1,4 @@
-// Editorial photos supplied for the first two shows. Never substitute another
-// couple's photograph when a dance has no matching image.
-const weekOne = [
-  'Amber Glenn and Pasha Pashkov', 'Ciara Miller and Brandon Armstrong',
-  'Conner Leavitt and Adele Zaikman', 'Connor Wood and Rylee Arnold',
-  'Ezra Frech and Daniella Karagach', 'Giada De Laurentiis and Alan Bersten',
-  'Guillermo Rodriguez and Witney Carson', 'Harry Shum Jr. and Jenna Johnson',
-  'Jackson Olson and Emma Slater', 'Jenna Dewan and Val Chmerkovskiy',
-  'Julia Stiles and Ezra Sosa', 'Maura Higgins and Mark Ballas',
-  'Sarah Jane Nader and Hailey Bills', 'Tatyana Ali and Jan Ravnik',
-  'Taylor Hanson and Britt Stewart', 'Tyler Cameron and Sharna Burgess',
-  'Troupe Showcase Dance', 'Derek Houghs Tour Performance',
-];
+// Never substitute another dance's photograph when a dance has no matching image.
 const weekTwo = [
   'Amber Glenn and Pasha Pashkov', 'Ciara Miller and Brandon Armstrong',
   'Connor Wood and Rylee Arnold', 'Ezra Frech and Daniella Karagach',
@@ -40,11 +28,11 @@ export function couplePhotoFor(title) {
   const name = couplePhotoNamesByPair.get(key(title));
   return name ? `Images/Couples/${encodeURIComponent(name)}.avif` : '';
 }
-const manifests = [null, new Map(weekOne.map((name) => [key(name), name])), new Map(weekTwo.map((name) => [key(name), name]))];
+const manifests = [null, null, new Map(weekTwo.map((name) => [key(name), name]))];
 const treeUrl = 'https://api.github.com/repos/fkherb/mirrorball-fantasy-league/git/trees/main?recursive=1';
 const rawRoot = 'https://raw.githubusercontent.com/fkherb/mirrorball-fantasy-league/main/';
 const manifestUrls = [`${rawRoot}dance-photo-manifest.json`, new URL('./dance-photo-manifest.json', import.meta.url).href];
-const storageKey = 'mirrorball-dance-photos-v1';
+const storageKey = 'mirrorball-dance-photos-v2';
 const refreshMs = 5 * 60 * 1000;
 let uploadedPhotos = new Map();
 let uploadedCards = new Map();
@@ -53,10 +41,45 @@ let lastCheck = 0;
 let pendingCheck = null;
 let failures = 0;
 
-const photoKey = (week, title) => `${week}:${key(title)}`;
+const photoKey = (week, title, night = null) => `${week}:${key(title)}${night ? `:${night}` : ''}`;
 const photoUrl = (path, sha) => `${rawRoot}${path.split('/').map(encodeURIComponent).join('/')}?v=${encodeURIComponent(sha)}`;
-const originalPattern = /^Images\/Dances\/Week (\d+)\/(.+?)-(\d+)\.(jpe?g|png|webp)$/i;
-const cardPattern = /^Images\/Dances\/Card\/Week (\d+)\/(.+?)-(\d+)\.webp$/i;
+const originalPattern = /^Images\/Dances\/Week (\d+)\/(.+?)(?:-Night ([12]))?-(\d+)\.(jpe?g|png|webp)$/i;
+const cardPattern = /^Images\/Dances\/Card\/Week (\d+)\/(.+?)(?:-Night ([12]))?-(\d+)\.webp$/i;
+const photoAliases = new Map([
+  ['troupe dance', 'troupe'], ['troupe break', 'troupe'], ['break troupe dance', 'troupe'],
+  ['troupe showcase dance', 'troupe showcase'],
+  ['opening troupe dance', 'opening number'],
+  ['dwts next pro', 'dwts next pro dance'],
+  ['derek houghs tour performance', 'symphony of dance performance'],
+  ['derek hough s tour performance', 'symphony of dance performance'],
+  ['juliannes paris baguette dance', 'paris baguette performance'],
+  ['julianne s paris baguette dance', 'paris baguette performance'],
+  ['eliminated pro dance', 'eliminated pros'], ['elim pros break', 'eliminated pros'],
+]);
+const titleNight = (title) => {
+  const match = String(title || '').match(/\bNight\s+(One|Two|1|2)$/i);
+  return match ? /^(one|1)$/i.test(match[1]) ? 1 : 2 : null;
+};
+const photoStemKeys = (title) => {
+  const stripped = String(title || '').replace(/\s+Night\s+(One|Two|1|2)$/i, '');
+  const normalized = key(stripped);
+  return [...new Set([normalized, photoAliases.get(normalized)].filter(Boolean))];
+};
+const uploadedFor = (map, week, title, night) => {
+  const chosenNight = [1, 2].includes(Number(night)) ? Number(night) : titleNight(title);
+  for (const stem of photoStemKeys(title)) {
+    if (chosenNight) {
+      const selected = map.get(photoKey(week, stem, chosenNight)) || map.get(photoKey(week, stem));
+      if (selected) return selected;
+      continue;
+    }
+    const legacy = map.get(photoKey(week, stem));
+    if (legacy) return legacy;
+    const nightMatches = [1, 2].map((value) => map.get(photoKey(week, stem, value))).filter(Boolean);
+    if (nightMatches.length === 1) return nightMatches[0];
+  }
+  return null;
+};
 
 // GitHub Pages cannot list a folder, so discover uploaded files from the public
 // repository tree. The blob SHA also refreshes an image if an existing file is replaced.
@@ -69,8 +92,8 @@ function photoMaps(tree) {
     const card = cardPattern.exec(item.path);
     const match = original || card;
     if (!match || /^elimination$/i.test(match[2])) continue;
-    const groupKey = photoKey(Number(match[1]), match[2]);
-    const photo = { number: Number(match[3]), path: item.path, url: photoUrl(item.path, item.sha) };
+    const groupKey = photoKey(Number(match[1]), match[2], Number(match[3]) || null);
+    const photo = { number: Number(match[4]), path: item.path, url: photoUrl(item.path, item.sha) };
     if (card) cards.set(`${groupKey}:${photo.number}`, photo.url);
     else {
       if (!groups.has(groupKey)) groups.set(groupKey, []);
@@ -164,28 +187,22 @@ export function startDanceImageUpdates() {
   document.addEventListener('visibilitychange', check);
 }
 
-export function danceImagesFor(weekNumber, title) {
+export function danceImagesFor(weekNumber, title, night = null) {
   const week = Number(weekNumber);
-  let normalized = key(title);
-  if (week === 1 && normalized.includes('troupe') && normalized.includes('showcase')) normalized = key('Troupe Showcase Dance');
-  if (week === 1 && normalized.includes('derek hough') && normalized.includes('tour')) normalized = key('Derek Houghs Tour Performance');
-  const uploaded = uploadedPhotos.get(photoKey(week, normalized));
+  const uploaded = uploadedFor(uploadedPhotos, week, title, night);
   if (uploaded) return uploaded;
   const manifest = manifests[week];
   if (!manifest) return [];
-  const stem = manifest.get(normalized);
+  const stem = photoStemKeys(title).map((candidate) => manifest.get(candidate)).find(Boolean);
   if (!stem) return [];
   const count = stem === 'Derek Houghs Tour Performance' ? 1 : week === 2 && ['Maura Higgins and Mark Ballas', 'Tatyana Ali and Jan Ravnik'].includes(stem) ? 2 : 3;
   return Array.from({ length: count }, (_, index) => `Images/Dances/Week ${week}/${encodeURIComponent(stem)}-${index + 1}.jpeg`);
 }
 
-export function danceCardPhotoFor(weekNumber, title) {
+export function danceCardPhotoFor(weekNumber, title, night = null) {
   const week = Number(weekNumber);
-  let normalized = key(title);
-  if (week === 1 && normalized.includes('troupe') && normalized.includes('showcase')) normalized = key('Troupe Showcase Dance');
-  if (week === 1 && normalized.includes('derek hough') && normalized.includes('tour')) normalized = key('Derek Houghs Tour Performance');
-  const uploaded = uploadedCards.get(photoKey(week, normalized));
+  const uploaded = uploadedFor(uploadedCards, week, title, night);
   if (uploaded) return uploaded;
-  const stem = manifests[week]?.get(normalized);
+  const stem = photoStemKeys(title).map((candidate) => manifests[week]?.get(candidate)).find(Boolean);
   return stem ? `Images/Dances/Card/Week ${week}/${encodeURIComponent(stem)}-1.webp` : '';
 }
