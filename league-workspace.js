@@ -1,11 +1,11 @@
-import { db } from './supabase-client.js?v=20261006-complete-performance-v94';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-complete-performance-v94';
-import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261006-complete-performance-v94';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-complete-performance-v94';
-import { loadMarketPredictions } from './market-predictions.js?v=20261006-complete-performance-v94';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-complete-performance-v94';
-import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261006-complete-performance-v94';
-import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261006-complete-performance-v94';
+import { db } from './supabase-client.js?v=20261006-ordered-auto-draft-v95';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, castThumbnailFor, judgePortraitFor, judgeMemberFor, danceCard, fitDanceCardNames, fitDanceCastAvatars, fitDanceSongLabels, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-ordered-auto-draft-v95';
+import { danceImagesFor, danceCardPhotoFor, couplePhotoFor } from './dance-images.js?v=20261006-ordered-auto-draft-v95';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-ordered-auto-draft-v95';
+import { loadMarketPredictions } from './market-predictions.js?v=20261006-ordered-auto-draft-v95';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-ordered-auto-draft-v95';
+import { isDraftAiringLocked, isTradeAiringLocked } from './week-airing-policy.js?v=20261006-ordered-auto-draft-v95';
+import { scoreLeague, sharedAppearanceRate } from './scoring.js?v=20261006-ordered-auto-draft-v95';
 
 const $ = (selector) => document.querySelector(selector);
 const safe = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -39,7 +39,7 @@ let lastSnapshotCheckAt = 0;
 let lastSnapshotLeagueId = null;
 const fullWorkspaceRefreshMs = 2 * 60 * 1000;
 const snapshotCheckMs = 5 * 60 * 1000;
-const fastWorkspaceKeys = new Set(['league', 'assignments', 'roles', 'weeks', 'dances', 'scores', 'appearances']);
+const fastWorkspaceKeys = new Set(['league', 'autoDraft', 'assignments', 'roles', 'weeks', 'dances', 'scores', 'appearances']);
 
 function dialog(markup) {
   const modal = $('#modal');
@@ -580,6 +580,7 @@ async function loadWorkspaceData(context, { light = false, previous = null } = {
   const leagueId = context.leagueId;
   const queries = {
     league: db.from('leagues').select('id,name,status,roster_size,roster_size_overridden,scoring_starts_after_week,draft_pick_deadline_at,draft_paused_at,draft_timer_disabled').eq('id', leagueId).single(),
+    autoDraft: db.from('league_members').select('auto_draft_enabled').eq('league_id', leagueId).eq('user_id', context.userId).maybeSingle(),
     teams: db.from('fantasy_teams').select('id,league_id,manager_name,team_name,orphaned_by_account_deletion').eq('league_id', leagueId),
     assignments: db.from('league_roster_assignments').select('cast_member_id,fantasy_team_id').eq('league_id', leagueId),
     cast: db.from('cast_members').select('*').order('name'),
@@ -599,11 +600,15 @@ async function loadWorkspaceData(context, { light = false, previous = null } = {
     || Date.now() - lastFullWorkspaceLoadAt >= fullWorkspaceRefreshMs;
   const selected = Object.entries(queries).filter(([key]) => full || fastWorkspaceKeys.has(key));
   const results = await Promise.all(selected.map(([, query]) => query));
-  const failure = results.find((result) => result.error)?.error;
+  const failure = results.find((result, index) => result.error
+    && selected[index][0] !== 'autoDraft')?.error;
   if (failure) throw failure;
   if (full) lastFullWorkspaceLoadAt = Date.now();
   return { ...(full ? {} : previous.data),
-    ...Object.fromEntries(selected.map(([key], index) => [key, results[index].data || []])) };
+    ...Object.fromEntries(selected.map(([key], index) => [key, results[index].data || []])),
+    autoDraftAvailable: !selected.find(([key]) => key === 'autoDraft')
+      ? previous.data.autoDraftAvailable
+      : !results[selected.findIndex(([key]) => key === 'autoDraft')].error };
 }
 
 function renderStandings(context, data, score, assignmentMap, memberByTeam, refresh) {
@@ -622,7 +627,7 @@ function renderStandings(context, data, score, assignmentMap, memberByTeam, refr
   const regularMembers = data.members.filter((member) => member.member_role === 'member');
   const readyIds = new Set(data.readiness.filter((item) => item.ready_at).map((item) => item.user_id));
   const readyCount = regularMembers.filter((member) => readyIds.has(member.user_id)).length;
-  const setupPanel = isSetup ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">Before the draft</p><h2>Build your league</h2><p class="sub">${data.members.length} of 3–5 managers joined. ${data.members.length < 3 ? `Invite ${3 - data.members.length} more to start.` : `${readyCount} of ${regularMembers.length} regular managers ready.`} The preset roster has ${context.rosterSize} picks per team and adjusts as managers join.</p><div class="workspace-setup-facts"><span><b>${data.members.length}</b> managers</span><span><b>${context.rosterSize}</b> draft rounds</span><span><b>${data.cast.length}</b> cast in pool</span></div>${context.leagueRole === 'owner' ? `<div class="modal-actions">${data.members.length < 5 ? '<button id="overviewInvitePlayers">Invite players</button>' : ''}<button id="overviewLeagueSettings" class="secondary">League settings</button></div>` : '<p class="sub">Open Draft to mark yourself ready. The commissioner can start once every regular manager is ready.</p>'}</section>` : isDrafting ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">${context.draftPaused ? 'Draft paused' : 'Draft in progress'}</p><h2>Round ${turn?.round || context.rosterSize} of ${context.rosterSize}</h2><p class="sub">${data.picks.length} of ${data.order.length * context.rosterSize} picks complete. ${context.draftTimerDisabled ? 'This draft has no timer or automatic picks.' : context.draftAiringLocked ? 'The clock and picks resume when this week is marked complete.' : context.draftPaused ? 'The clock and picks are paused until the league owner resumes.' : turn ? `${safe(memberByTeam.get(turn.teamId)?.display_name || 'The next manager')} is on the clock.` : 'Every roster is filled.'}</p><a class="workspace-inline-link" href="#teams" id="overviewOpenDraft">View the draft</a></section>` : !score.scoringWeeks.length ? '<section class="card pad workspace-setup-panel"><p class="eyebrow">Season ready</p><h2>Waiting for the first completed show</h2><p class="sub">Your draft teams are set. Weekly points and highlights will appear after a show is completed.</p></section>' : '';
+  const setupPanel = isSetup ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">Before the draft</p><h2>Build your league</h2><p class="sub">${data.members.length} of 3–5 managers joined. ${data.members.length < 3 ? `Invite ${3 - data.members.length} more to start.` : `${readyCount} of ${regularMembers.length} regular managers ready.`} The preset roster has ${context.rosterSize} picks per team and adjusts as managers join.</p><div class="workspace-setup-facts"><span><b>${data.members.length}</b> managers</span><span><b>${context.rosterSize}</b> draft rounds</span><span><b>${data.cast.length}</b> cast in pool</span></div>${context.leagueRole === 'owner' ? `<div class="modal-actions">${data.members.length < 5 ? '<button id="overviewInvitePlayers">Invite players</button>' : ''}<button id="overviewLeagueSettings" class="secondary">League settings</button></div>` : '<p class="sub">Open Draft to mark yourself ready. The commissioner can start once every regular manager is ready.</p>'}</section>` : isDrafting ? `<section class="card pad workspace-setup-panel"><p class="eyebrow">${context.draftPaused ? 'Draft paused' : 'Draft in progress'}</p><h2>Round ${turn?.round || context.rosterSize} of ${context.rosterSize}</h2><p class="sub">${data.picks.length} of ${data.order.length * context.rosterSize} picks complete. ${context.draftTimerDisabled ? 'This draft has no timer, but managers can opt into auto-draft.' : context.draftAiringLocked ? 'The clock and picks resume when this week is marked complete.' : context.draftPaused ? 'The clock and picks are paused until the league owner resumes.' : turn ? `${safe(memberByTeam.get(turn.teamId)?.display_name || 'The next manager')} is on the clock.` : 'Every roster is filled.'}</p><a class="workspace-inline-link" href="#teams" id="overviewOpenDraft">View the draft</a></section>` : !score.scoringWeeks.length ? '<section class="card pad workspace-setup-panel"><p class="eyebrow">Season ready</p><h2>Waiting for the first completed show</h2><p class="sub">Your draft teams are set. Weekly points and highlights will appear after a show is completed.</p></section>' : '';
   const scored = context.leagueStatus === 'active' && score.scoringWeeks.length > 0;
   const latestWeek = score.scoringWeeks.at(-1);
   const nextWeek = context.leagueStatus === 'active' ? data.weeks.find((week) => !week.is_complete && (!latestWeek || week.number > latestWeek.number)) : null;
@@ -849,11 +854,14 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
       official: parts.official, appearances: parts.appearances, total: parts.official + parts.appearances };
   });
   const regularMembers = data.members.filter((member) => member.member_role === 'member');
+  const autoDraftEnabled = Boolean(data.autoDraft?.auto_draft_enabled);
+  const autoDraftButton = data.autoDraftAvailable
+    ? `<button type="button" id="toggleAutoDraft" class="secondary" aria-pressed="${autoDraftEnabled}">${autoDraftEnabled ? 'Turn off auto-draft' : 'Auto-draft my team'}</button>` : '';
   const readyIds = new Set(data.readiness.filter((item) => item.ready_at).map((item) => item.user_id));
   const readyCount = regularMembers.filter((member) => readyIds.has(member.user_id)).length;
   const enoughEligibleCast = !enforceRoleBalance || draftHasCapacity(data, context.rosterSize);
   const canStartDraft = data.members.length >= 3 && data.members.length <= 5
-    && readyCount === regularMembers.length && enoughEligibleCast && !context.draftAiringLocked;
+    && readyCount === regularMembers.length && enoughEligibleCast;
   const ownReady = readyIds.has(context.userId);
   const readinessRows = data.members.map((member) => {
     const isOwner = member.member_role === 'owner';
@@ -879,9 +887,9 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
   const airingLock = context.leagueStatus === 'active' && isTradeAiringLocked(data.weeks);
   const rosterRule = enforceRoleBalance ? `<p class="workspace-category-rule"><b>Roster balance</b> ${teamCategoryCount('Pro')}/${categoryLimits.Pro} active pros · ${teamCategoryCount('Star')}/${categoryLimits.Star} active stars · ${teamCategoryCount('Bonus')}${context.leagueStatus === 'drafting' ? `/${draftBonusLimit}` : ''} bonus.${draftFlex && context.leagueStatus !== 'active' ? ' One extra Pro or Star pick is available to make this preset draftable.' : ''} Eliminated cast and other roles count as bonus. Existing players stay when limits drop; a new active Pro or Star can join only if the resulting roster is within the current limit.</p>` : '';
   const draftStrip = context.leagueStatus === 'setup'
-    ? `<div class="workspace-draft-setup"><div class="workspace-draft-strip"><div><small>Draft setup</small><strong>${regularMembers.length ? `${readyCount} of ${regularMembers.length} members ready` : 'Waiting for managers'}</strong><p class="sub">${data.members.length} managers · ${context.rosterSize} rounds · preset roster size</p></div>${context.leagueRole === 'owner' ? `<button id="startDraftFromTeam" ${canStartDraft ? '' : 'disabled'}>Start draft</button>` : `<button id="toggleDraftReady" type="button" class="${ownReady ? 'secondary' : ''}">${ownReady ? 'Unready' : 'Ready'}</button>`}</div><div class="workspace-ready-board"><div class="workspace-ready-heading"><h3>Managers</h3><span>${regularMembers.length ? `${readyCount}/${regularMembers.length} ready` : 'No members yet'}</span></div><ul class="workspace-ready-list">${readinessRows}</ul>${context.leagueRole === 'owner' && !canStartDraft ? `<p class="workspace-ready-note">${data.members.length < 3 ? `Invite ${3 - data.members.length} more ${3 - data.members.length === 1 ? 'manager' : 'managers'} to start.` : data.members.length > 5 ? 'Leagues can now draft with 3–5 managers. Remove one manager to continue.' : !enoughEligibleCast ? 'The current cast pool cannot fill every roster under the Pro, Star, and Bonus limits.' : context.draftAiringLocked ? 'Drafting resumes when this week is marked complete.' : 'Waiting for every regular manager to be ready.'}</p>` : ''}</div></div>`
+    ? `<div class="workspace-draft-setup"><div class="workspace-draft-strip"><div><small>Draft setup</small><strong>${regularMembers.length ? `${readyCount} of ${regularMembers.length} members ready` : 'Waiting for managers'}</strong><p class="sub">${data.members.length} managers · ${context.rosterSize} rounds · preset roster size</p><p class="sub">${autoDraftEnabled ? 'Auto-draft is on. Your picks will be made when your turn begins.' : 'Prefer to skip the live draft? Turn on auto-draft.'}</p>${autoDraftButton}</div>${context.leagueRole === 'owner' ? `<button id="startDraftFromTeam" ${canStartDraft ? '' : 'disabled'}>Start draft</button>` : `<button id="toggleDraftReady" type="button" class="${ownReady ? 'secondary' : ''}">${ownReady ? 'Unready' : 'Ready'}</button>`}</div><div class="workspace-ready-board"><div class="workspace-ready-heading"><h3>Managers</h3><span>${regularMembers.length ? `${readyCount}/${regularMembers.length} ready` : 'No members yet'}</span></div><ul class="workspace-ready-list">${readinessRows}</ul>${context.leagueRole === 'owner' && !canStartDraft ? `<p class="workspace-ready-note">${data.members.length < 3 ? `Invite ${3 - data.members.length} more ${3 - data.members.length === 1 ? 'manager' : 'managers'} to start.` : data.members.length > 5 ? 'Leagues can now draft with 3–5 managers. Remove one manager to continue.' : !enoughEligibleCast ? 'The current cast pool cannot fill every roster under the Pro, Star, and Bonus limits.' : 'Waiting for every regular manager to be ready.'}</p>` : ''}</div></div>`
     : context.leagueStatus === 'drafting'
-      ? `<div class="workspace-draft-strip workspace-draft-status"><div><small>Round ${currentRound} of ${context.rosterSize} · Pick ${turn?.pickNumber || '—'}</small><strong>${context.draftAiringLocked ? 'Draft on hold for the show' : context.draftPaused ? 'Draft paused' : isYourTurn ? 'You are on the clock' : `${safe(memberByTeam.get(turn?.teamId)?.display_name || 'Next manager')} is on the clock`}</strong><p class="sub">${context.draftAiringLocked ? 'Picks and the clock resume when this week is marked complete.' : context.draftTimerDisabled ? 'No time limit or automatic picks. Each manager picks when it is their turn.' : context.draftPaused ? 'The league owner paused the draft. No picks or automatic selections can happen until it resumes.' : 'Each manager has two minutes to pick before the draft selects a random available cast member.'}</p>${context.leagueRole === 'owner' && !context.draftTimerDisabled && !context.draftAiringLocked ? `<button type="button" id="toggleDraftPause" class="secondary">${context.draftPaused ? 'Resume draft' : 'Pause draft'}</button>` : ''}</div>${context.draftTimerDisabled ? '' : `<div class="workspace-draft-timer"><small>${context.draftPaused ? 'Draft clock' : 'Time left'}</small><strong id="workspaceDraftClock" aria-live="off">${context.draftPaused ? 'Paused' : '02:00'}</strong></div>`}</div>`
+      ? `<div class="workspace-draft-strip workspace-draft-status"><div><small>Round ${currentRound} of ${context.rosterSize} · Pick ${turn?.pickNumber || '—'}</small><strong>${context.draftAiringLocked ? 'Draft on hold for the show' : context.draftPaused ? 'Draft paused' : isYourTurn ? 'You are on the clock' : `${safe(memberByTeam.get(turn?.teamId)?.display_name || 'Next manager')} is on the clock`}</strong><p class="sub">${context.draftAiringLocked ? 'Picks and the clock resume when this week is marked complete.' : context.draftTimerDisabled ? 'No time limit. Managers can still opt into auto-draft.' : context.draftPaused ? 'The league owner paused the draft. No picks or automatic selections can happen until it resumes.' : 'When the league’s pick timer expires, the draft makes an automatic selection.'} Automatic picks fill Pro, then Star, then Bonus, then Flex, choosing randomly within the eligible category.</p><p class="sub">${autoDraftEnabled ? 'Auto-draft is on for your team.' : 'You can let auto-draft take your remaining turns.'}</p>${autoDraftButton}${context.leagueRole === 'owner' && !context.draftTimerDisabled && !context.draftAiringLocked ? `<button type="button" id="toggleDraftPause" class="secondary">${context.draftPaused ? 'Resume draft' : 'Pause draft'}</button>` : ''}</div>${context.draftTimerDisabled ? '' : `<div class="workspace-draft-timer"><small>${context.draftPaused ? 'Draft clock' : 'Time left'}</small><strong id="workspaceDraftClock" aria-live="off">${context.draftPaused ? 'Paused' : '—'}</strong></div>`}</div>`
       : seasonSummary;
   const canClaim = isYourTurn || context.leagueStatus === 'active' && !airingLock;
   const castScrollTop = body.querySelector('.workspace-available-list')?.scrollTop || 0;
@@ -979,6 +987,11 @@ function renderMyTeam(context, data, score, assignmentMap, memberByTeam, refresh
     () => db.rpc('set_league_draft_ready', { p_league_id: context.leagueId, p_ready: !ownReady }),
     refresh,
     $('#toggleDraftReady'),
+  ));
+  $('#toggleAutoDraft')?.addEventListener('click', () => runAction(
+    () => db.rpc('set_league_auto_draft', { p_league_id: context.leagueId, p_enabled: !autoDraftEnabled }),
+    refresh,
+    $('#toggleAutoDraft'),
   ));
   $('#editMyTeam').hidden = context.leagueStatus !== 'active';
   const openTeamNameEditor = () => {
@@ -1394,7 +1407,7 @@ async function loadPendingInvites(leagueId) {
 }
 
 function confirmStartDraft(context) {
-  dialog(`<p class="eyebrow">Final confirmation</p><h2>Start the draft?</h2><p class="sub">The order will be randomized once. ${context.memberCount} managers will each draft ${context.rosterSize} cast members in snake order. New members cannot join after it starts.</p><label class="workspace-untimed-choice"><input id="disableDraftTimer" type="checkbox"><span><b>Disable timer &amp; autodraft</b><small>Managers can take as long as they need to pick. No random cast will be selected.</small></span></label><div class="modal-actions"><button id="cancelStartDraft" type="button" class="secondary">Cancel</button><button id="confirmStartDraft">Start draft</button></div>`);
+  dialog(`<p class="eyebrow">Final confirmation</p><h2>Start the draft?</h2><p class="sub">The order will be randomized once. ${context.memberCount} managers will each draft ${context.rosterSize} cast members in snake order. New members cannot join after it starts.${context.draftAiringLocked ? ' Picks will wait until this week is marked complete.' : ''}</p><label class="workspace-untimed-choice"><input id="disableDraftTimer" type="checkbox"><span><b>Disable pick timer</b><small>Managers can take as long as they need to pick. Anyone who opted into auto-draft will still be picked for immediately.</small></span></label><div class="modal-actions"><button id="cancelStartDraft" type="button" class="secondary">Cancel</button><button id="confirmStartDraft">Start draft</button></div>`);
   $('#cancelStartDraft').addEventListener('click', () => $('#modal').close());
   $('#confirmStartDraft').addEventListener('click', () => runAction(
     () => db.rpc('start_league_draft', { p_league_id: context.leagueId,

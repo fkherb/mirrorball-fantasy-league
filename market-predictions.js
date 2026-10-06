@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20261006-complete-performance-v94';
+import { db } from './supabase-client.js?v=20261006-ordered-auto-draft-v95';
 
 let cached = [];
 let loadedAt = 0;
