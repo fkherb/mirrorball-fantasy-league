@@ -1,16 +1,17 @@
-import { db } from './supabase-client.js?v=20261006-frozen-draft-v97';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261006-frozen-draft-v97';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-frozen-draft-v97';
-import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261006-frozen-draft-v97';
-import { loadMarketPredictions } from './market-predictions.js?v=20261006-frozen-draft-v97';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-frozen-draft-v97';
-import { appearanceValue, calculateLeaguePoints, roleForWeek, sharedAppearanceRate } from './scoring.js?v=20261006-frozen-draft-v97';
-import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20261006-frozen-draft-v97';
-import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261006-frozen-draft-v97';
-import { splitDanceType, joinDanceType } from './dance-type.js?v=20261006-frozen-draft-v97';
-import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261006-frozen-draft-v97';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-frozen-draft-v97';
-import { automationFields, automationStatus, judgeOrderFields, readAutomationFields } from './week-automation.js?v=20261006-frozen-draft-v97';
+import { db } from './supabase-client.js?v=20261006-airing-completion-v98';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261006-airing-completion-v98';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261006-airing-completion-v98';
+import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261006-airing-completion-v98';
+import { loadMarketPredictions } from './market-predictions.js?v=20261006-airing-completion-v98';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261006-airing-completion-v98';
+import { appearanceValue, calculateLeaguePoints, roleForWeek, sharedAppearanceRate } from './scoring.js?v=20261006-airing-completion-v98';
+import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20261006-airing-completion-v98';
+import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261006-airing-completion-v98';
+import { splitDanceType, joinDanceType } from './dance-type.js?v=20261006-airing-completion-v98';
+import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261006-airing-completion-v98';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261006-airing-completion-v98';
+import { automationFields, automationStatus, judgeOrderFields, readAutomationFields } from './week-automation.js?v=20261006-airing-completion-v98';
+import { isTradeAiringLocked } from './week-airing-policy.js?v=20261006-airing-completion-v98';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -975,7 +976,8 @@ function renderPublicTeams() {
     const summary = week.is_complete ? total : weekAiringLabel(week, 'TBA');
     return `<button class="${selectedPublicWeekId === week.id ? 'selected' : ''}" data-public-week="${week.id}" aria-pressed="${selectedPublicWeekId === week.id}"><span>Week ${week.number}</span><strong class="${week.is_complete ? '' : 'air-date'}">${escapeHtml(summary)}</strong></button>`;
   }).join('');
-  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person available-cast-person"><button type="button" class="available-profile-button" data-available-cast-detail="${member.id}" aria-label="View ${escapeHtml(member.name)} profile"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><span><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></span></button>${canEditThisTeam ? `<button type="button" class="claim-cast-button" data-claim-cast="${member.id}">Claim</button>` : ''}</article>`).join('');
+  const airingLock = isTradeAiringLocked(weeks);
+  const peopleMarkup = (people) => people.map((member) => `<article class="league-cast-person available-cast-person"><button type="button" class="available-profile-button" data-available-cast-detail="${member.id}" aria-label="View ${escapeHtml(member.name)} profile"><img src="${escapeHtml(displayImagePath(member))}" style="object-position:${member.image_position ?? 50}% center" alt=""><span><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(displayRole(member))}</small></span></button>${canEditThisTeam ? `<button type="button" class="claim-cast-button" data-claim-cast="${member.id}" ${airingLock ? 'disabled title="Claims reopen when the week is complete"' : ''}>${airingLock ? 'Locked' : 'Claim'}</button>` : ''}</article>`).join('');
   const switcher = visibleTeamRows.length > 1 ? `<div class="team-switcher" aria-label="Choose a fantasy team">${visibleTeamRows.map((row) => `<button class="${row.team.id === selected.team.id ? 'selected' : ''}" data-public-team="${row.team.id}"><span>${escapeHtml(row.team.team_name || defaultTeamName(row.team.manager_name))}</span><small>${row.total} pts</small></button>`).join('')}</div>` : '';
   $('#editMyTeam').hidden = !canEditThisTeam;
   $('#editMyTeam').onclick = canEditThisTeam ? () => openMyTeamEditor(selected.team) : null;
@@ -997,6 +999,7 @@ function renderPublicTeams() {
 }
 
 function openClaimCastMember(incomingId) {
+  if (isTradeAiringLocked(standingsSnapshot?.weeks || [])) return alert('Roster changes reopen when this week is marked complete.');
   const incoming = standingsSnapshot?.members.find((member) => member.id === incomingId && !member.fantasy_team_id);
   const team = standingsSnapshot?.teamRows.find((row) => row.team.id === managerTeamId)?.team;
   const roster = standingsSnapshot?.members.filter((member) => member.fantasy_team_id === managerTeamId).sort((a, b) => a.name.localeCompare(b.name)) || [];
@@ -1115,14 +1118,15 @@ async function loadTrades() {
     container.innerHTML = '<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub">Connect a manager account to a fantasy team to trade.</p>';
     return;
   }
-  const [offersResult, historyResult, notificationsResult] = await Promise.all([
+  const [offersResult, historyResult, notificationsResult, weeksResult] = await Promise.all([
     db.rpc('get_my_trade_offers'),
     db.rpc('get_my_trade_history'),
     db.rpc('get_my_trade_result_notifications'),
+    db.from('weeks').select('id,air_date,air_start_time,air_end_time,second_air_date,second_air_start_time,second_air_end_time,is_complete'),
   ]);
   if (loadVersion !== tradeLoadVersion || !container.isConnected) return;
-  if (offersResult.error || historyResult.error || notificationsResult.error) {
-    const error = offersResult.error || historyResult.error || notificationsResult.error;
+  if (offersResult.error || historyResult.error || notificationsResult.error || weeksResult.error) {
+    const error = offersResult.error || historyResult.error || notificationsResult.error || weeksResult.error;
     const setupMissing = ['42P01', 'PGRST202'].includes(error.code) || /trade|function/i.test(error.message || '');
     console.error(error);
     container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div></div><p class="sub ${setupMissing ? '' : 'error'}">${setupMissing ? 'Run the latest trade database update to enable timers and history.' : friendlyError('load trades')}</p>${setupMissing ? '' : '<button type="button" class="secondary" id="retryTrades">Try again</button>'}`;
@@ -1132,6 +1136,13 @@ async function loadTrades() {
   const trades = offersResult.data || [];
   const history = historyResult.data || [];
   const notifications = notificationsResult.data || [];
+  const airingLock = isTradeAiringLocked(weeksResult.data || []);
+  if (standingsSnapshot) standingsSnapshot.weeks = weeksResult.data || standingsSnapshot.weeks;
+  document.querySelectorAll('[data-claim-cast]').forEach((button) => {
+    button.disabled = airingLock;
+    button.textContent = airingLock ? 'Locked' : 'Claim';
+    button.title = airingLock ? 'Claims reopen when the week is complete' : '';
+  });
   const tradeCards = (trades || []).map((trade) => {
     const context = tradeContext(trade);
     const isInitiator = trade.initiator_team_id === managerTeamId;
@@ -1141,7 +1152,7 @@ async function loadTrades() {
     const awaitingMe = trade.awaiting_team_id === managerTeamId;
     const canCancel = !awaitingMe;
     const mayCounter = awaitingMe && trade.status === 'pending' && trade.counterparty_team_id === managerTeamId;
-    return `<article class="trade-offer ${awaitingMe ? 'needs-action' : ''}"><div class="trade-offer-top"><span>${trade.status === 'countered' ? 'Counter offer' : 'Trade offer'}</span><small>${awaitingMe ? 'Your response' : `Waiting for ${escapeHtml(otherTeamName)}`}</small></div>${tradeSwapMarkup(mine, theirs)}<div class="trade-expiry"><span data-trade-expires="${escapeHtml(trade.expires_at)}">${escapeHtml(tradeTimeRemaining(trade.expires_at))}</span><small>Offer closes automatically</small></div>${awaitingMe ? `<div class="trade-actions"><button data-accept-trade="${trade.id}">Accept</button>${mayCounter ? `<button class="secondary" data-counter-trade="${trade.id}">Counter</button>` : ''}<button class="secondary trade-deny" data-deny-trade="${trade.id}">Deny</button></div>` : canCancel ? `<div class="trade-actions"><button class="secondary trade-deny" data-cancel-trade="${trade.id}">Cancel offer</button></div>` : ''}</article>`;
+    return `<article class="trade-offer ${awaitingMe ? 'needs-action' : ''}"><div class="trade-offer-top"><span>${trade.status === 'countered' ? 'Counter offer' : 'Trade offer'}</span><small>${awaitingMe ? 'Your response' : `Waiting for ${escapeHtml(otherTeamName)}`}</small></div>${tradeSwapMarkup(mine, theirs)}<div class="trade-expiry"><span data-trade-expires="${escapeHtml(trade.expires_at)}">${escapeHtml(tradeTimeRemaining(trade.expires_at))}</span><small>Offer closes automatically</small></div>${awaitingMe ? `<div class="trade-actions"><button data-accept-trade="${trade.id}" ${airingLock ? 'disabled' : ''}>Accept</button>${mayCounter ? `<button class="secondary" data-counter-trade="${trade.id}" ${airingLock ? 'disabled' : ''}>Counter</button>` : ''}<button class="secondary trade-deny" data-deny-trade="${trade.id}">Deny</button></div>` : canCancel ? `<div class="trade-actions"><button class="secondary trade-deny" data-cancel-trade="${trade.id}">Cancel offer</button></div>` : ''}</article>`;
   }).join('');
   const statusLabels = { countered: 'Countered', accepted: 'Accepted', denied: 'Denied', expired: 'Expired', cancelled: 'Cancelled', invalidated: 'Superseded' };
   const resultCards = notifications.map((entry) => {
@@ -1161,7 +1172,7 @@ async function loadTrades() {
     return `<article class="trade-history-item"><div class="trade-history-head"><span class="trade-status trade-status-${entry.event_type}">${statusLabels[entry.event_type] || entry.event_type}</span><small>${escapeHtml(date)}</small></div>${tradeSwapMarkup(mine, theirs)}</article>`;
   }).join('');
   const activeCards = `${resultCards}${tradeCards}`;
-  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary">Propose trade</button></div><p class="sub">Swap one cast member with another manager.</p><div class="trade-view-tabs" role="tablist" aria-label="Trade activity"><button type="button" role="tab" aria-selected="${tradeViewMode === 'active'}" data-trade-view="active" class="${tradeViewMode === 'active' ? 'selected' : ''}">Active <span>${trades.length + notifications.length}</span></button><button type="button" role="tab" aria-selected="${tradeViewMode === 'history'}" data-trade-view="history" class="${tradeViewMode === 'history' ? 'selected' : ''}">History</button></div><div class="trade-list" role="tabpanel" ${tradeViewMode === 'active' ? '' : 'hidden'}>${activeCards || '<div class="trade-empty">No active trade offers or new results.</div>'}</div><div class="trade-history-list" role="tabpanel" ${tradeViewMode === 'history' ? '' : 'hidden'}>${historyCards || '<div class="trade-empty">No past trade activity yet.</div>'}</div>`;
+  container.innerHTML = `<div class="trade-center-head"><div><p class="eyebrow">Manager tools</p><h3>Trades</h3></div><button id="newTrade" class="secondary" ${airingLock ? 'disabled' : ''}>${airingLock ? 'Airing lock' : 'Propose trade'}</button></div><p class="sub">${airingLock ? 'Trades reopen when this week is marked complete. You can still deny or cancel an offer.' : 'Swap one cast member with another manager.'}</p><div class="trade-view-tabs" role="tablist" aria-label="Trade activity"><button type="button" role="tab" aria-selected="${tradeViewMode === 'active'}" data-trade-view="active" class="${tradeViewMode === 'active' ? 'selected' : ''}">Active <span>${trades.length + notifications.length}</span></button><button type="button" role="tab" aria-selected="${tradeViewMode === 'history'}" data-trade-view="history" class="${tradeViewMode === 'history' ? 'selected' : ''}">History</button></div><div class="trade-list" role="tabpanel" ${tradeViewMode === 'active' ? '' : 'hidden'}>${activeCards || '<div class="trade-empty">No active trade offers or new results.</div>'}</div><div class="trade-history-list" role="tabpanel" ${tradeViewMode === 'history' ? '' : 'hidden'}>${historyCards || '<div class="trade-empty">No past trade activity yet.</div>'}</div>`;
   $('#newTrade')?.addEventListener('click', openNewTrade);
   document.querySelectorAll('[data-trade-view]').forEach((button) => button.addEventListener('click', () => { tradeViewMode = button.dataset.tradeView; loadTrades(); }));
   document.querySelectorAll('[data-accept-trade]').forEach((button) => button.addEventListener('click', async () => {
@@ -1209,6 +1220,7 @@ async function loadTrades() {
 }
 
 function openNewTrade() {
+  if (isTradeAiringLocked(standingsSnapshot?.weeks || [])) return alert('Trades reopen when this week is marked complete.');
   const { members, teamRows } = standingsSnapshot;
   const myRoster = members.filter((member) => member.fantasy_team_id === managerTeamId).sort((a, b) => a.name.localeCompare(b.name));
   const otherRoster = members.filter((member) => member.fantasy_team_id && member.fantasy_team_id !== managerTeamId);
@@ -1240,6 +1252,7 @@ function openNewTrade() {
 }
 
 function openCounterTrade(trade) {
+  if (isTradeAiringLocked(standingsSnapshot?.weeks || [])) return alert('Trades reopen when this week is marked complete.');
   if (!trade || !standingsSnapshot) return;
   const { members } = standingsSnapshot;
   const context = tradeContext(trade);

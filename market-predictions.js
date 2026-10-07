@@ -1,4 +1,4 @@
-import { db } from './supabase-client.js?v=20261006-frozen-draft-v97';
+import { db } from './supabase-client.js?v=20261006-airing-completion-v98';
 
 let cached = [];
 let loadedAt = 0;
