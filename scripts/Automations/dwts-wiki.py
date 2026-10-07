@@ -375,7 +375,7 @@ def parse_information(html, mode, couples=None, week_tag=None, page_url=DEFAULT_
                 "live-show": {"couple", "scores"}, "post-show": {"couple", "result"}}[mode]
     recognized = 0
     warnings = []
-    for table in (n for n in week["nodes"] if n.tag == "table" and n.ancestor("table") is None):
+    for table_index, table in enumerate(n for n in week["nodes"] if n.tag == "table" and n.ancestor("table") is None):
         grid = table_grid(table)
         header_index, columns = None, {}
         for i, row in enumerate(grid):
@@ -391,7 +391,7 @@ def parse_information(html, mode, couples=None, week_tag=None, page_url=DEFAULT_
             continue
         recognized += 1
         table_pairs = {}
-        for row in grid[header_index + 1:]:
+        for row_index, row in enumerate(grid[header_index + 1:], start=header_index + 1):
             label = field_value(row, columns, "couple")
             record = lookup.get(pair_key(label)) if label else None
             if record is None:
@@ -408,6 +408,8 @@ def parse_information(html, mode, couples=None, week_tag=None, page_url=DEFAULT_
                 data.update(music_information(field_value(row, columns, "music")))
             elif mode == "live-show":
                 data.update(score_information(field_value(row, columns, "scores")))
+                data["table_index"] = table_index
+                data["row_index"] = row_index
                 warning = data.pop("warning", None)
                 if warning:
                     warnings.append(f"{record['star_name']} and {record['pro_name']}: {warning}")

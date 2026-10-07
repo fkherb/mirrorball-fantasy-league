@@ -74,6 +74,19 @@ class WorkerTests(unittest.TestCase):
             self.w.gather({'mode': 'get-weeks', 'targets': []})
         fetch.assert_called_once_with('get-weeks')
 
+    def test_live_wiki_scores_include_table_row_position(self):
+        html = '''<h2 id="Weekly_scores">Weekly scores</h2>
+            <h3 id="Week_4:_Test">Week 4: Test</h3>
+            <table><tr><th>Couple</th><th>Scores</th></tr>
+            <tr><td>Amber &amp; Pasha</td><td>8, 8, 8 = 24</td></tr>
+            <tr><td>Connor &amp; Rylee</td><td>7, 7, 7 = 21</td></tr></table>'''
+        result = self.w.wiki.parse_information(html, 'live-show',
+            {'Amber Glenn': 'Pasha Pashkov', 'Connor Wood': 'Rylee Arnold'},
+            '#Week_4:_Test')
+        positions = [item['performances'][0]['row_index'] for item in result['couples']]
+        self.assertEqual(positions, [1, 2])
+        self.assertEqual([item['performances'][0]['table_index'] for item in result['couples']], [0, 0])
+
 
 if __name__ == '__main__':
     unittest.main()
