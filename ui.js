@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20261006-airing-draft-v96';
-import { prepareProfilePicture } from './profile-picture.js?v=20261006-airing-draft-v96';
+import { db } from './supabase-client.js?v=20261006-frozen-draft-v97';
+import { prepareProfilePicture } from './profile-picture.js?v=20261006-frozen-draft-v97';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];
