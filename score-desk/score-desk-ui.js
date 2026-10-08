@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20261006-airing-completion-v98';
+import { db } from '../supabase-client.js?v=20261008-dynamic-rosters-v99';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

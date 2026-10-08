@@ -332,6 +332,53 @@ counteroffer cannot bring an active Pro or Star onto a roster that would
 remain above that limit. Swapping an over-limit player for Bonus cast is
 allowed.
 
+### Dynamic roster limits (October 8, 2026)
+
+Run `supabase/dynamic-roster-limits.sql` after the draft-freeze and
+airing-until-completion migrations. This supersedes the draft-only Flex rules
+above for regular leagues. The original league remains completely exempt.
+Roster sizes remain 12/10/8 for 3/4/5 teams. Combined active cap is
+`ceil((active Pros + active Stars) / teams)`; each individual role cap is
+`ceil((active Pros + active Stars) / teams / 2)`; Bonus cap is
+`roster_size - combined_active_cap + 1`. Participating unmanaged teams still
+count in the denominator. Nothing removes cast from existing over-limit teams.
+Optionally run `supabase/check-dynamic-roster-limits.sql` afterward to inspect
+current caps, retained over-limit teams and client/private function privileges.
+That check is read-only and is intended for the SQL editor, not a client RPC.
+
+Over-limit teams may exchange only from an overfilled category into a category
+with room; if only the combined active cap is exceeded, either active category
+may leave for Bonus. Each exchange must reduce an excess without increasing
+another. Partial corrections are supported. Both recipients are checked when
+offers/counters are sent and again at acceptance. The normal airing lock,
+orphan-team auto-accept, commissioner timer controls, scores and snapshots stay
+unchanged. Active free-agent swaps now replace the outgoing assignment in one
+atomic update, keeping total roster size unchanged.
+
+Authenticated members can call `get_league_roster_rules(p_league_id)` for the
+web/iOS contract: `version`, `status`, `limits`, `draft_can_start`,
+`roster_changes_locked`, and `teams`. Limits include `pro_max`, `star_max`,
+`active_max`, `bonus_max`, `roster_size`, `team_count`, `exempt`, and
+`legacy_draft_limits`. Each team returns `team_id`, counts keyed `Pro`/`Star`/
+`Bonus`, `over_limit_categories`, `combined_active_over`, `allowed_exchanges`
+(outgoing category -> allowed incoming categories), and
+`draft_eligible_categories` (category -> boolean, populated during drafting).
+The category matrix does not waive actual availability, ownership, pending
+offers, draft turn or airing restrictions. Existing mutation RPC signatures
+are unchanged. Refresh this read after a pick, trade, swap or week completion.
+
+Draft eligibility uses exact max-flow supply checks so a legal-looking pick
+cannot strand another manager. Numeric limits and cast roles are frozen at
+draft start. A draft already running when this migration first runs retains
+its old numeric allowances until it ends. Automatic picks randomly choose
+within the first eligible category in Pro -> Star -> Bonus order. The UI never
+shows a separate Flex category or changes an existing drafted member's role.
+
+`npm run check:rosters` tests all 39 scenarios and corrective exchanges. The
+additional `scripts/check-dynamic-rosters-db.mjs` test runs the actual migration
+only in an explicitly named disposable PostgreSQL container; never use it
+against live Supabase.
+
 Google and Apple sign-in use the existing Supabase Auth users and profile
 trigger. New users finish onboarding by choosing a username and display name;
 existing password users can connect either provider without changing their
