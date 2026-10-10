@@ -1,5 +1,5 @@
-import { db } from './supabase-client.js?v=20261009-week-dances-diagnostics-v100';
-import { prepareProfilePicture } from './profile-picture.js?v=20261009-week-dances-diagnostics-v100';
+import { db } from './supabase-client.js?v=20261009-repo-rename-preparation-v101';
+import { prepareProfilePicture } from './profile-picture.js?v=20261009-repo-rename-preparation-v101';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const buttons = [...document.querySelectorAll('nav button[data-view]')];

@@ -1,3 +1,5 @@
+import { photoRepositoryEndpoints } from './repository-location.js';
+
 // Never substitute another dance's photograph when a dance has no matching image.
 const key = (value) => String(value || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
 const couplePhotoNames = [
@@ -19,8 +21,7 @@ export function couplePhotoFor(title) {
   const name = couplePhotoNamesByPair.get(key(title));
   return name ? `Images/Couples/${encodeURIComponent(name)}.avif` : '';
 }
-const treeUrl = 'https://api.github.com/repos/fkherb/mirrorball-fantasy-league/git/trees/main?recursive=1';
-const rawRoot = 'https://raw.githubusercontent.com/fkherb/mirrorball-fantasy-league/main/';
+const { treeUrl, rawRoot } = photoRepositoryEndpoints(import.meta.url);
 const manifestUrls = [`${rawRoot}dance-photo-manifest.json`, new URL('./dance-photo-manifest.json', import.meta.url).href];
 const storageKey = 'mirrorball-dance-photos-v3';
 const refreshMs = 5 * 60 * 1000;

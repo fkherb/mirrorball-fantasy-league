@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "details": [{
+      "appIDs": ["5TXGRKPUC4.com.mirrorball-fantasy"],
+      "components": [
+        { "/": "/mirrorball-fantasy-league/*", "?": { "join": "?*" }, "comment": "Existing league invites" },
+        { "/": "/mirrorball-fantasy/*", "?": { "join": "?*" }, "comment": "League invites after the repository rename" }
+      ]
+    }]
+  }
+}

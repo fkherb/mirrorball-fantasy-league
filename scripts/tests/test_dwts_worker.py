@@ -76,6 +76,26 @@ class WorkerTests(unittest.TestCase):
             self.w.gather({'mode': 'get-weeks', 'targets': []})
         fetch.assert_called_once_with('get-weeks')
 
+    def test_repository_setting_routes_reads_writes_and_receipts(self):
+        self.assertEqual(self.w.photos.GITHUB_REPO, 'fkherb/mirrorball-fantasy-league')
+        config = {'SUPABASE_URL': 'https://example.supabase.co',
+            'DWTS_AUTOMATION_WORKER_SECRET': 's' * 48,
+            'DWTS_GITHUB_REPOSITORY': 'fkherb/mirrorball-fantasy'}
+        renamed = worker.Worker(config, Path(self.tmp.name))
+        photos = renamed.photos
+        with patch.object(photos, 'http_json_or_text', return_value={}) as request:
+            photos.gh('GET', '/git/ref/heads/main', 'token')
+            self.assertEqual(request.call_args.args[0],
+                'https://api.github.com/repos/fkherb/mirrorball-fantasy/git/ref/heads/main')
+            photos.gh('PATCH', '/git/refs/heads/main', 'token', {'sha': 'a' * 40})
+            self.assertIn('/repos/fkherb/mirrorball-fantasy/', request.call_args.args[0])
+        self.assertEqual(photos.new_result(5, [], True)['repository'], 'fkherb/mirrorball-fantasy')
+        for invalid in ['', 'https://github.com/fkherb/mirrorball-fantasy', '../other',
+                        'fkherb/../other', 'fkherb/repo?token=secret']:
+            with self.assertRaises(photos.PhotoError):
+                photos.configure_github_repository(invalid)
+        self.assertEqual(photos.GITHUB_REPO, 'fkherb/mirrorball-fantasy')
+
     def test_live_wiki_scores_include_table_row_position(self):
         html = '''<h2 id="Weekly_scores">Weekly scores</h2>
             <h3 id="Week_4:_Test">Week 4: Test</h3>

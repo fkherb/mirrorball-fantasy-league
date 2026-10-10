@@ -1,4 +1,7 @@
 import importlib.util
+import io
+import json
+from contextlib import redirect_stdout
 from pathlib import Path
 import subprocess
 import tempfile
@@ -14,6 +17,19 @@ POST = {'id_str': '123', 'created_at': 'Tue Oct 06 20:30:00 +0000 2026',
 
 
 class PhotoDiagnosticsTests(unittest.TestCase):
+    def test_invalid_repository_configuration_still_returns_safe_json(self):
+        output = io.StringIO()
+        with patch.dict(photos.os.environ, {'DWTS_GITHUB_REPOSITORY': 'invalid?private-token'}), \
+             patch.object(photos, 'fetch_posts') as fetch, redirect_stdout(output):
+            status = photos.main(['--week', '5', '--couples', json.dumps([COUPLE]),
+                                 '--git-token', 'private-token', '--dry-run', '--print'])
+        self.assertEqual(status, 1)
+        result = json.loads(output.getvalue())
+        self.assertTrue(result['failed_run'])
+        self.assertEqual(result['errors'][0]['stage'], 'configuration')
+        self.assertNotIn('private-token', output.getvalue())
+        fetch.assert_not_called()
+
     def run_fixture(self, posts, files=None, failure=None, dry_run=False):
         with patch.object(photos, 'fetch_posts', side_effect=failure, return_value=posts), \
              patch.object(photos, 'remote_files', return_value=[]), \

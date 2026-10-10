@@ -39,7 +39,8 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 
-GITHUB_REPO = "fkherb/mirrorball-fantasy-league"
+DEFAULT_GITHUB_REPO = "fkherb/mirrorball-fantasy-league"
+GITHUB_REPO = DEFAULT_GITHUB_REPO
 BRANCH = "main"
 DANCES_DIR = "Images/Dances"
 HANDLE = "officialdwts"
@@ -50,6 +51,16 @@ RATE_MARKER = "DWTS_GALLERY_RATE_LIMIT:"
 
 class PhotoError(ValueError):
     pass
+
+
+def configure_github_repository(value=None):
+    """Explicit deployment setting; never derive the upload target from scraped data."""
+    global GITHUB_REPO
+    value = DEFAULT_GITHUB_REPO if value is None else value.strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*", value):
+        raise PhotoError("DWTS_GITHUB_REPOSITORY must be an owner/repository, not a URL")
+    GITHUB_REPO = value
+    return value
 
 
 class RateLimitError(PhotoError):
@@ -564,6 +575,7 @@ def main(argv=None):
         pass  # Explicit CLI tokens and exported environment variables still work.
     args.git_token = args.git_token or os.environ.get("DWTS_PHOTOS_GITHUB_TOKEN")
     try:
+        configure_github_repository(os.environ.get("DWTS_GITHUB_REPOSITORY"))
         couples = read_couples(args.couples)
         result = run(args.week, couples, args.git_token, args.since, args.dry_run)
     except (PhotoError, OSError, ValueError) as exc:

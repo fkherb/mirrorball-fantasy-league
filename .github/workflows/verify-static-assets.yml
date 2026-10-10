@@ -17,6 +17,7 @@ jobs:
       - run: npm run photos
       - run: npm run photos:check
       - run: node scripts/check-cache-keys.mjs
+      - run: npm run check:migration
       - run: node scripts/check-market-predictions.mjs
       - run: node scripts/check-market-history-pages.mjs
       - run: node --experimental-strip-types scripts/check-market-sync.mjs

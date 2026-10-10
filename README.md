@@ -5,6 +5,11 @@ browser is the interface; Supabase stores the shared league data.
 
 ## How it is structured
 
+Repository rename preparation and manual settings are documented in
+[Repository rename migration](docs/repository-rename-migration.md). The current
+deployment remains supported until the rename; do not run the avatar cutover
+until the new website and its images are live.
+
 - `index.html`, `styles.css`, `roster.css`, `app.js`, and `ui.js` serve the original league.
 - `league-workspace.js` serves other leagues; `postdraft-view.js` contains shared views.
 - `supabase-client.js` is the single shared Supabase browser client.

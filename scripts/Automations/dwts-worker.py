@@ -51,6 +51,7 @@ class Worker:
         self.state.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.wiki = module("dwts_wiki", "dwts-wiki.py")
         self.photos = module("dwts_photos", "dwts-photos.py")
+        self.photos.configure_github_repository(config.get("DWTS_GITHUB_REPOSITORY"))
 
     def scrub(self, value):
         for secret in (self.secret, self.token):
