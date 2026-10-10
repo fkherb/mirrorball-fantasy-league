@@ -74,6 +74,7 @@ class Worker:
         if not self.token:
             raise ValueError("DWTS_PHOTOS_GITHUB_TOKEN is missing")
         targets = task["targets"]
+        reconciled = 0
         if not preview:
             existing = self.photos.remote_files(task["folder"], self.token)
             verified = []
@@ -89,13 +90,18 @@ class Worker:
                     item["commit_sha"] = head
                 response = self.api("reconcile", run_id=task["run_id"], verified=verified)
                 done = set(response["verified_dance_ids"])
+                reconciled = len(done)
                 targets = [t for t in targets if t["dance_id"] not in done]
         couples = [{"star_name": t["star_name"], "pro_name": t["pro_name"]} for t in targets]
         if not couples:
-            return self.photos.new_result(task["week"], [], preview)
-        state = {"downloaded": {p["post_id"]: {} for p in task.get("known_photo_posts", [])}}
-        return self.photos.run(task["week"], couples, self.token, task.get("since"),
-            dry_run=preview, external_state=state)
+            result = self.photos.finish_diagnostics(self.photos.new_result(task["week"], [], preview))
+        else:
+            state = {"downloaded": {p["post_id"]: {} for p in task.get("known_photo_posts", [])}}
+            result = self.photos.run(task["week"], couples, self.token, task.get("since"),
+                dry_run=preview, external_state=state)
+        result["diagnostics"]["requested_couples"] = len(task["targets"])
+        result["diagnostics"]["reconciled_couples"] = reconciled
+        return result
 
     def gather(self, task, preview=False):
         if task["mode"] == "photos":
@@ -145,6 +151,9 @@ class Worker:
             except Exception as exc:
                 result = {"error": self.scrub(str(exc)), "failed_run": True,
                     "week": task["week"], "dry_run": False, "errors": [{"message": self.scrub(str(exc))}]}
+            if task["mode"] == "photos" and result.get("diagnostics"):
+                LOG.info("Week %s photo diagnostics: %s", task["week"],
+                    self.scrub(json.dumps(result["diagnostics"])))
             path = self.persist(task["run_id"], result)
             self.flush(path)
         finally:

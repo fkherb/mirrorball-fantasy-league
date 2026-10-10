@@ -511,3 +511,44 @@ still subject to the usual roster and airing checks. The hourly database job
 fully deletes unmanaged teams and their team-specific history after the
 season-finale week is complete and the airing lock has passed. Confirm the
 `cleanup-deleted-account-teams` job exists in Supabase Cron.
+
+## October 9: automatic dance cards and photo diagnostics
+
+Run `supabase/auto-create-week-dances-and-photo-diagnostics.sql` in full in
+Supabase SQL Editor after the existing automation and wiki-score-order SQL.
+It repairs Week 5 immediately, enables/wakes its dance-info job, and returns
+the competitive-card count (11 with the current cast). It leaves the existing
+wiki tag, judge order and other selected automation modes intact. It does not
+complete a week, overwrite manual details, or download completed-week photos.
+
+Cards are now created in the database when the previous week is completed,
+or when the next week is added after completion. Creation runs at transaction
+end so that newly eliminated couples are excluded. Existing competitive cards
+are preserved; legitimate multiple-dance weeks are not restricted to one dance
+per couple. Only eligible upcoming weeks are seeded, and a season finale ends
+the chain. The owner-only `prepare_week_competitive_dances(p_week_id)` RPC is
+an idempotent website repair path that returns all competitive rows for the week.
+The website merges this response by ID rather than inserting its own cards.
+
+Wiki dance types, songs/artists and scores remain visible after their **first**
+valid retrieval. Confirmation needs two distinct consecutive matching runs,
+per field. Changes restart that field's count; missing data breaks the streak;
+manual entries are protected. Once both dance type and song are confirmed, a
+couple is omitted from pre-show targets; once scores are confirmed, it is
+omitted from live-show targets. The SQL preserves the existing importer and
+wiki score-order wrapper while making missing JSON arrays safe.
+
+The updated `scripts/Automations/dwts-photos.py` reports timeline/match counts,
+date/processed/ambiguous skips, download attempts, empty downloads, non-image
+files, upload counts, pending couples and classified downloader warnings.
+No raw downloader output, authentication cookies or tokens are included.
+`dwts-worker.py` adds GitHub reconciliation counts and logs these diagnostics;
+the database saves them in each photo run's summary, and Score Desk displays
+them under Automation. Empty downloads never mark a couple's photos complete.
+Both scripts must also be updated on the automation server; no new secrets or
+Edge Function deployment are needed.
+
+Tests: `npm run check:automation`, Python unit tests in `scripts/tests`, and
+`node scripts/check-week-automation-db.mjs mirrorball-automation-test-20261009`.
+The database test accepts only an explicitly named disposable Docker container
+and never accepts a live database URL.

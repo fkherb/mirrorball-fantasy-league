@@ -58,6 +58,23 @@ export function jobStatus(job, data, week, now = Date.now()) {
   return due > now ? `Next check ${date(due)}` : 'Due · awaiting worker';
 }
 
+export function photoDiagnosticsMarkup(d) {
+  if (!d || typeof d !== 'object') return '';
+  const outcomes = {
+    rate_limited: 'X/GitHub rate limit; waiting for cooldown', failed: 'Photo run failed',
+    uploaded: 'Photos uploaded', partial_upload: 'Some couples uploaded; others still pending',
+    already_satisfied: 'Existing photos verified; no download needed', preview_matches: 'Preview found matching posts',
+    empty_timeline: 'X returned an empty timeline', no_recent_posts: 'No posts since this week’s airing date',
+    no_matching_posts: 'No eligible posts matched both full couple names',
+    no_images_downloaded: 'Matching posts found, but downloader produced no images', no_uploads: 'No photos uploaded',
+  };
+  const number = (key) => Math.max(0, Number(d[key]) || 0);
+  return `<small>${escape(outcomes[d.outcome] || 'Photo diagnostics available')} · ${number('pending_couples')} couples pending</small>
+    <small>${number('timeline_posts')} posts read · ${number('matched_posts')} matched · ${number('download_attempts')} downloads attempted · ${number('uploaded_files')} files uploaded · ${number('reconciled_couples')} couples verified on GitHub${number('empty_downloads') ? ` · ${number('empty_downloads')} empty downloads` : ''}</small>
+    <small>${number('before_since_posts')} older posts · ${number('already_seen_posts')} previously processed · ${number('unmatched_posts')} without both names · ${number('ambiguous_posts')} ambiguous · ${number('non_image_files')} non-image files skipped</small>
+    ${Array.isArray(d.warnings) && d.warnings.length ? `<small class="automation-error">Downloader notices: ${escape(d.warnings.join(', '))}</small>` : ''}`;
+}
+
 export function automationStatus(data, week) {
   if (!data) return '<details class="week-automation-status"><summary>Automation status unavailable</summary><p>Run add-score-desk-automation-controls.sql in Supabase, then refresh.</p></details>';
   const p = data.progress || {};
@@ -68,7 +85,7 @@ export function automationStatus(data, week) {
   return `<details class="week-automation-status"><summary>Automation · ${week.is_complete ? 'Week complete' : data.settings?.enabled ? 'Enabled' : 'Paused'} · ${Number(p.photos || 0)}/${Number(p.total || 0)} couples have photos</summary>
     <div class="automation-progress">${[['dance_types','Dance types'],['songs','Songs'],['scores','Score panels'],['eliminations','Results'],['photos','Photos']].map(([key,label]) => `<span><b>${Number(p[key] || 0)}/${Number(p.total || 0)}</b> ${label}</span>`).join('')}</div>
     <p class="sub">Counts show confirmed fields; unconfirmed imports are already visible. Worker: ${workerState}. Last heartbeat: ${date(data.worker?.last_heartbeat_at)}.</p>
-    <div class="automation-jobs">${[...names].map(([mode,label]) => {const job=data.jobs?.find((j)=>j.mode===mode); return `<div><strong>${label}</strong><span>${escape(job ? jobStatus(job,data,week,now) : week.is_complete ? 'Week complete' : data.settings?.enabled && data.settings.modes?.includes(mode) ? 'Awaiting worker scheduling' : 'Paused')}</span>${job?.last_run ? `<small>Last check: ${date(job.last_run.finished_at || job.last_run.started_at)} · ${escape(job.last_run.status)}</small>` : ''}${job?.last_error ? `<small class="automation-error">${escape(job.last_error)}</small>` : ''}</div>`;}).join('')}</div>
+    <div class="automation-jobs">${[...names].map(([mode,label]) => {const job=data.jobs?.find((j)=>j.mode===mode); return `<div><strong>${label}</strong><span>${escape(job ? jobStatus(job,data,week,now) : week.is_complete ? 'Week complete' : data.settings?.enabled && data.settings.modes?.includes(mode) ? 'Awaiting worker scheduling' : 'Paused')}</span>${job?.last_run ? `<small>Last check: ${date(job.last_run.finished_at || job.last_run.started_at)} · ${escape(job.last_run.status)}</small>` : ''}${mode === 'photos' ? photoDiagnosticsMarkup(job?.last_run?.summary?.photo_diagnostics) : ''}${job?.last_error ? `<small class="automation-error">${escape(job.last_error)}</small>` : ''}</div>`;}).join('')}</div>
     <button type="button" class="secondary" id="refreshWeekAutomation">Refresh status</button>
     <p class="sub">Schedule times are ET. Enablement and job choices carry into the next week unless explicitly overridden there.</p></details>`;
 }

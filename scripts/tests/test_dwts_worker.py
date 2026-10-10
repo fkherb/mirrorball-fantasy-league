@@ -39,6 +39,8 @@ class WorkerTests(unittest.TestCase):
             result = self.w.photo_result(task)
         self.assertFalse(result['failed_run'])
         self.assertEqual(result['remaining_couples'], [])
+        self.assertEqual(result['diagnostics']['reconciled_couples'], 1)
+        self.assertEqual(result['diagnostics']['outcome'], 'already_satisfied')
         fetch.assert_not_called()
 
     def test_photo_receipts_and_external_state(self):
@@ -64,7 +66,7 @@ class WorkerTests(unittest.TestCase):
 
     def test_preview_never_reconciles_or_uploads(self):
         task = {'mode': 'photos', 'week': 3, 'targets': [{'star_name': 'Amber Glenn', 'pro_name': 'Pasha Pashkov'}]}
-        with patch.object(self.w.photos, 'run', return_value={}) as run, patch.object(self.w, 'api') as api:
+        with patch.object(self.w.photos, 'run', return_value=self.w.photos.new_result(3, task['targets'], True)) as run, patch.object(self.w, 'api') as api:
             self.w.gather(task, preview=True)
         self.assertTrue(run.call_args.kwargs['dry_run'])
         api.assert_not_called()

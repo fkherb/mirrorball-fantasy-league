@@ -1,17 +1,16 @@
-import { db } from './supabase-client.js?v=20261008-dynamic-rosters-v99';
-import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261008-dynamic-rosters-v99';
-import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261008-dynamic-rosters-v99';
-import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261008-dynamic-rosters-v99';
-import { loadMarketPredictions } from './market-predictions.js?v=20261008-dynamic-rosters-v99';
-import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261008-dynamic-rosters-v99';
-import { appearanceValue, calculateLeaguePoints, roleForWeek, sharedAppearanceRate } from './scoring.js?v=20261008-dynamic-rosters-v99';
-import { nextWeekCompetitiveDanceRows } from './next-week-dance-plan.js?v=20261008-dynamic-rosters-v99';
-import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261008-dynamic-rosters-v99';
-import { splitDanceType, joinDanceType } from './dance-type.js?v=20261008-dynamic-rosters-v99';
-import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261008-dynamic-rosters-v99';
-import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261008-dynamic-rosters-v99';
-import { automationFields, automationStatus, judgeOrderFields, readAutomationFields } from './week-automation.js?v=20261008-dynamic-rosters-v99';
-import { isTradeAiringLocked } from './week-airing-policy.js?v=20261008-dynamic-rosters-v99';
+import { db } from './supabase-client.js?v=20261009-week-dances-diagnostics-v100';
+import { renderLeagueHub, renderSecondaryLeague, stopSecondaryLeague } from './league-workspace.js?v=20261009-week-dances-diagnostics-v100';
+import { episodeSpotlight, standingsSwitch, standingCard, scoreRows, overviewTeamDetail, highlightCards, teamCard, teamDetail, castRosterRow, judgePortraitFor, judgeMemberFor, teamPage, roleRatesTable, castProfile, danceDetail, bindDanceGallery, bindCastPredictionToggle } from './postdraft-view.js?v=20261009-week-dances-diagnostics-v100';
+import { danceImagesFor, couplePhotoFor, startDanceImageUpdates } from './dance-images.js?v=20261009-week-dances-diagnostics-v100';
+import { loadMarketPredictions } from './market-predictions.js?v=20261009-week-dances-diagnostics-v100';
+import { activePartnershipPredictionRows, nextPredictionWeek, seasonPredictionsFor, weeklyPredictionFor } from './market-prediction-model.js?v=20261009-week-dances-diagnostics-v100';
+import { appearanceValue, calculateLeaguePoints, roleForWeek, sharedAppearanceRate } from './scoring.js?v=20261009-week-dances-diagnostics-v100';
+import { splitDanceSong, joinDanceSong } from './dance-song.js?v=20261009-week-dances-diagnostics-v100';
+import { splitDanceType, joinDanceType } from './dance-type.js?v=20261009-week-dances-diagnostics-v100';
+import { avatarFrameFor, avatarImageStyle } from './cast-avatar-frame.js?v=20261009-week-dances-diagnostics-v100';
+import { couplePhotoFrameFor, couplePhotoStyle } from './couple-photo-frame.js?v=20261009-week-dances-diagnostics-v100';
+import { automationFields, automationStatus, judgeOrderFields, readAutomationFields } from './week-automation.js?v=20261009-week-dances-diagnostics-v100';
+import { isTradeAiringLocked } from './week-airing-policy.js?v=20261009-week-dances-diagnostics-v100';
 const $ = (selector) => document.querySelector(selector);
 const appSurface = document.body.dataset.surface || 'league';
 const isScoreDeskSurface = appSurface === 'score-desk';
@@ -1334,17 +1333,10 @@ async function prepareNextWeekCompetitiveDances(previousWeek, nextWeek, existing
       || Number(nextWeek?.number) !== Number(previousWeek.number) + 1) return [];
   if (pendingNextWeekPreparation?.weekId === nextWeek.id) return pendingNextWeekPreparation.promise;
   const promise = (async () => {
-    const [{ data: cast, error: castError }, { data: partnerships, error: pairError }] = await Promise.all([
-      db.from('cast_members').select('id,name,role,eliminated_week_id'),
-      db.from('partnerships').select('id,star_id,pro_id,active'),
-    ]);
-    if (castError || pairError) throw castError || pairError;
-    const rows = nextWeekCompetitiveDanceRows(previousWeek, nextWeek, partnerships, cast, existingDances);
-    if (!rows.length) return [];
-    const { data: created, error } = await db.from('dances').insert(rows)
-      .select('id,kind,partnership_id,name,dance_type,song,sort_order');
+    const { data: created, error } = await db.rpc('prepare_week_competitive_dances', { p_week_id: nextWeek.id });
     if (error) throw error;
-    return created || [];
+    const existingIds = new Set((existingDances || []).map((dance) => dance.id));
+    return (created || []).filter((dance) => !existingIds.has(dance.id));
   })();
   pendingNextWeekPreparation = { weekId: nextWeek.id, promise };
   try { return await promise; }

@@ -304,7 +304,26 @@ def gallery_worker(arguments):
     return 0
 
 
-def download(url, dest):
+def gallery_warning_codes(stderr):
+    """Only classifications leave the subprocess; never expose raw auth logs."""
+    text = stderr.casefold()
+    codes = []
+    for code, needles in (
+        ("rate_limited", ("rate limit", "ratelimit", RATE_MARKER.casefold())),
+        ("login_required", ("login", "log in", "authentication", "unauthorized", "cookies")),
+        ("post_unavailable", ("not found", "unavailable", "deleted", "protected")),
+        ("no_media", ("no media", "no images", "no results")),
+    ):
+        if any(needle in text for needle in needles):
+            codes.append(code)
+    if "warning" in text and not codes:
+        codes.append("gallery_warning")
+    if "error" in text and not codes:
+        codes.append("gallery_error")
+    return codes
+
+
+def download(url, dest, diagnostics=None):
     command = gallery_command() + [
         "--no-input", "--no-colors", "--no-postprocessors", "-R", "0",
         "-o", "extractor.twitter.retries-api=0", "-o", "extractor.twitter.ratelimit=abort",
@@ -315,13 +334,23 @@ def download(url, dest):
         process = subprocess.run(command, capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired as exc:
         raise PhotoError("Photo download exceeded its two-minute time limit; retry on a later run.") from exc
+    if diagnostics is not None:
+        for code in gallery_warning_codes(process.stderr):
+            if code not in diagnostics["warnings"]:
+                diagnostics["warnings"].append(code)
     for line in process.stderr.splitlines():
         if line.startswith(RATE_MARKER):
             raise RateLimitError("X photos", json.loads(line[len(RATE_MARKER):])["cooldown_seconds"])
     if process.returncode:
         # Do not echo subprocess logs: they may contain authentication details.
-        raise PhotoError(f"gallery-dl could not finish this post (exit code {process.returncode}).")
-    return sorted((p for p in Path(dest).rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_EXTS), key=photo_order)
+        codes = gallery_warning_codes(process.stderr)
+        reason = ", ".join(codes) if codes else "unclassified downloader error"
+        raise PhotoError(f"gallery-dl could not finish this post (exit code {process.returncode}; {reason}).")
+    files = [p for p in Path(dest).rglob("*") if p.is_file()]
+    images = [p for p in files if p.suffix.lower() in IMAGE_EXTS]
+    if diagnostics is not None:
+        diagnostics["non_image_files"] += len(files) - len(images)
+    return sorted(images, key=photo_order)
 
 
 def uploaded_file(path, commit=None):
@@ -334,7 +363,49 @@ def new_result(week, couples, dry_run):
             "skip_next_run": False,
             "repository": GITHUB_REPO, "folder": f"{DANCES_DIR}/Week {week}",
             "uploaded_couples": [], "remaining_couples": list(couples),
-            "planned_uploads": [], "errors": []}
+            "planned_uploads": [], "errors": [],
+            "diagnostics": {"version": 1, "outcome": "not_started",
+                "requested_couples": len(couples), "reconciled_couples": 0,
+                "timeline_posts": 0, "recent_posts": 0, "before_since_posts": 0,
+                "already_seen_posts": 0, "unmatched_posts": 0, "ambiguous_posts": 0,
+                "already_satisfied_posts": 0, "matched_posts": 0,
+                "download_attempts": 0, "empty_downloads": 0, "downloaded_images": 0, "non_image_files": 0,
+                "uploaded_couples": 0, "uploaded_files": 0, "pending_couples": len(couples),
+                "warnings": [], "post_results": []}}
+
+
+def post_diagnostic(diagnostics, post_id, couple, status, images=0):
+    if len(diagnostics["post_results"]) < 25:
+        diagnostics["post_results"].append({"post_id": post_id, **couple,
+            "status": status, "images": images})
+
+
+def finish_diagnostics(result):
+    d = result["diagnostics"]
+    d["uploaded_couples"] = len(result["uploaded_couples"])
+    d["uploaded_files"] = sum(len(c["files"]) for c in result["uploaded_couples"])
+    d["pending_couples"] = len(result["remaining_couples"])
+    if result["failed_run"]:
+        limited = any("service" in error and "rate limit" in error["message"].lower()
+                      for error in result["errors"])
+        d["outcome"] = "rate_limited" if limited else "failed"
+    elif not result["remaining_couples"]:
+        d["outcome"] = "uploaded" if d["uploaded_couples"] else "already_satisfied"
+    elif result["uploaded_couples"]:
+        d["outcome"] = "partial_upload"
+    elif result["dry_run"] and result["planned_uploads"]:
+        d["outcome"] = "preview_matches"
+    elif not d["timeline_posts"]:
+        d["outcome"] = "empty_timeline"
+    elif not d["recent_posts"]:
+        d["outcome"] = "no_recent_posts"
+    elif not d["matched_posts"]:
+        d["outcome"] = "no_matching_posts"
+    elif d["empty_downloads"]:
+        d["outcome"] = "no_images_downloaded"
+    else:
+        d["outcome"] = "no_uploads"
+    return result
 
 
 def record_error(result, exc, stage, couple=None):
@@ -361,6 +432,7 @@ def refresh_remaining(result):
 def run(week, couples, git_token, since=None, dry_run=False, external_state=None):
     couples = normalize_couples(couples)
     result = new_result(week, couples, dry_run)
+    diagnostics = result["diagnostics"]
     stage = "configuration"
     try:
         if week <= 0:
@@ -369,6 +441,7 @@ def run(week, couples, git_token, since=None, dry_run=False, external_state=None
             raise PhotoError("--git-token is required, including for dry runs.")
         day = datetime.strptime(since, "%Y-%m-%d") if since else datetime.now()
         since_time = day.replace(hour=0, minute=0, second=0, microsecond=0).astimezone()
+        diagnostics["since"] = since_time.isoformat()
         stage = "state"
         state = load_state() if external_state is None else external_state
         # Recover successes from earlier runs (including the old state format).
@@ -385,9 +458,12 @@ def run(week, couples, git_token, since=None, dry_run=False, external_state=None
             refresh_remaining(result)
         targets = result["remaining_couples"]
         if not targets:
-            return result
+            return finish_diagnostics(result)
         stage = "timeline"
         posts = fetch_posts(HANDLE)
+        diagnostics["timeline_posts"] = len(posts)
+        diagnostics["newest_post_at"] = posts[0]["created_at"] if posts else None
+        diagnostics["oldest_post_at"] = posts[-1]["created_at"] if posts else None
         stage = "github_listing"
         existing = remote_files(result["folder"], git_token)
         staged, done, uploaded = [], {}, {}
@@ -395,31 +471,53 @@ def run(week, couples, git_token, since=None, dry_run=False, external_state=None
             for post in posts:
                 pid = str(post["id_str"])
                 created = datetime.strptime(post["created_at"], "%a %b %d %H:%M:%S %z %Y")
-                if created < since_time or pid in state["downloaded"]:
+                if created < since_time:
+                    diagnostics["before_since_posts"] += 1
+                    continue
+                diagnostics["recent_posts"] += 1
+                if pid in state["downloaded"]:
+                    diagnostics["already_seen_posts"] += 1
                     continue
                 matches = find_couples(post.get("full_text") or post.get("text", ""), couples)
-                if len(matches) != 1 or matches[0] not in targets:
+                if not matches:
+                    diagnostics["unmatched_posts"] += 1
+                    continue
+                if len(matches) > 1:
+                    diagnostics["ambiguous_posts"] += 1
+                    continue
+                if matches[0] not in targets:
+                    diagnostics["already_satisfied_posts"] += 1
                     continue
                 couple = matches[0]
                 name = couple_name(couple)
                 if name in uploaded:
+                    diagnostics["already_satisfied_posts"] += 1
                     continue  # One photo-bearing post per couple is sufficient.
+                diagnostics["matched_posts"] += 1
                 url = f"https://x.com/{HANDLE}/status/{pid}"
                 if dry_run:
                     result["planned_uploads"].append({**couple,
                         "post_url": url, "folder": result["folder"],
                         "filename_prefix": f"{name}-{next_index(existing, name)}"})
+                    post_diagnostic(diagnostics, pid, couple, "preview_match")
                     continue
                 try:
-                    photos = download(url, Path(tmp) / pid)
+                    diagnostics["download_attempts"] += 1
+                    photos = download(url, Path(tmp) / pid, diagnostics=diagnostics)
                 except RateLimitError as exc:
+                    post_diagnostic(diagnostics, pid, couple, "rate_limited")
                     record_error(result, exc, "download", couple)
                     break
                 except (PhotoError, OSError) as exc:
+                    post_diagnostic(diagnostics, pid, couple, "download_failed")
                     record_error(result, exc, "download", couple)
                     continue
                 if not photos:
+                    diagnostics["empty_downloads"] += 1
+                    post_diagnostic(diagnostics, pid, couple, "no_images")
                     continue  # Empty downloads are never successes or saved post IDs.
+                diagnostics["downloaded_images"] += len(photos)
+                post_diagnostic(diagnostics, pid, couple, "images_downloaded", len(photos))
                 number, filenames = next_index(existing, name), []
                 info = uploaded.setdefault(name, {**couple, "files": [], "post_ids": [pid]})
                 for photo in photos:
@@ -444,10 +542,10 @@ def run(week, couples, git_token, since=None, dry_run=False, external_state=None
                 state["downloaded"].update(done)
                 if external_state is None:
                     save_state(state)
-        return result
+        return finish_diagnostics(result)
     except (PhotoError, urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
         record_error(result, exc, stage)
-        return result
+        return finish_diagnostics(result)
 
 
 def main(argv=None):

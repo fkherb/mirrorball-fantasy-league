@@ -1,4 +1,4 @@
-import { db } from '../supabase-client.js?v=20261008-dynamic-rosters-v99';
+import { db } from '../supabase-client.js?v=20261009-week-dances-diagnostics-v100';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authButton = document.querySelector('#adminAuth');

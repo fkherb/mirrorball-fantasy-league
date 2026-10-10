@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { nextWeekCompetitiveDanceRows } from '../next-week-dance-plan.js';
 
 const completed = { id: 'week-3', number: 3, is_complete: true };
@@ -34,5 +35,10 @@ assert.deepEqual(plan({ ...completed, is_complete: false }, next), []);
 assert.deepEqual(plan({ ...completed, is_season_finale: true }, next), []);
 assert.deepEqual(plan(completed, { ...next, number: 5 }), []);
 assert.deepEqual(plan(completed, { ...next, is_complete: true }), []);
+const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
+const repair = app.slice(app.indexOf('async function prepareNextWeekCompetitiveDances('), app.indexOf('async function loadScoreDesk('));
+assert.match(repair, /db\.rpc\('prepare_week_competitive_dances'/);
+assert.doesNotMatch(repair, /\.insert\(/, 'Browser must not race the database by inserting its own cards.');
+assert.match(repair, /existingIds\.has\(dance\.id\)/, 'Repair response must not duplicate existing rows in the UI.');
 
 console.log('Next-week competitive dance preparation verified.');

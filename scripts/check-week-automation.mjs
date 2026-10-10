@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { automationFields, automationStatus, jobStatus, readAutomationFields } from '../week-automation.js';
+import { automationFields, automationStatus, jobStatus, readAutomationFields, photoDiagnosticsMarkup } from '../week-automation.js';
 const now = Date.parse('2026-10-06T18:00:00Z');
 const data = {server_time:new Date(now).toISOString(),settings:{enabled:true,modes:['get-weeks','pre-show','photos'],wiki_tag:'#Week_4:_Test'},previous_complete:true,
   worker:{last_heartbeat_at:new Date(now-60000).toISOString()},progress:{total:12,dance_types:12,songs:12,scores:0,photos:4},jobs:[]};
@@ -17,6 +17,10 @@ assert.match(automationStatus(data,week),/12\/12/);
 assert.match(automationStatus(data,week),/Connected/);
 assert.match(automationFields(data,'Guest <script>'),/Guest &lt;script&gt;/);
 assert.ok(!automationFields(data,'Guest <script>').includes('Guest <script>'));
+assert.match(photoDiagnosticsMarkup({outcome:'no_images_downloaded',matched_posts:3,empty_downloads:2}),/downloader produced no images/);
+assert.match(photoDiagnosticsMarkup({outcome:'no_matching_posts',timeline_posts:20}),/20 posts read/);
+assert.ok(!photoDiagnosticsMarkup({warnings:['<script>']}).includes('<script>'));
+assert.match(automationStatus({...data,jobs:[{...job,last_run:{summary:{photo_diagnostics:{outcome:'rate_limited'}}}}]},week),/waiting for cooldown/);
 const inputs = {'#weekWikiAutomatic':{checked:true},'#weekAutomationEnabled':{checked:true},'#weekWikiTag':{value:''}};
 const root={querySelector:(selector)=>inputs[selector],querySelectorAll:(selector)=>selector.includes('mode')?[{dataset:{automationMode:'live-show'}}]:[{value:'Carrie Ann'},{value:'Derek'},{value:'Bruno'},{value:'Guest'}]};
 assert.deepEqual(readAutomationFields(root,'Guest').modes,['get-weeks','live-show']);
